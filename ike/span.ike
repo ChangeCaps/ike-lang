@@ -1,5 +1,7 @@
 import std::list
 import std::string
+import std::none
+import std::some
 
 type file = {
   path:    str
@@ -24,12 +26,37 @@ fn span::join a b {
 
 fn span::line : span -> int
 fn span::line s {
-  s.file.content 
+  let n, _ = s.file.content 
   |> string::split "\n"
-  |> list::foldl s.lo \acc line -> {
-    match acc > string::length line {
-      true  -> 0
-      false -> 0
+  |> list::foldl (1, 0) \n, start line -> {
+    let end = start + string::length line + 1
+
+    match start >= s.lo {
+      true  -> n, end
+      false -> n + 1, end
     }
   }
+
+  n 
+}
+
+fn span::column : span -> option<int * str>
+fn span::column s {
+  let n, _ = s.file.content 
+  |> string::split "\n"
+  |> list::foldl (none, 0) \n, start line -> {
+    let end = start + string::length line + 1
+
+    match s.lo >= start && s.lo < end {
+      true  -> some (start, line), end
+      false -> n                 , end
+    }
+  }
+
+  n
+}
+
+fn span::content : span -> str
+fn span::content s {
+  string::sub s.lo s.hi s.file.content
 }

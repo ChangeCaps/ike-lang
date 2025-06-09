@@ -1400,10 +1400,14 @@ impl ExprLowerer<'_, '_> {
                 let ty = ir::Type::infer();
 
                 for arm in arms {
+                    let old_scope_len = self.scope.len();
+
                     let pattern = self.lower_pattern(arm.pattern, target.ty.clone())?;
                     let expr = self.lower_expr(arm.expr)?;
                     self.unify(expr.ty.clone(), ty.clone(), expr.span);
                     ir_arms.push(ir::Arm { pattern, expr });
+
+                    self.scope.truncate(old_scope_len);
                 }
 
                 self.exhaust(&ir_arms, expr.span)?;

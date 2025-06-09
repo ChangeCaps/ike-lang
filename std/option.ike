@@ -1,1 +1,41 @@
 type option<'a> = some 'a | none
+
+fn option::assert : option<'a> -> 'a
+fn option::assert opt {
+  match opt {
+    some a -> a
+    none   -> panic "option was none"
+  }
+}
+
+fn option::some-or : 'a -> option<'a> -> 'a
+fn option::some-or a opt {
+  match opt {
+    some a -> a
+    none   -> a
+  }
+}
+
+fn option::ok-or : option<'a> -> 'e -> result<'a, 'e> 
+fn option::ok-or opt e {
+  match opt {
+    some x -> ok x
+    none   -> err e
+  }
+}
+
+fn option::or : option<'a> -> option<'a> -> option<'a>
+fn option::or a b {
+  match a {
+    some v -> some v
+    none   -> b
+  }
+}
+
+fn option::is-none-or : ('a -> bool) -> option<'a> -> bool
+fn option::is-none-or f opt {
+  match opt {
+    some a -> f a
+    none   -> true
+  }
+}

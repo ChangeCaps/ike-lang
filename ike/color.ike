@@ -1,0 +1,32 @@
+import std::string
+
+type color = red | green | yellow | blue | magenta | cyan | white
+
+fn colorize : color -> str -> str
+fn colorize color message {
+  let prefix = match color {
+    red     -> "\x1b[31m"
+    green   -> "\x1b[32m"
+    yellow  -> "\x1b[33m"
+    blue    -> "\x1b[34m"
+    magenta -> "\x1b[35m"
+    cyan    -> "\x1b[36m"
+    white   -> "\x1b[37m"
+  }
+
+  let reset = "\x1b[0m"
+  
+  message
+  |> string::prepend prefix
+  |> string::append reset
+}
+
+fn bold : str -> str
+fn bold message {
+  let prefix = "\x1b[1m"
+  let reset = "\x1b[0m"
+
+  message
+  |> string::prepend prefix
+  |> string::append reset
+}

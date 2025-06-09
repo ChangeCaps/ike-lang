@@ -3,11 +3,11 @@ import std::option
 import std::none
 import std::some
 import std::string
-
-type diagnostic::color = red | green | yellow | blue | magenta | cyan | white
+import std::debug
+import std::list
 
 type diagnostic = {
-  color:   diagnostic::color
+  color:   color
   level:   str
   message: str
   labels:  [diagnostic::label]
@@ -21,7 +21,7 @@ type diagnostic::label = {
 fn diagnostic::error : str -> diagnostic
 fn diagnostic::error message {
   diagnostic {
-    color:   diagnostic::red
+    color:   red
     level:   "error"
     message: message
     labels:  []
@@ -31,7 +31,7 @@ fn diagnostic::error message {
 fn diagnostic::warning : str -> diagnostic
 fn diagnostic::warning message {
   diagnostic {
-    color:   diagnostic::yellow
+    color:   yellow
     level:   "warning"
     message: message
     labels:  []
@@ -41,7 +41,7 @@ fn diagnostic::warning message {
 fn diagnostic::info : str -> diagnostic
 fn diagnostic::info message {
   diagnostic {
-    color:   diagnostic::blue
+    color:   blue
     level:   "info"
     message: message
     labels:  []
@@ -80,42 +80,74 @@ fn diagnostic::with-label span message diagnostic {
 
 fn diagnostic::format : diagnostic -> str
 fn diagnostic::format diagnostic {
+  let indent = diagnostic.labels
+    |> list::map \l -> span::line l.span
+    |> list::foldl 0 math::max
+    |> debug::format
+    |> string::length
+
+  let labels = diagnostic::format-labels
+    <| diagnostic.labels
+    <| diagnostic.color
+    <| indent
+
   diagnostic::format-header diagnostic
+  |> string::append "\n"
+  |> string::append labels
 }
 
 fn diagnostic::format-header diagnostic {
   diagnostic.level
   |> colorize diagnostic.color |> bold
   |> string::append <| bold ":"
-  |> string::append " "
+  |> string::append <| " "
   |> string::append <| bold diagnostic.message
 }
 
-fn colorize : diagnostic::color -> str -> str
-fn colorize color message {
-  let prefix = match color {
-    diagnostic::red -> "\x1b[31m"
-    diagnostic::green -> "\x1b[32m"
-    diagnostic::yellow -> "\x1b[33m"
-    diagnostic::blue -> "\x1b[34m"
-    diagnostic::magenta -> "\x1b[35m"
-    diagnostic::cyan -> "\x1b[36m"
-    diagnostic::white -> "\x1b[37m"
+fn diagnostic::format-labels labels color indent {
+  match labels {
+    []                -> ""
+    [label; ..labels] -> {
+      diagnostic::format-label label color indent
+      |> string::append <| diagnostic::format-labels labels color indent
+    }
   }
-
-  let reset = "\x1b[0m"
-  
-  message
-  |> string::prepend prefix
-  |> string::append reset
 }
 
-fn bold : str -> str
-fn bold message {
-  let prefix = "\x1b[1m"
-  let reset = "\x1b[0m"
+fn diagnostic::format-label label color indent {
+  let line = span::line label.span
+  let start, s = span::column label.span |> option::assert
+  let column = label.span.lo - start
 
-  message
-  |> string::prepend prefix
-  |> string::append reset
+  string::repeat indent " "
+  |> string::append <| colorize blue "-->"
+  |> string::append <| " "
+  |> string::append <| label.span.file.path
+  |> string::append <| ":"
+  |> string::append <| debug::format line
+  |> string::append <| ":"
+  |> string::append <| debug::format column
+  |> string::append <| "\n"
+  |> string::append <| string::repeat (indent + 1) " "
+  |> string::append <| colorize blue "|\n"
+  |> string::append <| colorize blue (debug::format line)
+  |> string::append <| " "
+  |> string::append <| colorize blue "|"
+  |> string::append <| " "
+  |> string::append <| s
+  |> string::append <| "\n"
+  |> string::append <| string::repeat (indent + 1) " "
+  |> string::append <| colorize blue "|"
+  |> string::append <| string::repeat column " "
+  |> string::append <| colorize color (string::repeat (label.span.hi - label.span.lo) "^")
+  |> string::append <| " " 
+  |> string::append <| colorize color (option::some-or "" label.message)
+  |> string::append <| "\n"
+}
+
+fn diagnostic::format-indent indent {
+  match indent == 0 {
+    true  -> ""
+    false -> diagnostic::format-indent (indent - 1) |> string::append " "
+  }
 }

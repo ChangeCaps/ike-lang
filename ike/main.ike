@@ -1,16 +1,18 @@
-fn main {
-  let span = span {
-    file: file {
-      path:    "ike/main.ike"
-      content: "This is the main file content."
-    }
+import std::ok
+import std::err
 
-    lo:   0
-    hi:   0
+fn main {
+  let file = file {
+    path: "test.ike"
+    content: std::fs::read "test.ike" |> std::result::assert
   }
 
-  diagnostic::error "an error occurred"
-  |> diagnostic::with-span span
-  |> diagnostic::format
-  |> std::io::println
+  match parse::tokenize file {
+    ok tokens -> {}
+    err e     -> {
+      e
+      |> diagnostic::format
+      |> std::io::println
+    }
+  }
 }

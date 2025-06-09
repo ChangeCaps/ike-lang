@@ -23,3 +23,11 @@ fn result::ok-or d r {
     err _ -> d
   }
 }
+
+fn result::assert : result<'a, 'e> -> 'a
+fn result::assert r {
+  match r {
+    ok v  -> v
+    err e -> panic <| debug::format e
+  }
+}

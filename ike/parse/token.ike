@@ -1,0 +1,75 @@
+import std::result
+import std::ok
+import std::err
+import std::string
+import std::none
+import std::option
+import std::some
+
+import ike::file
+import ike::diagnostic
+import ike::span
+
+type token = ident str
+
+type lexer = {
+  file:   file
+  graphs: [str]
+  offset: int
+}
+
+fn lexer::peek : lexer -> option<str>
+fn lexer::peek lexer {
+  match lexer.graphs {
+    [g; .._] -> some g
+    []       -> none
+  }
+}
+
+fn tokenize : file -> result<[token], diagnostic>
+fn tokenize file {
+  let lexer = lexer {
+    file:   file
+    graphs: string::graphemes file.content
+    offset: 0
+  }
+
+  lexer::all lexer
+}
+
+fn lexer::all lexer {
+  match lexer::peek lexer {
+    none   -> ok []
+    some g -> {
+      lexer::whitespace lexer g
+      |> option::or 
+
+      lexer::unexpected-character lexer g
+    }
+  }
+}
+
+fn lexer::unexpected-character lexer g {
+  let span = span {
+    file: lexer.file
+    lo:   lexer.offset
+    hi:   lexer.offset + 1
+  }
+
+  let message = "unexpected character `"
+    |> string::append g
+    |> string::append "`"
+
+  diagnostic::error message
+  |> diagnostic::with-label span "found here"
+  |> err
+}
+
+fn lexer::whitespace lexer g {
+  match lexer::is-whitespace g {
+    true  -> none
+    false -> none
+  }
+}
+
+fn lexer::is-whitespace g -> g == " " || g == "\t" || g == "\r"

@@ -119,7 +119,7 @@ E["string::split"] = function(sep)
     local parts = {}
     local pattern = "([^" .. sep .. "]+)"
 
-    for part in str:gmatch(pattern) do
+    for part in string.gmatch(str, pattern) do
       table.insert(parts, part)
     end
 
@@ -194,7 +194,10 @@ E["fs::read"] = function(path)
 
   file:close()
 
-  return contents
+  return {
+    tag = "ok",
+    value = contents
+  }
 end
 
 E["os::execute"] = function(cmd)
