@@ -1,0 +1,35 @@
+import std::list
+import std::string
+
+type file = {
+  path:    str
+  content: str
+}
+
+type span = {
+  file: file
+  lo:   int
+  hi:   int
+}
+
+fn span::join a b {
+  std::assert (a.file == b.file) "Cannot join spans from different sources"
+
+  span {
+    file: a.file
+    lo:   math::min a.lo b.lo 
+    hi:   math::max a.hi b.hi 
+  }
+}
+
+fn span::line : span -> int
+fn span::line s {
+  s.file.content 
+  |> string::split "\n"
+  |> list::foldl s.lo \acc line -> {
+    match acc > string::length line {
+      true  -> 0
+      false -> 0
+    }
+  }
+}

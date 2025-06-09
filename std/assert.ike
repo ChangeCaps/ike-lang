@@ -1,0 +1,14 @@
+fn assert : bool -> str -> {}
+fn assert condition message {
+  match condition {
+    true  -> {}
+    false -> panic message
+  }
+}
+
+fn panic : str -> 'a
+fn panic message {
+  io::println message
+  os::exit 1
+}
+

@@ -1,0 +1,121 @@
+import std::math
+import std::option
+import std::none
+import std::some
+import std::string
+
+type diagnostic::color = red | green | yellow | blue | magenta | cyan | white
+
+type diagnostic = {
+  color:   diagnostic::color
+  level:   str
+  message: str
+  labels:  [diagnostic::label]
+}
+
+type diagnostic::label = {
+  message: option<str>
+  span:    span
+}
+
+fn diagnostic::error : str -> diagnostic
+fn diagnostic::error message {
+  diagnostic {
+    color:   diagnostic::red
+    level:   "error"
+    message: message
+    labels:  []
+  }
+}
+
+fn diagnostic::warning : str -> diagnostic
+fn diagnostic::warning message {
+  diagnostic {
+    color:   diagnostic::yellow
+    level:   "warning"
+    message: message
+    labels:  []
+  }
+}
+
+fn diagnostic::info : str -> diagnostic
+fn diagnostic::info message {
+  diagnostic {
+    color:   diagnostic::blue
+    level:   "info"
+    message: message
+    labels:  []
+  }
+}
+
+fn diagnostic::with-span : span -> diagnostic -> diagnostic
+fn diagnostic::with-span span diagnostic {
+  let label = diagnostic::label {
+    message: none
+    span: span
+  }
+
+  diagnostic {
+    color:   diagnostic.color
+    level:   diagnostic.level
+    message: diagnostic.message
+    labels:  [label; ..diagnostic.labels]
+  }
+}
+
+fn diagnostic::with-label : span -> str -> diagnostic -> diagnostic
+fn diagnostic::with-label span message diagnostic {
+  let label = diagnostic::label {
+    message: some message
+    span: span
+  }
+
+  diagnostic {
+    color:   diagnostic.color
+    level:   diagnostic.level
+    message: diagnostic.message
+    labels:  [label; ..diagnostic.labels]
+  }
+}
+
+fn diagnostic::format : diagnostic -> str
+fn diagnostic::format diagnostic {
+  diagnostic::format-header diagnostic
+}
+
+fn diagnostic::format-header diagnostic {
+  diagnostic.level
+  |> colorize diagnostic.color |> bold
+  |> string::append <| bold ":"
+  |> string::append " "
+  |> string::append <| bold diagnostic.message
+}
+
+fn colorize : diagnostic::color -> str -> str
+fn colorize color message {
+  let prefix = match color {
+    diagnostic::red -> "\x1b[31m"
+    diagnostic::green -> "\x1b[32m"
+    diagnostic::yellow -> "\x1b[33m"
+    diagnostic::blue -> "\x1b[34m"
+    diagnostic::magenta -> "\x1b[35m"
+    diagnostic::cyan -> "\x1b[36m"
+    diagnostic::white -> "\x1b[37m"
+  }
+
+  let reset = "\x1b[0m"
+  
+  message
+  |> string::prepend prefix
+  |> string::append reset
+}
+
+fn bold : str -> str
+fn bold message {
+  let prefix = "\x1b[1m"
+  let reset = "\x1b[0m"
+
+  message
+  |> string::prepend prefix
+  |> string::append reset
+}

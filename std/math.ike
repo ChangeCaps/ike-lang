@@ -1,0 +1,18 @@
+
+/// Get the maximum of two values.
+fn math::max : 'a -> 'a -> 'a
+fn math::max a b {
+  match a < b {
+    true  -> b
+    false -> a
+  }
+}
+
+/// Get the minimum of two values.
+fn math::min : 'a -> 'a -> 'a
+fn math::min a b {
+  match a < b {
+    true  -> a
+    false -> b
+  }
+}

@@ -1,0 +1,18 @@
+/// Prepend 'a' to the beginning of 'b'.
+extern string::prepend : str -> str -> str
+
+/// Split a string into a list of strings using the given separator.
+extern string::split : str -> str -> [str]
+
+/// Split a string into a list of graphemes.
+extern string::graphemes : str -> [str]
+
+/// Get the length of a string.
+extern string::length : str -> int
+
+/// Get the substring of 'str' from 'start' to 'end'.
+extern string::sub : int -> int -> str -> str
+
+/// Append 'a' to the end of 'b'.
+fn string::append : str -> str -> str
+fn string::append a b -> string::prepend b a

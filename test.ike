@@ -1,0 +1,7 @@
+import std::debug
+import std::fs
+
+fn main {
+  fs::read-dir "std"
+  |> debug::print
+}

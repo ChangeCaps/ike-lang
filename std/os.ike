@@ -1,0 +1,7 @@
+type os::status = {
+  code: int
+  output: str
+}
+
+extern os::execute : [str] -> result<os::status, str>
+extern os::exit : int -> 'a

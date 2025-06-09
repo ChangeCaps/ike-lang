@@ -1,0 +1,21 @@
+type iter<'a> = {
+  next: {} -> option<'a * iter<'a>>
+}
+
+fn iter::new : ({} -> option<'a * iter<'a>>) -> iter<'a>
+fn iter::new next -> iter { next: next }
+
+fn iter::next : iter<'a> -> option<'a * iter<'a>>
+fn iter::next it {
+  it.next {} 
+}
+
+fn iter::chain : iter<'a> -> iter<'a> -> iter<'a>
+fn iter::chain second first {
+  iter::new \_ -> {
+    match iter::next first {
+      some (x, it) -> some (x, iter::chain second it)
+      none         -> iter::next second
+    }
+  }
+}

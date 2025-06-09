@@ -1,0 +1,4 @@
+extern debug::format : 'a -> str
+
+fn debug::print : 'a -> {}
+fn debug::print value -> value |> debug::format |> io::println

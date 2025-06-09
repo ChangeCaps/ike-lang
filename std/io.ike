@@ -1,0 +1,4 @@
+extern io::print : str -> {}
+
+fn io::println : str -> {}
+fn io::println s -> s |> string::append "\n" |> io::print

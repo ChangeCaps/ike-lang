@@ -1,0 +1,16 @@
+fn main {
+  let span = span {
+    file: file {
+      path:    "ike/main.ike"
+      content: "This is the main file content."
+    }
+
+    lo:   0
+    hi:   0
+  }
+
+  diagnostic::error "an error occurred"
+  |> diagnostic::with-span span
+  |> diagnostic::format
+  |> std::io::println
+}
