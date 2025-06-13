@@ -31,7 +31,7 @@ fn span::line s {
   |> list::foldl (1, 0) \n, start line -> {
     let end = start + string::length line + 1
 
-    match start >= s.lo {
+    match end >= s.lo {
       true  -> n, end
       false -> n + 1, end
     }
@@ -49,7 +49,7 @@ fn span::column s {
 
     match s.lo >= start && s.lo < end {
       true  -> some (start, line), end
-      false -> n                 , end
+      false -> n, end
     }
   }
 

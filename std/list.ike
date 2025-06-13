@@ -147,6 +147,10 @@ fn list::any f xs {
   }
 }
 
+/// Check if a list contains a specific element.
+fn list::contains : 'a -> ['a] -> bool
+fn list::contains x -> list::any \y -> y == x
+
 /// Find the first element in a list that satisfies a predicate.
 fn list::find : ('a -> bool) -> ['a] -> option<'a>
 fn list::find f xs {
@@ -156,6 +160,19 @@ fn list::find f xs {
       match f x {
         true  -> some x
         false -> list::find f xs
+      }
+    }
+  }
+}
+
+fn list::find-map : ('a -> option<'b>) -> ['a] -> option<'b>
+fn list::find-map f xs {
+  match xs {
+    []        -> none    
+    [x; ..xs] -> {
+      match f x {
+        none    -> list::find-map f xs
+        some y  -> some y
       }
     }
   }

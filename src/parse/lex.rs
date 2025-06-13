@@ -73,6 +73,16 @@ fn lex_string(lexer: &mut Lexer) -> Token {
         if c == '"' {
             lexer.advance();
             break;
+        } else if lexer.remaining().starts_with("\\\\") {
+            string.push('\\');
+            string.push('\\');
+            lexer.advance();
+            lexer.advance();
+        } else if lexer.remaining().starts_with("\\\"") {
+            string.push('\\');
+            string.push('"');
+            lexer.advance();
+            lexer.advance();
         } else {
             string.push(c);
             lexer.advance();
@@ -146,19 +156,21 @@ pub fn tokenize(input: &str, source: Sid) -> Result<TokenStream, Diagnostic> {
             continue;
         }
 
-        // handle two-character symbols
-        if let Ok(token) = Token::from_str(&lexer.remaining()[..2]) {
-            lexer.advance();
-            lexer.advance();
-            tokens.push((token, lexer.span_from(start)));
-            continue;
-        }
+        if c != 'f' {
+            // handle two-character symbols
+            if let Ok(token) = Token::from_str(&lexer.remaining()[..2]) {
+                lexer.advance();
+                lexer.advance();
+                tokens.push((token, lexer.span_from(start)));
+                continue;
+            }
 
-        // handle one-character symbols
-        if let Ok(token) = Token::from_str(&c.to_string()) {
-            lexer.advance();
-            tokens.push((token, lexer.span_from(start)));
-            continue;
+            // handle one-character symbols
+            if let Ok(token) = Token::from_str(&c.to_string()) {
+                lexer.advance();
+                tokens.push((token, lexer.span_from(start)));
+                continue;
+            }
         }
 
         if is_ident_start(c) {

@@ -46,6 +46,8 @@ fn parse_list_expr(tokens: &mut TokenStream) -> Result<Expr, Diagnostic> {
     let mut elements = Vec::new();
     let mut rest = None;
 
+    consume_newlines(tokens);
+
     while !tokens.is(&Token::RBracket) {
         if tokens.is(&Token::DotDot) {
             tokens.consume();
@@ -57,9 +59,11 @@ fn parse_list_expr(tokens: &mut TokenStream) -> Result<Expr, Diagnostic> {
         let element = parse_expr_impl(tokens, Options::default())?;
         elements.push(element);
 
-        if !tokens.is(&Token::RBracket) {
+        if !(tokens.is(&Token::RBracket) || tokens.is(&Token::Newline)) {
             tokens.expect(&Token::Semi)?;
         }
+
+        consume_newlines(tokens);
     }
 
     let end = tokens.expect(&Token::RBracket)?;

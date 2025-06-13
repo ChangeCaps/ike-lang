@@ -8,6 +8,14 @@ fn option::assert opt {
   }
 }
 
+fn option::map : ('a -> 'b) -> option<'a> -> option<'b>
+fn option::map f opt {
+  match opt {
+    some a -> some (f a)
+    none   -> none
+  }
+}
+
 fn option::some-or : 'a -> option<'a> -> 'a
 fn option::some-or a opt {
   match opt {

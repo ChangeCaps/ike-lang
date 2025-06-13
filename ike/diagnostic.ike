@@ -117,7 +117,7 @@ fn diagnostic::format-labels labels color indent {
 fn diagnostic::format-label label color indent {
   let line = span::line label.span
   let start, s = span::column label.span |> option::assert
-  let column = label.span.lo - start
+  let column = label.span.lo - start + 1
 
   string::repeat indent " "
   |> string::append <| colorize blue "-->"

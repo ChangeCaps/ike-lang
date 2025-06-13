@@ -229,8 +229,8 @@ fn codegen_pattern_check(pattern: &ir::Pattern, value: &str) -> String {
         ir::PatternKind::ListEmpty => format!("#{} == 0", value),
 
         ir::PatternKind::ListCons(head, tail) => {
-            let head_check = codegen_pattern_check(head, value);
-            let tail_check = codegen_pattern_check(tail, value);
+            let head_check = codegen_pattern_check(head, &format!("({})[1]", value));
+            let tail_check = codegen_pattern_check(tail, &format!("({})[2]", value));
 
             format!("#{} > 0 and {} and {}", value, head_check, tail_check)
         }
@@ -244,17 +244,17 @@ fn codegen_pattern_assign(pattern: &ir::Pattern, value: &str) -> String {
         ir::PatternKind::Binding(lid) => format!("l{} = {}", lid.index(), value),
 
         ir::PatternKind::Tuple(items) => {
-            let mut assignments = Vec::new();
+            let mut code = String::new();
+
+            code += &format!("local t = {}\n", value);
 
             for (i, item) in items.iter().enumerate() {
-                let item_value = format!("{}[{}]", value, i + 1);
-                let assign = codegen_pattern_assign(item, &item_value);
-                if !assign.is_empty() {
-                    assignments.push(assign);
-                }
+                let item_value = format!("t[{}]", i + 1);
+                code += &codegen_pattern_assign(item, &item_value);
+                code += "\n";
             }
 
-            assignments.join(";\n")
+            code
         }
 
         ir::PatternKind::Bool(_) => String::new(),

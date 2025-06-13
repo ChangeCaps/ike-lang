@@ -24,3 +24,7 @@ fn string::repeat n s {
     false -> string::repeat (n - 1) s |> string::append s
   }
 }
+
+/// Join a list of strings into a single string.
+fn string::join : [str] -> str
+fn string::join xs -> list::foldl "" string::prepend xs

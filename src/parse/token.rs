@@ -28,7 +28,6 @@ pub enum Token {
     DotDot,     // '..'
     RArrow,     // '->'
     LArrow,     // '<-'
-    FatArrow,   // '=>'
     ColonColon, // '::'
     AmpAmp,     // '&&'
     PipePipe,   // '||'
@@ -97,7 +96,6 @@ impl fmt::Display for Token {
             Token::DotDot => write!(f, ".."),
             Token::RArrow => write!(f, "->"),
             Token::LArrow => write!(f, "<-"),
-            Token::FatArrow => write!(f, "=>"),
             Token::ColonColon => write!(f, "::"),
             Token::AmpAmp => write!(f, "&&"),
             Token::PipePipe => write!(f, "||"),
@@ -162,7 +160,6 @@ impl FromStr for Token {
             ".." => Token::DotDot,
             "->" => Token::RArrow,
             "<-" => Token::LArrow,
-            "=>" => Token::FatArrow,
             "::" => Token::ColonColon,
             "&&" => Token::AmpAmp,
             "||" => Token::PipePipe,

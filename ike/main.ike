@@ -8,10 +8,14 @@ fn main {
   }
 
   match parse::tokenize file {
-    ok tokens -> {}
-    err e     -> {
-      e
-      |> diagnostic::format
+    ok tokens -> {
+      let tokens, _ = std::list::unzip tokens
+
+      std::debug::print tokens
+    }
+
+    err e -> {
+      e |> diagnostic::format
       |> std::io::println
     }
   }
