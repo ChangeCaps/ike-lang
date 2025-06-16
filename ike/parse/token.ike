@@ -131,16 +131,17 @@ fn lexer::all lexer {
   match lexer::peek lexer {
     none   -> ok []
     some g -> {
-      let token = lexer::whitespace lexer g 
-      |> option::or <| lexer::newline lexer g
-      |> option::or <| lexer::ident lexer g
-      |> option::or <| lexer::string lexer g
-      |> option::or <| lexer::two-character-symbol lexer g
-      |> option::or <| lexer::one-character-symbol lexer g
+      let result = lexer::whitespace lexer g 
+        |> option::or-else <| \_ -> lexer::newline lexer g
+        |> option::or-else <| \_ -> lexer::string lexer g
+        |> option::or-else <| \_ -> lexer::two-character-symbol lexer g
+        |> option::or-else <| \_ -> lexer::one-character-symbol lexer g
+        |> option::or-else <| \_ -> lexer::ident lexer g
+        |> option::or-else <| \_ -> lexer::number lexer g
 
-      match token {
-        some (t, s, l) -> lexer::all l |> result::map (list::append [t, s])
-        none           -> lexer::unexpected-character lexer g
+      match result {
+        some (token, span, lexer) -> lexer::all lexer |> result::map (list::append [token, span])
+        none                      -> lexer::unexpected-character lexer g
       }
     }
   }
@@ -287,6 +288,27 @@ fn lexer::one-character-symbol lexer g {
       }
 
       some (t, span, lexer::advance lexer)
+    }
+  }
+}
+
+fn lexer::number lexer g {
+  match lexer::is-digit g {
+    false -> none
+    true  -> {
+      let l, gs = lexer::advance-while
+        <| (lexer::advance lexer)
+        <| lexer::is-digit
+
+      let span = span {
+        file: l.file
+        lo:   lexer.offset
+        hi:   l.offset
+      }
+
+      let token = number (string::join gs)
+
+      some (token, span, l)
     }
   }
 }

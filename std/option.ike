@@ -33,10 +33,18 @@ fn option::ok-or opt e {
 }
 
 fn option::or : option<'a> -> option<'a> -> option<'a>
-fn option::or a b {
+fn option::or b a {
   match a {
     some v -> some v
     none   -> b
+  }
+}
+
+fn option::or-else : ({} -> option<'a>) -> option<'a> -> option<'a>
+fn option::or-else f opt {
+  match opt {
+    some a -> some a
+    none   -> (f {})
   }
 }
 

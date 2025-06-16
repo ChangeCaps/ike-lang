@@ -100,21 +100,21 @@ end
 
 local E = {}
 
-E["debug::format"] = function(value)
+E["std::debug::format"] = function(value)
   return toString(value)
 end
 
-E["io::print"] = function(str)
+E["std::io::print"] = function(str)
   io.write(str)
 end
 
-E["string::prepend"] = function(a)
+E["std::string::prepend"] = function(a)
   return function(b)
     return a..b
   end
 end
 
-E["string::split"] = function(sep)
+E["std::string::split"] = function(sep)
   return function(str)
     local parts = {}
     local pattern = "([^" .. sep .. "]+)"
@@ -127,7 +127,7 @@ E["string::split"] = function(sep)
   end
 end
 
-E["string::graphemes"] = function(str)
+E["std::string::graphemes"] = function(str)
   local graphemes = {}
 
   for i = 1, #str do
@@ -157,11 +157,11 @@ E["string::graphemes"] = function(str)
   return toList(graphemes)
 end
 
-E["string::length"] = function(str)
+E["std::string::length"] = function(str)
   return string.len(str)
 end
 
-E["string::sub"] = function(start)
+E["std::string::sub"] = function(start)
   return function(end_)
     return function(str)
       if start < 1 or end_ < start or end_ > #str then
@@ -173,7 +173,7 @@ E["string::sub"] = function(start)
   end
 end
 
-E["fs::read"] = function(path)
+E["std::fs::read"] = function(path)
   local file = io.open(path, "r")
 
   if not file then
@@ -200,7 +200,7 @@ E["fs::read"] = function(path)
   }
 end
 
-E["os::execute"] = function(cmd)
+E["std::os::execute"] = function(cmd)
   cmd = fromList(cmd)
 
   local command = table.concat(cmd, " ")
@@ -226,7 +226,7 @@ E["os::execute"] = function(cmd)
   }
 end
 
-E["env::args"] = (function()
+E["std::env::args"] = (function()
   local args = {}
 
   for i = 1, #arg do
@@ -236,7 +236,7 @@ E["env::args"] = (function()
   return toList(args)
 end)()
 
-E["os::exit"] = function(code)
+E["std::os::exit"] = function(code)
   os.exit(code)
 end
 

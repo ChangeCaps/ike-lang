@@ -26,7 +26,8 @@ fn main() {
     let code = codegen::codegen(&ir, entry);
     fs::write("test.lua", code).unwrap();
 
-    Command::new("lua")
+    Command::new("luajit")
+        .arg("-O3")
         .arg("test.lua")
         .args(env::args())
         .status()

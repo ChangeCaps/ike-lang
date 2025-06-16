@@ -20,26 +20,25 @@ pub fn codegen(ir: &ir::Program, entry: ir::Bid) -> String {
             code += &format!("  return function(p{})\n", i);
         }
 
-        for (i, _) in body.locals.values().enumerate() {
-            if i < body.inputs.len() {
-                code += &format!("    local l{} = p{}\n", i, i);
-            } else {
-                code += &format!("    local l{}\n", i);
-            }
+        for (i, local) in body.locals.values().enumerate() {
+            code += &format!("    local l{} -- local '{}'\n", i, local.name);
         }
+
+        let mut codegen = Codegen {
+            body: String::new(),
+            indent: 4,
+        };
 
         for (i, pattern) in body.inputs.iter().enumerate() {
             let param = format!("p{}", i);
-
-            code += "    ";
-            code += &codegen_pattern_assign(pattern, &param);
-            code += "\n";
+            codegen.pattern_assign(pattern, &param);
         }
 
         match body.expr {
             Some(ref expr) => {
-                let expr = codegen_expr(expr);
-                code += &indent(indent(format!("return {}", expr)));
+                let expr = codegen.expr(expr);
+                code += &codegen.body;
+                code += &format!("    return {}", expr);
                 code += "\n";
             }
 
@@ -59,142 +58,181 @@ pub fn codegen(ir: &ir::Program, entry: ir::Bid) -> String {
     code
 }
 
-fn codegen_expr(expr: &ir::Expr) -> String {
-    match &expr.kind {
-        ir::ExprKind::Int(value) => format!("{}", value),
-        ir::ExprKind::Bool(value) => format!("{}", value),
-        ir::ExprKind::String(value) => format!("\"{}\"", value),
-        ir::ExprKind::Local(lid) => format!("l{}", lid.index()),
+struct Codegen {
+    body: String,
+    indent: usize,
+}
 
-        ir::ExprKind::Body(bid) => {
-            format!("M[\"body{}\"]()", bid.index())
+impl Codegen {
+    fn line(&mut self, line: impl AsRef<str>) {
+        self.body += &" ".repeat(self.indent);
+        self.body += line.as_ref();
+        self.body += "\n";
+    }
+
+    fn indent(&mut self) {
+        self.indent += 2;
+    }
+
+    fn dedent(&mut self) {
+        if self.indent >= 2 {
+            self.indent -= 2;
         }
+    }
 
-        ir::ExprKind::Let(pattern, expr) => {
-            let value = codegen_expr(expr);
-            codegen_pattern_assign(pattern, &value)
-        }
+    fn expr(&mut self, expr: &ir::Expr) -> String {
+        match &expr.kind {
+            ir::ExprKind::Int(value) => format!("{}", value),
+            ir::ExprKind::Bool(value) => format!("{}", value),
+            ir::ExprKind::String(value) => format!("\"{}\"", value),
+            ir::ExprKind::Local(lid) => format!("l{}", lid.index()),
 
-        ir::ExprKind::Call(target, value) => {
-            let target_code = codegen_expr(target);
-            let value_code = codegen_expr(value);
-            format!("({})({})", target_code, value_code)
-        }
+            ir::ExprKind::Body(bid) => format!("M[\"body{}\"]()", bid.index()),
 
-        ir::ExprKind::ListEmpty => String::from("{}"),
+            ir::ExprKind::Let(pattern, expr) => {
+                let value = self.expr(expr);
+                self.pattern_assign(pattern, &value);
+                String::from("nil")
+            }
 
-        ir::ExprKind::ListCons(head, tail) => {
-            let head = codegen_expr(head);
-            let tail = codegen_expr(tail);
+            ir::ExprKind::Variant(name, None) => format!("{{ tag = \"{}\" }}", name),
 
-            format!("{{ __list = true, {}, {} }}", head, tail)
-        }
+            ir::ExprKind::Variant(name, Some(expr)) => {
+                let value = self.expr(expr);
+                format!("{{ tag = \"{}\", value = {} }}", name, value)
+            }
 
-        ir::ExprKind::Tuple(exprs) => {
-            let mut code = String::from("({ __tuple = true, ");
+            ir::ExprKind::ListEmpty => String::from("{ __list = true }"),
 
-            for (i, e) in exprs.iter().enumerate() {
-                if i > 0 {
-                    code += ", ";
+            ir::ExprKind::ListCons(head, tail) => {
+                let head_value = self.expr(head);
+                let tail_value = self.expr(tail);
+                format!("{{ __list = true, {}, {} }}", head_value, tail_value)
+            }
+
+            ir::ExprKind::Tuple(items) => {
+                let items = items.iter().map(|i| self.expr(i)).collect::<Vec<_>>();
+                format!("{{ __tuple = true, {} }}", items.join(", "))
+            }
+
+            ir::ExprKind::Record(fields) => {
+                let fields = fields
+                    .iter()
+                    .map(|(name, expr)| format!("{} = {}", name, self.expr(expr)))
+                    .collect::<Vec<_>>();
+
+                format!("{{ {} }}", fields.join(", "))
+            }
+
+            ir::ExprKind::Call(callee, input) => {
+                let callee = self.expr(callee);
+                let input = self.expr(input);
+                format!("({})({})", callee, input)
+            }
+
+            ir::ExprKind::Binary(op, lhs, rhs) => {
+                let lhs = self.expr(lhs);
+                let rhs = self.expr(rhs);
+
+                let up = match op {
+                    ir::BinOp::Add => "+",
+                    ir::BinOp::Sub => "-",
+                    ir::BinOp::Mul => "*",
+                    ir::BinOp::Div => "/",
+                    ir::BinOp::Mod => "%",
+                    ir::BinOp::And => "and",
+                    ir::BinOp::Or => "or",
+                    ir::BinOp::Eq => "==",
+                    ir::BinOp::Ne => "~=",
+                    ir::BinOp::Lt => "<",
+                    ir::BinOp::Le => "<=",
+                    ir::BinOp::Gt => ">",
+                    ir::BinOp::Ge => ">=",
+                };
+
+                format!("({} {} {})", lhs, up, rhs)
+            }
+
+            ir::ExprKind::Match(target, arms) => {
+                let target = self.expr(target);
+
+                self.line(format!("local v = {} -- match target", target));
+                self.line("local match_result -- match result");
+
+                for (i, arm) in arms.iter().enumerate() {
+                    let check = codegen_pattern_check(&arm.pattern, "v");
+
+                    let r#if = if i == 0 { "if" } else { "elseif" };
+                    self.line(format!("{} {} then -- match", r#if, check));
+
+                    self.indent();
+                    self.pattern_assign(&arm.pattern, "v");
+
+                    let expr = self.expr(&arm.expr);
+                    self.line(format!("match_result = {}", expr));
+                    self.dedent();
                 }
 
-                code += &codegen_expr(e);
+                self.line("end");
+
+                String::from("match_result")
             }
 
-            code + "})"
-        }
-
-        ir::ExprKind::Variant(name, value) => match value {
-            Some(value) => {
-                let value_code = codegen_expr(value);
-                format!("{{ tag = \"{}\", value = {} }}", name, value_code)
+            ir::ExprKind::Field(target, name) => {
+                let target = self.expr(target);
+                format!("{}.{}", target, name)
             }
-            None => format!("{{ tag = \"{}\" }}", name),
-        },
 
-        ir::ExprKind::Record(fields) => {
-            let mut code = String::from("{");
+            ir::ExprKind::Block(exprs) => {
+                self.line("local block_result -- block result");
+                self.line("do -- block");
+                self.indent();
 
-            for (i, (name, value)) in fields.iter().enumerate() {
-                if i > 0 {
-                    code += ", ";
+                for expr in exprs {
+                    let value = self.expr(expr);
+                    self.line(format!("block_result = {}", value));
                 }
 
-                let value_code = codegen_expr(value);
-                code += &format!("{} = {}", name, value_code);
+                self.dedent();
+                self.line("end");
+                String::from("block_result")
+            }
+        }
+    }
+
+    fn pattern_assign(&mut self, pattern: &ir::Pattern, value: &str) {
+        match &pattern.kind {
+            ir::PatternKind::Wildcard
+            | ir::PatternKind::Bool(_)
+            | ir::PatternKind::ListEmpty
+            | ir::PatternKind::Variant(_, _, None) => {}
+
+            ir::PatternKind::Binding(lid) => {
+                self.line(format!(
+                    "l{} = {} -- pattern binding assign",
+                    lid.index(),
+                    value,
+                ));
             }
 
-            code + "}"
-        }
+            ir::PatternKind::Tuple(items) => {
+                self.line(format!("local t = {} -- tuple pattern assign", value));
 
-        ir::ExprKind::Binary(op, left, right) => {
-            let left_code = codegen_expr(left);
-            let right_code = codegen_expr(right);
-
-            let op_str = match op {
-                ir::BinOp::Add => "+",
-                ir::BinOp::Sub => "-",
-                ir::BinOp::Mul => "*",
-                ir::BinOp::Div => "/",
-                ir::BinOp::Mod => "%",
-                ir::BinOp::And => "and",
-                ir::BinOp::Or => "or",
-                ir::BinOp::Gt => ">",
-                ir::BinOp::Lt => "<",
-                ir::BinOp::Ge => ">=",
-                ir::BinOp::Le => "<=",
-                ir::BinOp::Eq => "==",
-                ir::BinOp::Ne => "~=",
-            };
-
-            format!("({} {} {})", left_code, op_str, right_code)
-        }
-
-        ir::ExprKind::Field(target, name) => {
-            let target_code = codegen_expr(target);
-            format!("{}.{}", target_code, name)
-        }
-
-        ir::ExprKind::Match(target, arms) => {
-            let target = codegen_expr(target);
-
-            let mut code = format!("(function() -- match\n  local v = {}\n", target);
-
-            for (i, arm) in arms.iter().enumerate() {
-                let check = codegen_pattern_check(&arm.pattern, "v");
-                let assign = codegen_pattern_assign(&arm.pattern, "v");
-                let expr = codegen_expr(&arm.expr);
-
-                let r#if = if i == 0 { "if" } else { "elseif" };
-                code += &format!("  {} {} then\n", r#if, check);
-
-                if !assign.is_empty() {
-                    code += &indent(indent(assign));
-                    code += "\n";
-                }
-
-                code += &indent(indent(format!("return {}", expr)));
-                code += "\n";
-            }
-
-            code + "  end\nend)()"
-        }
-
-        ir::ExprKind::Block(exprs) => {
-            let mut code = String::from("(function() -- block\n");
-
-            for (i, e) in exprs.iter().enumerate() {
-                if i == exprs.len() - 1 {
-                    code += &indent(format!("return {}", codegen_expr(e)));
-                    code += "\n";
-                } else {
-                    code += &indent(codegen_expr(e));
-                    code += ";";
-                    code += "\n";
+                for (i, item) in items.iter().enumerate() {
+                    let item_value = format!("t[{}]", i + 1);
+                    self.pattern_assign(item, &item_value);
                 }
             }
 
-            code + "end)()"
+            ir::PatternKind::Variant(_, _, Some(pattern)) => {
+                let value = format!("{}.value", value);
+                self.pattern_assign(pattern, &value);
+            }
+
+            ir::PatternKind::ListCons(head, tail) => {
+                self.pattern_assign(head, &format!("({})[1]", value));
+                self.pattern_assign(tail, &format!("({})[2]", value));
+            }
         }
     }
 }
@@ -235,52 +273,4 @@ fn codegen_pattern_check(pattern: &ir::Pattern, value: &str) -> String {
             format!("#{} > 0 and {} and {}", value, head_check, tail_check)
         }
     }
-}
-
-fn codegen_pattern_assign(pattern: &ir::Pattern, value: &str) -> String {
-    match &pattern.kind {
-        ir::PatternKind::Wildcard => String::new(),
-
-        ir::PatternKind::Binding(lid) => format!("l{} = {}", lid.index(), value),
-
-        ir::PatternKind::Tuple(items) => {
-            let mut code = String::new();
-
-            code += &format!("local t = {}\n", value);
-
-            for (i, item) in items.iter().enumerate() {
-                let item_value = format!("t[{}]", i + 1);
-                code += &codegen_pattern_assign(item, &item_value);
-                code += "\n";
-            }
-
-            code
-        }
-
-        ir::PatternKind::Bool(_) => String::new(),
-
-        ir::PatternKind::Variant(_, _, pattern) => match pattern {
-            Some(p) => {
-                let value = format!("{}.value", value);
-                codegen_pattern_assign(p, &value)
-            }
-            None => String::new(),
-        },
-
-        ir::PatternKind::ListEmpty => String::new(),
-
-        ir::PatternKind::ListCons(head, tail) => {
-            let head_assign = codegen_pattern_assign(head, &format!("{}[1]", value));
-            let tail_assign = codegen_pattern_assign(tail, &format!("{}[2]", value));
-
-            format!("{};\n{}", head_assign, tail_assign)
-        }
-    }
-}
-
-fn indent(code: String) -> String {
-    code.lines()
-        .map(|line| format!("  {}", line))
-        .collect::<Vec<_>>()
-        .join("\n")
 }

@@ -140,6 +140,10 @@ impl ItemName {
     pub fn name(&self) -> &str {
         self.segments.last().unwrap()
     }
+
+    pub fn segments(&self) -> impl ExactSizeIterator<Item = &str> {
+        self.segments.iter().map(Deref::deref)
+    }
 }
 
 impl fmt::Display for ItemName {

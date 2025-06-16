@@ -43,7 +43,7 @@ fn is_ident_start(c: char) -> bool {
 }
 
 fn is_ident_continue(c: char) -> bool {
-    c.is_alphanumeric() || c == '_' || c == '-'
+    c.is_alphanumeric() || c == '_' || c == '-' || c == '\''
 }
 
 fn lex_ident(lexer: &mut Lexer) -> Token {

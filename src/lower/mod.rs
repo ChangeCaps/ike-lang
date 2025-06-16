@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    mem,
+    iter, mem,
     ops::{Deref, DerefMut},
 };
 
@@ -79,6 +79,15 @@ impl<'a> Lowerer<'a> {
         module
     }
 
+    fn create_name<'s>(path: &[&'s str], name: impl Iterator<Item = &'s str>) -> String {
+        path.iter()
+            .copied()
+            .chain(name)
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+            .join("::")
+    }
+
     pub fn add_module(&mut self, path: &[&str], ast: ast::Module) -> Result<(), LowerError> {
         let module = self.create_module(path.iter().copied());
 
@@ -112,7 +121,7 @@ impl<'a> Lowerer<'a> {
                     }
 
                     let newtype = ir::Newtype {
-                        name: ast.name.to_string(),
+                        name: Self::create_name(path, ast.name.segments()),
                         generics,
                         kind,
                     };
@@ -141,7 +150,7 @@ impl<'a> Lowerer<'a> {
                             }
 
                             let body = ir::Body {
-                                name: String::new(),
+                                name: Self::create_name(path, iter::once(name.as_str())),
                                 locals: ir::Locals::default(),
                                 inputs: Vec::new(),
                                 expr: None,
@@ -189,7 +198,7 @@ impl<'a> Lowerer<'a> {
 
                 ast::Item::Function(ast) => {
                     let body = ir::Body {
-                        name: ast.name.to_string(),
+                        name: Self::create_name(path, ast.name.segments()),
                         locals: ir::Locals::default(),
                         inputs: Vec::new(),
                         expr: None,
@@ -218,7 +227,7 @@ impl<'a> Lowerer<'a> {
 
                 ast::Item::Extern(ast) => {
                     let body = ir::Body {
-                        name: ast.name.to_string(),
+                        name: Self::create_name(path, ast.name.segments()),
                         locals: ir::Locals::default(),
                         inputs: Vec::new(),
                         expr: None,
