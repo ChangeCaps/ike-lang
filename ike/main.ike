@@ -4,18 +4,20 @@ import std::err
 fn main {
   let file = file {
     path: "test.ike"
-    content: std::fs::read "ike/parse/token.ike" |> std::result::assert
+    content: std::fs::read "test.ike" |> std::result::assert
   }
 
-  match parse::tokenize file {
-    ok tokens -> {
-      let tokens, _ = std::list::unzip tokens
-      std::debug::print tokens
+  let expr = parse::tokenize file
+    |> std::result::try \tokens -> {
+      let parser = parse::parser::new tokens
+      parse::expr parser
     }
 
+  match expr {
+    ok (expr, _) -> std::debug::print expr
     err e -> {
       e |> diagnostic::format
-      |> std::io::println
+        |> std::io::println
     }
   }
 }

@@ -1,7 +1,7 @@
 type result<'a, 'e> = ok 'a | err 'e
 
-fn result::try : result<'a, 'e> -> ('a -> result<'b, 'e>) -> result<'b, 'e>
-fn result::try r f {
+fn result::try : ('a -> result<'b, 'e>) -> result<'a, 'e> -> result<'b, 'e>
+fn result::try f r {
   match r {
     ok v  -> f v
     err e -> err e

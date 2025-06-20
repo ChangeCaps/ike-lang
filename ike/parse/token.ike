@@ -97,6 +97,14 @@ fn lexer::peek lexer {
   }
 }
 
+fn lexer::is : lexer -> str -> bool
+fn lexer::is lexer g {
+  match lexer::peek lexer {
+    none    -> false
+    some g' -> g == g'
+  }
+}
+
 fn lexer::advance : lexer -> lexer
 fn lexer::advance lexer {
   match lexer.graphs {
@@ -129,7 +137,11 @@ fn lexer::advance-while lexer f {
 fn lexer::all : lexer -> result<[token * span], diagnostic>
 fn lexer::all lexer {
   match lexer::peek lexer {
-    none   -> ok []
+    none   -> ok [eof, span {
+      file: lexer.file
+      lo:   lexer.offset
+      hi:   lexer.offset
+    }]
     some g -> {
       let result = lexer::whitespace lexer g 
         |> option::or-else <| \_ -> lexer::newline lexer g
@@ -225,11 +237,7 @@ fn lexer::string lexer g {
   match g == "\"" {
     false -> none
     true  -> {
-      let l, gs = lexer::advance-while
-        <| (lexer::advance lexer)
-        <| \g -> g != "\""
-
-      let l = lexer::advance l
+      let l, rest = lexer::string-end (lexer::advance lexer)
 
       let span = span {
         file: l.file
@@ -237,9 +245,49 @@ fn lexer::string lexer g {
         hi:   l.offset + 1
       }
 
-      let token = string (string::join gs)
-
+      let token = string rest
       some (token, span, l)
+    }
+  }
+}
+
+fn lexer::string-end lexer {
+  let escapes = [
+    "\\", "\\"
+    "n",  "\n"
+    "r",  "\r"
+    "t",  "\t"
+    "\"", "\""
+  ]
+
+  match lexer::peek lexer {
+    none   -> lexer, "" 
+    some g -> {
+      match lexer::is lexer "\\" {
+        true -> {
+          let lexer = lexer::advance lexer
+          let g     = lexer::peek lexer |> option::assert
+          let lexer = lexer::advance lexer
+          let _, escape = list::find
+            <| \e, _ -> e == g
+            <| escapes
+            |> option::assert
+
+          let lexer, rest = lexer::string-end lexer
+          lexer, string::prepend escape rest
+        }
+
+        false -> {
+          let lexer = lexer::advance lexer
+          match g == "\"" {
+            true  -> lexer, ""
+            false -> {
+              let lexer, rest = lexer::string-end lexer
+              lexer, string::prepend g rest
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -306,7 +354,7 @@ fn lexer::number lexer g {
         hi:   l.offset
       }
 
-      let token = number (string::join gs)
+      let token = number (string::join [g; ..gs])
 
       some (token, span, l)
     }

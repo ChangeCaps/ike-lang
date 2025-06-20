@@ -8,7 +8,9 @@ fn assert condition message {
 
 fn panic : str -> 'a
 fn panic message {
-  io::println message
+  io::print "thread main panic: `"
+  io::print message
+  io::println "`"
   os::exit 1
 }
 

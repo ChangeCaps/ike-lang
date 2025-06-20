@@ -6,6 +6,31 @@ import std::string
 import std::debug
 import std::list
 
+type report = {
+  diagnostics: [diagnostic]
+}
+
+fn report::empty : report
+fn report::empty {
+  report {
+    diagnostics: []
+  }
+}
+
+fn report::add : diagnostic -> report -> report
+fn report::add diagnostic report {
+  report {
+    diagnostics: [diagnostic; ..report.diagnostics]
+  }
+}
+
+fn report::format : report -> str
+fn report::format report {
+  report.diagnostics
+  |> list::map diagnostic::format
+  |> list::foldl "" string::append
+}
+
 type diagnostic = {
   color:   color
   level:   str

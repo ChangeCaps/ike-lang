@@ -1,0 +1,60 @@
+import std::string
+import std::debug
+import std::result
+
+import ike::ast
+import ike::span
+import ike::diagnostic
+
+fn expr::term parser {
+  let token, span = parser::peek parser
+
+  match token {
+    number n -> {
+      let expr = ast::expr {
+        kind: ast::expr::number n
+        span: span
+      }
+
+      ok (expr, parser::advance parser)
+    }
+
+    _ -> {
+      let message = "expected an expression, found `"
+        |> string::append <| debug::format token
+        |> string::append "`"
+
+      diagnostic::error message
+      |> diagnostic::with-label span "found here"
+      |> err
+    }
+  }
+}
+
+fn expr::mul-div-mod parser {
+  expr::term parser
+  |> result::try \lhs, parser -> {
+    let token, span = parser::peek parser
+
+    match token {
+      star -> {
+        parser
+        |> parser::advance
+        |> expr::mul-div-mod
+        |> result::try \rhs, parser -> {
+          let expr = ast::expr {
+            kind: ast::expr::binary (ast::expr::mul, lhs, rhs)
+            span: span
+          }
+
+          ok (expr, parser)
+        }
+      }
+      
+      _ -> ok (lhs, parser)
+    }
+  }
+}
+
+fn expr : parser -> result<ast::expr * parser, diagnostic>
+fn expr parser -> expr::mul-div-mod parser

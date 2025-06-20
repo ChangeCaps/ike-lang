@@ -56,7 +56,7 @@ local function toString(value)
 
     return result
   elseif isTuple(value) then
-    local result = ""
+    local result = "("
 
     for i, v in ipairs(value) do
       result = result .. toString(v)
@@ -66,9 +66,7 @@ local function toString(value)
       end
     end
 
-    result = result
-
-    return result
+    return result .. ")"
   elseif isUnion(value) then
     local result = value.tag
 
@@ -78,6 +76,10 @@ local function toString(value)
 
     return result
   elseif type(value) == "table" then
+    if value.file ~= nil and value.lo ~= nil and value.hi ~= nil then
+      return string.format("%s:%d..%d", value.file.path, value.lo, value.hi)
+    end
+
     local result = "{ "
 
     for k, v in pairs(value) do
@@ -92,7 +94,7 @@ local function toString(value)
 
     return result
   elseif type(value) == "string" then
-    return string.format("%q", value)
+    return "\"" .. value:gsub("\n", "\\n"):gsub("\r", "\\r"):gsub("\t", "\\t") .. "\""
   else
     return tostring(value)
   end
@@ -117,9 +119,8 @@ end
 E["std::string::split"] = function(sep)
   return function(str)
     local parts = {}
-    local pattern = "([^" .. sep .. "]+)"
 
-    for part in string.gmatch(str, pattern) do
+    for part in string.gmatch(str, "(.-)" .. sep) do
       table.insert(parts, part)
     end
 
