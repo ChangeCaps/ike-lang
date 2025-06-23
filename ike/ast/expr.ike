@@ -9,6 +9,7 @@ type expr::kind = number str
                 | string str
                 | boolean bool
                 | binary expr::binop * expr * expr
+                | grouped expr
 
 type expr::binop = add
                  | sub
