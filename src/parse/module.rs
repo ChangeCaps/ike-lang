@@ -1,17 +1,17 @@
 use crate::{
     ast::{
-        Ascription, Extern, Field, Function, Import, Item, ItemName, Module, Newtype, NewtypeKind,
+        Ascription, Extern, Field, File, Function, Import, Item, Newtype, NewtypeKind, Path,
         Variant,
     },
-    diagnostic::Diagnostic,
+    diagnostic::{Diagnostic, Emitter},
 };
 
 use super::{
     Token, TokenStream, consume_newlines, parse_block_expr, parse_expr, parse_ident,
-    parse_irrefutable_pattern, parse_path, parse_type,
+    parse_irrefutable_pattern, parse_type,
 };
 
-fn parse_name(tokens: &mut TokenStream) -> Result<ItemName, Diagnostic> {
+pub fn parse_path(tokens: &mut TokenStream) -> Result<Path, Diagnostic> {
     let mut segments = Vec::new();
 
     let (first, mut span) = parse_ident(tokens)?;
@@ -25,16 +25,15 @@ fn parse_name(tokens: &mut TokenStream) -> Result<ItemName, Diagnostic> {
         span = span.join(segment_span);
     }
 
-    Ok(ItemName { segments, span })
+    Ok(Path { segments, span })
 }
 
 fn parse_import(tokens: &mut TokenStream) -> Result<Item, Diagnostic> {
-    tokens.expect(&Token::Import)?;
+    let span = tokens.expect("import")?;
 
     let path = parse_path(tokens)?;
-
-    let span = path.span;
     let import = Import { path, span };
+
     Ok(Item::Import(import))
 }
 
@@ -67,7 +66,7 @@ fn parse_fields(tokens: &mut TokenStream) -> Result<Vec<Field>, Diagnostic> {
 }
 
 fn parse_variant(tokens: &mut TokenStream) -> Result<Variant, Diagnostic> {
-    let (name, span) = parse_ident(tokens)?;
+    let name = parse_path(tokens)?;
 
     let ty = if tokens.is(&Token::Newline) || tokens.is(&Token::Pipe) {
         None
@@ -75,6 +74,7 @@ fn parse_variant(tokens: &mut TokenStream) -> Result<Variant, Diagnostic> {
         Some(parse_type(tokens)?)
     };
 
+    let span = name.span;
     Ok(Variant { name, ty, span })
 }
 
@@ -89,28 +89,16 @@ fn is_variant(tokens: &mut TokenStream) -> bool {
 }
 
 fn parse_newtype(tokens: &mut TokenStream) -> Result<Item, Diagnostic> {
-    tokens.expect(&Token::Type)?;
+    let span = tokens.expect(&Token::Ident(String::from("type")))?;
 
-    let name = parse_name(tokens)?;
+    let name = parse_path(tokens)?;
 
     let mut generics = Vec::new();
 
-    if tokens.is(&Token::Lt) {
-        tokens.consume();
-
-        while !tokens.is(&Token::Gt) {
-            tokens.expect(&Token::Quote)?;
-            let (name, _) = parse_ident(tokens)?;
-            generics.push(name);
-
-            if tokens.is(&Token::Gt) {
-                break;
-            }
-
-            tokens.expect(&Token::Comma)?;
-        }
-
-        tokens.expect(&Token::Gt)?;
+    while !tokens.is(&Token::Eq) {
+        let quote_span = tokens.expect(&Token::Quote)?;
+        let (name, name_span) = parse_ident(tokens)?;
+        generics.push((name, quote_span.join(name_span)));
     }
 
     tokens.expect(&Token::Eq)?;
@@ -121,7 +109,6 @@ fn parse_newtype(tokens: &mut TokenStream) -> Result<Item, Diagnostic> {
         Token::LBrace => {
             let fields = parse_fields(tokens)?;
 
-            let span = name.span;
             let kind = NewtypeKind::Record(fields);
 
             let newtype = Newtype {
@@ -146,7 +133,6 @@ fn parse_newtype(tokens: &mut TokenStream) -> Result<Item, Diagnostic> {
                 variants.push(variant);
             }
 
-            let span = name.span;
             let kind = NewtypeKind::Union(variants);
 
             let newtype = Newtype {
@@ -161,17 +147,45 @@ fn parse_newtype(tokens: &mut TokenStream) -> Result<Item, Diagnostic> {
     }
 }
 
-fn parse_function(tokens: &mut TokenStream) -> Result<Item, Diagnostic> {
-    tokens.expect(&Token::Fn)?;
+fn parse_alias(tokens: &mut TokenStream) -> Result<Item, Diagnostic> {
+    let span = tokens.expect(&Token::Ident(String::from("alias")))?;
 
-    let name = parse_name(tokens)?;
+    let name = parse_path(tokens)?;
+
+    let mut generics = Vec::new();
+
+    while !tokens.is(&Token::Eq) {
+        let quote_span = tokens.expect(&Token::Quote)?;
+        let (name, name_span) = parse_ident(tokens)?;
+        generics.push((name, quote_span.join(name_span)));
+    }
+
+    tokens.expect(&Token::Eq)?;
+
+    let aliased = parse_type(tokens)?;
+
+    let kind = NewtypeKind::Alias(aliased);
+
+    let newtype = Newtype {
+        name,
+        generics,
+        kind,
+        span,
+    };
+
+    Ok(Item::Newtype(newtype))
+}
+
+fn parse_function(tokens: &mut TokenStream) -> Result<Item, Diagnostic> {
+    let span = tokens.expect("fn")?;
+
+    let name = parse_path(tokens)?;
 
     if tokens.is(&Token::Colon) {
         tokens.consume();
 
         let ty = parse_type(tokens)?;
 
-        let span = name.span.join(ty.span);
         let ascription = Ascription { name, ty, span };
         return Ok(Item::Ascription(ascription));
     }
@@ -196,20 +210,24 @@ fn parse_function(tokens: &mut TokenStream) -> Result<Item, Diagnostic> {
         _ => unreachable!(),
     };
 
-    let function = Function { name, params, body };
+    let function = Function {
+        name,
+        params,
+        body,
+        span,
+    };
+
     Ok(Item::Function(function))
 }
 
 fn parse_extern(tokens: &mut TokenStream) -> Result<Item, Diagnostic> {
-    tokens.expect(&Token::Extern)?;
+    let span = tokens.expect("extern")?;
 
-    let name = parse_name(tokens)?;
+    let name = parse_path(tokens)?;
 
     tokens.expect(&Token::Colon)?;
 
     let ty = parse_type(tokens)?;
-
-    let span = name.span.join(ty.span);
 
     let r#extern = Extern { name, ty, span };
 
@@ -220,10 +238,17 @@ fn parse_item(tokens: &mut TokenStream) -> Result<Item, Diagnostic> {
     let (token, span) = tokens.peek();
 
     match token {
-        Token::Fn => parse_function(tokens),
-        Token::Type => parse_newtype(tokens),
-        Token::Import => parse_import(tokens),
-        Token::Extern => parse_extern(tokens),
+        Token::Ident(ident) => match ident.as_str() {
+            "type" => parse_newtype(tokens),
+            "alias" => parse_alias(tokens),
+            "fn" => parse_function(tokens),
+            "import" => parse_import(tokens),
+            "extern" => parse_extern(tokens),
+            _ => {
+                let diagnostic = Diagnostic::error("expected item").with_span(span);
+                Err(diagnostic)
+            }
+        },
 
         _ => {
             let diagnostic = Diagnostic::error("expected item").with_span(span);
@@ -232,17 +257,28 @@ fn parse_item(tokens: &mut TokenStream) -> Result<Item, Diagnostic> {
     }
 }
 
-pub fn parse_module(tokens: &mut TokenStream) -> Result<Module, Diagnostic> {
+pub fn parse_file(tokens: &mut TokenStream, emitter: &mut dyn Emitter) -> Result<File, File> {
     let mut items = Vec::new();
+    let mut is_error = false;
 
     consume_newlines(tokens);
 
     while !tokens.is(&Token::Eof) {
-        let item = parse_item(tokens)?;
-        items.push(item);
+        match parse_item(tokens) {
+            Ok(item) => items.push(item),
+            Err(err) => {
+                emitter.emit(err);
+                is_error = true;
+                break;
+            }
+        }
 
         consume_newlines(tokens);
     }
 
-    Ok(Module { items })
+    if is_error {
+        return Err(File { items });
+    }
+
+    Ok(File { items })
 }

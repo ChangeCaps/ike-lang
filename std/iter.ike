@@ -1,21 +1,52 @@
-type iter<'a> = {
-  next: {} -> option<'a * iter<'a>>
+type iter 'a = {
+  next: {} -> option ('a, iter 'a)
 }
 
-fn iter::new : ({} -> option<'a * iter<'a>>) -> iter<'a>
+fn iter::new : ({} -> option ('a, iter 'a)) -> iter 'a
 fn iter::new next -> iter { next: next }
 
-fn iter::next : iter<'a> -> option<'a * iter<'a>>
+fn iter::next : iter 'a -> option ('a, iter 'a)
 fn iter::next it {
   it.next {} 
 }
 
-fn iter::chain : iter<'a> -> iter<'a> -> iter<'a>
+fn iter::chain : iter 'a -> iter 'a -> iter 'a
 fn iter::chain second first {
-  iter::new \_ -> {
+  iter::new |_| {
     match iter::next first {
-      some (x, it) -> some (x, iter::chain second it)
+      some (x, it) -> some <| x, iter::chain second it
       none         -> iter::next second
     }
+  }
+}
+
+fn iter::map : ('a -> 'b) -> iter 'a -> iter 'b
+fn iter::map f iter {
+  iter::new |_| {
+    match iter::next iter {
+      some (x, it) -> some <| f x, iter::map f it
+      none         -> none
+    }
+  }
+}
+
+fn iter::range : int -> int -> iter int
+fn iter::range start end {
+  iter::new |_| {
+    match start < end {
+      true  -> some <| start, iter::range (start + 1) end
+      false -> none
+    }
+  }
+}
+
+fn iter::each : ('a -> {}) -> iter 'a -> {}
+fn iter::each f it {
+  match iter::next it {
+    some (x, it) -> {
+      f x
+      iter::each f it
+    }
+    none -> {}
   }
 }

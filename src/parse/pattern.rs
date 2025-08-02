@@ -62,6 +62,20 @@ fn parse_pattern_term(
             Ok(Pattern { kind, span })
         }
 
+        Token::Integer(value) => {
+            tokens.consume();
+
+            let kind = PatternKind::Int(value);
+            Ok(Pattern { kind, span })
+        }
+
+        Token::String(string) => {
+            tokens.consume();
+
+            let kind = PatternKind::String(string);
+            Ok(Pattern { kind, span })
+        }
+
         Token::LParen => {
             tokens.consume();
             let pattern = parse_pattern_impl(tokens, allow_refutable)?;
@@ -80,8 +94,16 @@ fn parse_pattern_term(
                 if tokens.is(&Token::DotDot) {
                     tokens.consume();
 
-                    let pattern = parse_pattern_impl(tokens, allow_refutable)?;
+                    let pattern = match tokens.is(&Token::RBracket) {
+                        true => Pattern {
+                            kind: PatternKind::Wildcard,
+                            span,
+                        },
+                        false => parse_pattern_impl(tokens, allow_refutable)?,
+                    };
+
                     rest = Some(Box::new(pattern));
+
                     break;
                 }
 

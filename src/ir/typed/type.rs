@@ -5,6 +5,12 @@ pub struct Tid {
     index: u64,
 }
 
+impl Tid {
+    pub const fn index(self) -> u64 {
+        self.index
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Types {
     types: Vec<Newtype>,
@@ -19,6 +25,13 @@ impl Types {
         let index = self.types.len() as u64;
         self.types.push(newtype);
         Tid { index }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (Tid, &Newtype)> {
+        self.types
+            .iter()
+            .enumerate()
+            .map(|(i, t)| (Tid { index: i as u64 }, t))
     }
 }
 
@@ -52,6 +65,7 @@ pub enum Type {
 pub enum Newtype {
     Record(Record),
     Union(Union),
+    Alias(Type),
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

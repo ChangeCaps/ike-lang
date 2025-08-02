@@ -1,0 +1,4 @@
+type task 'a = {}
+
+extern spawn : ({} -> 'a) -> task 'a
+extern await : task 'a -> 'a

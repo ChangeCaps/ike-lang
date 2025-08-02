@@ -7,6 +7,7 @@ pub enum ExprKind<T> {
     Int(i64),
     Bool(bool),
     String(String),
+    Format(Vec<Expr<T>>),
     Local(Lid<T>),
     Body(Bid<T>),
     Let(Pattern<T>, Box<Expr<T>>),
@@ -15,6 +16,7 @@ pub enum ExprKind<T> {
     ListCons(Box<Expr<T>>, Box<Expr<T>>),
     Tuple(Vec<Expr<T>>),
     Record(Vec<(String, Expr<T>)>),
+    Try(Box<Expr<T>>),
     Call(Box<Expr<T>>, Box<Expr<T>>),
     Binary(BinOp, Box<Expr<T>>, Box<Expr<T>>),
     Match(Box<Expr<T>>, Vec<Arm<T>>),
@@ -64,6 +66,8 @@ pub enum PatternKind<T> {
     Binding(Lid<T>),
     Tuple(Vec<Pattern<T>>),
     Bool(bool),
+    Int(i64),
+    String(String),
     Variant(T, String, Option<Box<Pattern<T>>>),
     ListEmpty,
     ListCons(Box<Pattern<T>>, Box<Pattern<T>>),
@@ -73,7 +77,13 @@ impl<T> PatternKind<T> {
     pub fn is_refutable(&self) -> bool {
         match self {
             Self::Wildcard | Self::Binding(_) => false,
-            Self::Bool(_) | Self::ListEmpty | Self::ListCons(_, _) | Self::Variant(_, _, _) => true,
+
+            Self::Bool(_)
+            | Self::Int(_)
+            | Self::String(_)
+            | Self::ListEmpty
+            | Self::ListCons(_, _)
+            | Self::Variant(_, _, _) => true,
 
             Self::Tuple(patterns) => patterns.iter().any(|p| p.kind.is_refutable()),
         }

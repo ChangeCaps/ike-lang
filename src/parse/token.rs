@@ -7,30 +7,28 @@ pub enum Token {
     Integer(i64),
 
     /* special */
+    Comment(String),
     Whitespace,
     Newline,
     Eof,
 
     /* keywords */
-    Bool,   // 'bool'
-    False,  // 'false'
-    Fn,     // 'fn'
-    Import, // 'import'
-    Let,    // 'let'
-    True,   // 'true'
-    Type,   // 'type'
-    Int,    // 'int'
-    Str,    // 'str'
-    Extern, // 'extern'
-    Match,  // 'match'
+    And,   // 'and'
+    Bool,  // 'bool'
+    False, // 'false'
+    Let,   // 'let'
+    True,  // 'true'
+    Try,   // 'try'
+    Int,   // 'int'
+    Or,    // 'or'
+    Str,   // 'str'
+    Match, // 'match'
 
     /* two-character symbols */
     DotDot,     // '..'
     RArrow,     // '->'
     LArrow,     // '<-'
     ColonColon, // '::'
-    AmpAmp,     // '&&'
-    PipePipe,   // '||'
     EqEq,       // '=='
     NotEq,      // '!='
     LtEq,       // '<='
@@ -43,6 +41,7 @@ pub enum Token {
     Colon,     // ':'
     Comma,     // ','
     Dot,       // '.'
+    Pound,     // '#'
     Under,     // '_'
     Plus,      // '+'
     Minus,     // '-'
@@ -71,25 +70,25 @@ pub enum Token {
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Token::Ident(s) => write!(f, "{}", s),
-            Token::String(s) => write!(f, "\"{}\"", s),
-            Token::Integer(i) => write!(f, "{}", i),
+            Token::Ident(s) => write!(f, "{s}"),
+            Token::String(s) => write!(f, "\"{s}\""),
+            Token::Integer(i) => write!(f, "{i}"),
 
+            Token::Comment(comment) => write!(f, "//{comment}"),
             Token::Whitespace => write!(f, "whitespace"),
             Token::Newline => write!(f, "newline"),
             Token::Eof => write!(f, "end of file"),
 
             /* keywords */
+            Token::And => write!(f, "and"),
             Token::Bool => write!(f, "bool"),
             Token::False => write!(f, "false"),
-            Token::Fn => write!(f, "fn"),
-            Token::Import => write!(f, "import"),
             Token::Let => write!(f, "let"),
             Token::True => write!(f, "true"),
-            Token::Type => write!(f, "type"),
+            Token::Try => write!(f, "try"),
             Token::Int => write!(f, "int"),
+            Token::Or => write!(f, "or"),
             Token::Str => write!(f, "str"),
-            Token::Extern => write!(f, "extern"),
             Token::Match => write!(f, "match"),
 
             /* two-character symbols */
@@ -97,8 +96,6 @@ impl fmt::Display for Token {
             Token::RArrow => write!(f, "->"),
             Token::LArrow => write!(f, "<-"),
             Token::ColonColon => write!(f, "::"),
-            Token::AmpAmp => write!(f, "&&"),
-            Token::PipePipe => write!(f, "||"),
             Token::EqEq => write!(f, "=="),
             Token::NotEq => write!(f, "!="),
             Token::LtEq => write!(f, "<="),
@@ -111,6 +108,7 @@ impl fmt::Display for Token {
             Token::Colon => write!(f, ":"),
             Token::Comma => write!(f, ","),
             Token::Dot => write!(f, "."),
+            Token::Pound => write!(f, "#"),
             Token::Under => write!(f, "_"),
             Token::Plus => write!(f, "+"),
             Token::Minus => write!(f, "-"),
@@ -144,16 +142,15 @@ impl FromStr for Token {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
             /* keywords */
+            "and" => Token::And,
             "bool" => Token::Bool,
             "false" => Token::False,
-            "fn" => Token::Fn,
-            "import" => Token::Import,
             "let" => Token::Let,
             "true" => Token::True,
-            "type" => Token::Type,
+            "try" => Token::Try,
             "int" => Token::Int,
+            "or" => Token::Or,
             "str" => Token::Str,
-            "extern" => Token::Extern,
             "match" => Token::Match,
 
             /* two-character symbols */
@@ -161,8 +158,6 @@ impl FromStr for Token {
             "->" => Token::RArrow,
             "<-" => Token::LArrow,
             "::" => Token::ColonColon,
-            "&&" => Token::AmpAmp,
-            "||" => Token::PipePipe,
             "==" => Token::EqEq,
             "!=" => Token::NotEq,
             "<=" => Token::LtEq,
@@ -175,6 +170,7 @@ impl FromStr for Token {
             ":" => Token::Colon,
             "," => Token::Comma,
             "." => Token::Dot,
+            "#" => Token::Pound,
             "_" => Token::Under,
             "+" => Token::Plus,
             "-" => Token::Minus,

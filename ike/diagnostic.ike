@@ -1,178 +1,80 @@
-import std::math
 import std::option
-import std::none
 import std::some
-import std::string
-import std::debug
-import std::list
+import std::none
 
-type report = {
-  diagnostics: [diagnostic]
+type file = {
+  path: str
 }
 
-fn report::empty : report
-fn report::empty {
-  report {
-    diagnostics: []
-  }
+type span = {
+  file:  file
+  start: int
+  end:   int
 }
 
-fn report::add : diagnostic -> report -> report
-fn report::add diagnostic report {
-  report {
-    diagnostics: [diagnostic; ..report.diagnostics]
-  }
-}
-
-fn report::format : report -> str
-fn report::format report {
-  report.diagnostics
-  |> list::map diagnostic::format
-  |> list::foldl "" string::append
-}
+type diagnostic::level = level::error
+                       | level::warning
+                       | level::help
 
 type diagnostic = {
-  color:   color
-  level:   str
+  level:   diagnostic::level
   message: str
   labels:  [diagnostic::label]
 }
 
 type diagnostic::label = {
-  message: option<str>
   span:    span
+  message: option str
+}
+
+fn diagnostic : diagnostic::level -> str -> diagnostic
+fn diagnostic level message {
+  diagnostic {
+    level:   level
+    message: message
+    labels:  []
+  }
 }
 
 fn diagnostic::error : str -> diagnostic
 fn diagnostic::error message {
-  diagnostic {
-    color:   red
-    level:   "error"
-    message: message
-    labels:  []
-  }
+  diagnostic diagnostic::level::error message
 }
 
 fn diagnostic::warning : str -> diagnostic
 fn diagnostic::warning message {
-  diagnostic {
-    color:   yellow
-    level:   "warning"
-    message: message
-    labels:  []
-  }
+  diagnostic diagnostic::level::warning message
 }
 
-fn diagnostic::info : str -> diagnostic
-fn diagnostic::info message {
+fn diagnostic::help : str -> diagnostic
+fn diagnostic::help message {
+  diagnostic diagnostic::level::help message
+}
+
+fn diagnostic::with-label : span -> str -> diagnostic -> diagnostic
+fn diagnostic::with-label span message diagnostic {
+  let label = diagnostic::label {
+    span:    span
+    message: some message
+  }
+
   diagnostic {
-    color:   blue
-    level:   "info"
-    message: message
-    labels:  []
+    level:   diagnostic.level
+    message: diagnostic.message
+    labels:  [label; ..diagnostic.labels]
   }
 }
 
 fn diagnostic::with-span : span -> diagnostic -> diagnostic
 fn diagnostic::with-span span diagnostic {
   let label = diagnostic::label {
-    message: none
-    span: span
+    span:    span
+    message: none 
   }
 
   diagnostic {
-    color:   diagnostic.color
     level:   diagnostic.level
     message: diagnostic.message
     labels:  [label; ..diagnostic.labels]
-  }
-}
-
-fn diagnostic::with-label : span -> str -> diagnostic -> diagnostic
-fn diagnostic::with-label span message diagnostic {
-  let label = diagnostic::label {
-    message: some message
-    span: span
-  }
-
-  diagnostic {
-    color:   diagnostic.color
-    level:   diagnostic.level
-    message: diagnostic.message
-    labels:  [label; ..diagnostic.labels]
-  }
-}
-
-fn diagnostic::format : diagnostic -> str
-fn diagnostic::format diagnostic {
-  let indent = diagnostic.labels
-    |> list::map \l -> span::line l.span
-    |> list::foldl 0 math::max
-    |> debug::format
-    |> string::length
-
-  let labels = diagnostic::format-labels
-    <| diagnostic.labels
-    <| diagnostic.color
-    <| indent
-
-  diagnostic::format-header diagnostic
-  |> string::append "\n"
-  |> string::append labels
-}
-
-fn diagnostic::format-header diagnostic {
-  diagnostic.level
-  |> colorize diagnostic.color |> bold
-  |> string::append <| bold ":"
-  |> string::append <| " "
-  |> string::append <| bold diagnostic.message
-}
-
-fn diagnostic::format-labels labels color indent {
-  match labels {
-    []                -> ""
-    [label; ..labels] -> {
-      diagnostic::format-label label color indent
-      |> string::append <| diagnostic::format-labels labels color indent
-    }
-  }
-}
-
-fn diagnostic::format-label label color indent {
-  let line = span::line label.span
-  let start, s = span::column label.span |> option::assert
-  let column = label.span.lo - start + 1
-
-  string::repeat indent " "
-  |> string::append <| colorize blue "-->"
-  |> string::append <| " "
-  |> string::append <| label.span.file.path
-  |> string::append <| ":"
-  |> string::append <| debug::format line
-  |> string::append <| ":"
-  |> string::append <| debug::format column
-  |> string::append <| "\n"
-  |> string::append <| string::repeat (indent + 1) " "
-  |> string::append <| colorize blue "|\n"
-  |> string::append <| colorize blue (debug::format line)
-  |> string::append <| " "
-  |> string::append <| colorize blue "|"
-  |> string::append <| " "
-  |> string::append <| s
-  |> string::append <| "\n"
-  |> string::append <| string::repeat (indent + 1) " "
-  |> string::append <| colorize blue "|"
-  |> string::append <| string::repeat column " "
-  |> string::append <| colorize color (string::repeat (label.span.hi - label.span.lo) "^")
-  |> string::append <| " " 
-  |> string::append <| colorize color (option::some-or "" label.message)
-  |> string::append <| "\n"
-}
-
-fn diagnostic::format-indent indent {
-  match indent == 0 {
-    true  -> ""
-    false -> diagnostic::format-indent (indent - 1) |> string::append " "
   }
 }

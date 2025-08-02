@@ -1,14 +1,6 @@
-type result<'a, 'e> = ok 'a | err 'e
+type result 'a 'e = ok 'a | err 'e
 
-fn result::try : ('a -> result<'b, 'e>) -> result<'a, 'e> -> result<'b, 'e>
-fn result::try f r {
-  match r {
-    ok v  -> f v
-    err e -> err e
-  }
-}
-
-fn result::map : ('a -> 'b) -> result<'a, 'e> -> result<'b, 'e>
+fn result::map : ('a -> 'b) -> result 'a 'e -> result 'b 'e
 fn result::map f r {
   match r {
     ok v  -> ok (f v)
@@ -16,7 +8,7 @@ fn result::map f r {
   }
 }
 
-fn result::ok-or : 'a -> result<'a, 'e>  -> 'a
+fn result::ok-or : 'a -> result 'a 'e  -> 'a
 fn result::ok-or d r {
   match r {
     ok v  -> v
@@ -24,7 +16,7 @@ fn result::ok-or d r {
   }
 }
 
-fn result::assert : result<'a, 'e> -> 'a
+fn result::assert : result 'a 'e -> 'a
 fn result::assert r {
   match r {
     ok v  -> v

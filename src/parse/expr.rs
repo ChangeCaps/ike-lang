@@ -5,7 +5,7 @@ use crate::{
 
 use super::{
     Token, TokenStream, consume_newlines, parse_ident, parse_irrefutable_pattern, parse_path,
-    parse_pattern,
+    parse_pattern, tokenize,
 };
 
 #[derive(Clone, Copy)]
@@ -99,20 +99,20 @@ pub fn parse_block_expr(tokens: &mut TokenStream) -> Result<Expr, Diagnostic> {
 }
 
 fn parse_lambda_expr(tokens: &mut TokenStream) -> Result<Expr, Diagnostic> {
-    let start = tokens.expect(&Token::Backslash)?;
+    let start = tokens.expect(&Token::Pipe)?;
 
     let mut params = Vec::new();
 
-    while !tokens.is(&Token::RArrow) {
+    while !tokens.is(&Token::Pipe) {
         let parma = parse_irrefutable_pattern(tokens)?;
         params.push(parma);
     }
 
-    let end = tokens.expect(&Token::RArrow)?;
+    tokens.expect(&Token::Pipe)?;
 
     let body = parse_tuple_expr(tokens, Options::default())?;
 
-    let span = start.join(end);
+    let span = start.join(body.span);
     let kind = ExprKind::Lambda(params, Box::new(body));
     Ok(kind.with_span(span))
 }
@@ -128,7 +128,7 @@ fn is_term_expr(token: &TokenStream, options: Options) -> bool {
         | Token::False
         | Token::LParen
         | Token::LBracket
-        | Token::Backslash => true,
+        | Token::Pipe => true,
 
         Token::LBrace if options.allow_block => true,
 
@@ -165,13 +165,13 @@ fn parse_term_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, D
                 let mut fields = Vec::new();
 
                 while !tokens.is(&Token::RBrace) {
-                    let (name, _) = parse_ident(tokens)?;
+                    let (name, span) = parse_ident(tokens)?;
 
                     tokens.expect(&Token::Colon)?;
 
                     let value = parse_expr_impl(tokens, Options::default())?;
 
-                    fields.push((name, value));
+                    fields.push((name, value, span));
 
                     if !(tokens.is(&Token::Newline) || tokens.is(&Token::RBrace)) {
                         tokens.expect(&Token::Semi)?;
@@ -192,7 +192,47 @@ fn parse_term_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, D
 
         Token::String(value) => {
             tokens.consume();
-            Ok(ExprKind::String(value).with_span(span))
+
+            let mut rest = value.as_str();
+            let mut parts = Vec::new();
+
+            while let Some(idx) = rest.find("{") {
+                if rest[idx..].starts_with("{{") {
+                    rest = &rest[idx + 2..];
+                    continue;
+                }
+
+                let Some(end) = rest[idx..].find("}") else {
+                    let diagnostic = Diagnostic::error("no end of expression in format string")
+                        .with_label(span, "in string here");
+
+                    return Err(diagnostic);
+                };
+
+                let lit = rest[..idx].replace("{{", "{").replace("}}", "}");
+                let lit = ExprKind::String(lit).with_span(span);
+                parts.push(lit);
+
+                let mut emitter = Vec::new();
+                let mut tokens = tokenize(&rest[idx + 1..idx + end], span.id, &mut emitter)
+                    .map_err(|_| emitter.pop().unwrap())?;
+
+                let expr = parse_expr(&mut tokens)?;
+                parts.push(expr);
+
+                rest = &rest[idx + end + 1..];
+            }
+
+            if parts.is_empty() {
+                let lit = value.replace("{{", "{").replace("}}", "}");
+                return Ok(ExprKind::String(lit).with_span(span));
+            }
+
+            let lit = rest.replace("{{", "{").replace("}}", "}");
+            let lit = ExprKind::String(lit).with_span(span);
+            parts.push(lit);
+
+            Ok(ExprKind::Format(parts).with_span(span))
         }
 
         Token::Integer(value) => {
@@ -204,7 +244,7 @@ fn parse_term_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, D
         Token::LParen => parse_paren_expr(tokens, options),
         Token::LBrace => parse_block_expr(tokens),
         Token::LBracket => parse_list_expr(tokens),
-        Token::Backslash => parse_lambda_expr(tokens),
+        Token::Pipe => parse_lambda_expr(tokens),
 
         _ => {
             let diagnostic = Diagnostic::error("unexpected token in expression").with_span(span);
@@ -219,10 +259,10 @@ fn parse_field_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, 
     while tokens.is(&Token::Dot) {
         tokens.consume();
 
-        let (name, span) = parse_ident(tokens)?;
+        let (name, name_span) = parse_ident(tokens)?;
 
-        let span = span.join(expr.span);
-        let kind = ExprKind::Field(Box::new(expr), name);
+        let span = name_span.join(expr.span);
+        let kind = ExprKind::Field(Box::new(expr), name, name_span);
         expr = kind.with_span(span);
     }
 
@@ -243,15 +283,27 @@ fn parse_call_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, D
     Ok(callee)
 }
 
-fn parse_mul_div_mod_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, Diagnostic> {
-    let mut lhs = parse_call_expr(tokens, options)?;
+fn parse_try_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, Diagnostic> {
+    if tokens.is(&Token::Try) {
+        let span = tokens.consume();
+        let expr = parse_try_expr(tokens, options)?;
 
-    let (mut token, _) = tokens.peek();
+        let kind = ExprKind::Try(Box::new(expr));
+        return Ok(Expr { kind, span });
+    }
+
+    parse_call_expr(tokens, options)
+}
+
+fn parse_mul_div_mod_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, Diagnostic> {
+    let mut lhs = parse_try_expr(tokens, options)?;
+
+    let (mut token, op_span) = tokens.peek();
 
     while matches!(token, Token::Star | Token::Slash | Token::Percent) {
         tokens.consume();
 
-        let rhs = parse_call_expr(tokens, options)?;
+        let rhs = parse_try_expr(tokens, options)?;
 
         let op = match token {
             Token::Star => BinOp::Mul,
@@ -261,7 +313,7 @@ fn parse_mul_div_mod_expr(tokens: &mut TokenStream, options: Options) -> Result<
         };
 
         let span = lhs.span.join(rhs.span);
-        let kind = ExprKind::Binary(op, Box::new(lhs), Box::new(rhs));
+        let kind = ExprKind::Binary(op, op_span, Box::new(lhs), Box::new(rhs));
         lhs = kind.with_span(span);
 
         (token, _) = tokens.peek();
@@ -273,7 +325,7 @@ fn parse_mul_div_mod_expr(tokens: &mut TokenStream, options: Options) -> Result<
 fn parse_add_sub_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, Diagnostic> {
     let mut lhs = parse_mul_div_mod_expr(tokens, options)?;
 
-    let (mut token, _) = tokens.peek();
+    let (mut token, op_span) = tokens.peek();
 
     while matches!(token, Token::Plus | Token::Minus) {
         tokens.consume();
@@ -287,7 +339,7 @@ fn parse_add_sub_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr
         };
 
         let span = lhs.span.join(rhs.span);
-        let kind = ExprKind::Binary(op, Box::new(lhs), Box::new(rhs));
+        let kind = ExprKind::Binary(op, op_span, Box::new(lhs), Box::new(rhs));
         lhs = kind.with_span(span);
 
         (token, _) = tokens.peek();
@@ -299,7 +351,7 @@ fn parse_add_sub_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr
 fn parse_cmp_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, Diagnostic> {
     let mut lhs = parse_add_sub_expr(tokens, options)?;
 
-    let (mut token, _) = tokens.peek();
+    let (mut token, op_span) = tokens.peek();
 
     while matches!(token, Token::Gt | Token::Lt | Token::GtEq | Token::LtEq) {
         tokens.consume();
@@ -315,7 +367,7 @@ fn parse_cmp_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, Di
         };
 
         let span = lhs.span.join(rhs.span);
-        let kind = ExprKind::Binary(op, Box::new(lhs), Box::new(rhs));
+        let kind = ExprKind::Binary(op, op_span, Box::new(lhs), Box::new(rhs));
         lhs = kind.with_span(span);
 
         (token, _) = tokens.peek();
@@ -327,7 +379,7 @@ fn parse_cmp_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, Di
 fn parse_eq_ne_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, Diagnostic> {
     let mut lhs = parse_cmp_expr(tokens, options)?;
 
-    let (mut token, _) = tokens.peek();
+    let (mut token, op_span) = tokens.peek();
 
     while matches!(token, Token::EqEq | Token::NotEq) {
         tokens.consume();
@@ -341,7 +393,7 @@ fn parse_eq_ne_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, 
         };
 
         let span = lhs.span.join(rhs.span);
-        let kind = ExprKind::Binary(op, Box::new(lhs), Box::new(rhs));
+        let kind = ExprKind::Binary(op, op_span, Box::new(lhs), Box::new(rhs));
         lhs = kind.with_span(span);
 
         (token, _) = tokens.peek();
@@ -353,32 +405,32 @@ fn parse_eq_ne_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, 
 fn parse_and_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, Diagnostic> {
     let lhs = parse_eq_ne_expr(tokens, options)?;
 
-    if !tokens.is(&Token::AmpAmp) {
+    if !tokens.is(&Token::And) {
         return Ok(lhs);
     }
 
-    tokens.consume();
+    let op_span = tokens.consume();
 
     let rhs = parse_and_expr(tokens, options)?;
 
     let span = lhs.span.join(rhs.span);
-    let kind = ExprKind::Binary(BinOp::And, Box::new(lhs), Box::new(rhs));
+    let kind = ExprKind::Binary(BinOp::And, op_span, Box::new(lhs), Box::new(rhs));
     Ok(kind.with_span(span))
 }
 
 fn parse_or_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, Diagnostic> {
     let lhs = parse_and_expr(tokens, options)?;
 
-    if !tokens.is(&Token::PipePipe) {
+    if !tokens.is(&Token::Or) {
         return Ok(lhs);
     }
 
-    tokens.consume();
+    let op_span = tokens.consume();
 
     let rhs = parse_or_expr(tokens, options)?;
 
     let span = lhs.span.join(rhs.span);
-    let kind = ExprKind::Binary(BinOp::Or, Box::new(lhs), Box::new(rhs));
+    let kind = ExprKind::Binary(BinOp::Or, op_span, Box::new(lhs), Box::new(rhs));
     Ok(kind.with_span(span))
 }
 

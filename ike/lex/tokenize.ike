@@ -1,0 +1,434 @@
+import std::in
+import std::string
+import std::list
+
+import ike::file
+import ike::diagnostic
+
+fn tokenize : in diagnostic -> file -> str -> token::stream
+fn tokenize emitter file input {
+  let lexer = lexer {
+    emitter: emitter
+    state:   lexer::idle
+    tokens:  []
+
+    file:    file
+    offset:  0
+  }
+
+  let lexer' = input
+    |> string::graphemes
+    |> list::foldl lexer lexer::next
+    |> lexer::end
+
+  lexer'.tokens |> list::reverse
+}
+
+type lexer = {
+  emitter: in diagnostic
+  state:   lexer::state
+  tokens:  token::stream
+
+  file:    file
+  offset:  int
+}
+
+type lexer::state = idle
+                  | symbol token::symbol
+                  | whitespace int
+                  | integer str
+                  | ident str
+                  | group token::delimiter, lexer
+                  | string [token::format], lexer::string-state, int
+
+type lexer::string-state = literal str
+                         | escape  str
+                         | format  lexer
+
+fn lexer::identity lexer -> lexer
+
+fn lexer::is-not-in-group lexer {
+  match lexer.state {
+    lexer::group  _ -> false
+    lexer::string _ -> false
+    _               -> true
+  }
+}
+
+fn lexer::next : lexer -> str -> lexer
+fn lexer::next lexer c {
+  match lexer.state {
+    lexer::idle -> {
+      lexer |> (match c {
+        ";"  -> lexer::start-symbol token::semi
+        ":"  -> lexer::start-symbol token::colon
+        ","  -> lexer::start-symbol token::comma
+        "."  -> lexer::start-symbol token::dot
+        "#"  -> lexer::start-symbol token::pound
+        "_"  -> lexer::start-symbol token::under
+        "+"  -> lexer::start-symbol token::plus
+        "-"  -> lexer::start-symbol token::minus
+        "*"  -> lexer::start-symbol token::star
+        "\\" -> lexer::start-symbol token::backslash
+        "&"  -> lexer::start-symbol token::amp
+        "|"  -> lexer::start-symbol token::pipe
+        "^"  -> lexer::start-symbol token::caret
+        "!"  -> lexer::start-symbol token::bang
+        "?"  -> lexer::start-symbol token::question
+        "'"  -> lexer::start-symbol token::quote
+        "="  -> lexer::start-symbol token::eq
+        "~"  -> lexer::start-symbol token::tilde
+        "<"  -> lexer::start-symbol token::lt
+        ">"  -> lexer::start-symbol token::gt
+
+        "("  -> lexer::start-group token::parentheses
+        "["  -> lexer::start-group token::bracket
+        "{"  -> lexer::start-group token::brace
+
+        "0"  -> lexer::with-state <| lexer::integer c
+        "1"  -> lexer::with-state <| lexer::integer c
+        "2"  -> lexer::with-state <| lexer::integer c
+        "3"  -> lexer::with-state <| lexer::integer c
+        "4"  -> lexer::with-state <| lexer::integer c
+        "5"  -> lexer::with-state <| lexer::integer c
+        "6"  -> lexer::with-state <| lexer::integer c
+        "7"  -> lexer::with-state <| lexer::integer c
+        "8"  -> lexer::with-state <| lexer::integer c
+        "9"  -> lexer::with-state <| lexer::integer c
+
+        "\"" -> lexer::with-state
+                  <| lexer::string ([], lexer::literal "", string::length c)
+
+        " "  -> lexer::with-state <| lexer::whitespace 1
+        "\t" -> lexer::with-state <| lexer::whitespace 1
+        "\r" -> lexer::with-state <| lexer::whitespace 1
+
+        "\n" -> lexer::with-token token::newline 1
+
+        _ -> {
+          match lexer::is-ident-start c {
+            true  -> lexer::with-state <| lexer::ident c
+            false -> {
+              let span = span {
+                file:  lexer.file
+                start: lexer.offset
+                end:   lexer.offset + 1
+              }
+
+              let diagnostic = diagnostic::error "unexpected character `{c}`"
+                |> diagnostic::with-label span "found here"
+
+              std::send diagnostic lexer.emitter
+
+              lexer::with-token token::error 1
+            }
+          }
+        }
+      })
+    }
+
+    lexer::symbol s -> {
+      lexer |> (match s, c {
+        token::dot,   "." -> lexer::with-symbol token::dotdot 2
+        token::minus, ">" -> lexer::with-symbol token::rarrow 2
+        token::lt,    "-" -> lexer::with-symbol token::larrow 2
+        token::colon, ":" -> lexer::with-symbol token::coloncolon 2
+        token::eq,    "=" -> lexer::with-symbol token::eqeq 2
+        token::bang,  "=" -> lexer::with-symbol token::noteq 2
+        token::lt,    "=" -> lexer::with-symbol token::lteq 2
+        token::gt,    "=" -> lexer::with-symbol token::gteq 2
+        token::lt,    "|" -> lexer::with-symbol token::ltpipe 2
+        token::pipe,  ">" -> lexer::with-symbol token::pipegt 2
+
+        _ -> |lexer| {
+          let lexer' = lexer |> lexer::with-symbol s 1
+          lexer::next lexer' c
+        }
+      })
+    }
+
+    lexer::integer s -> {
+      match lexer::is-digit c {
+        true -> {
+          lexer |> lexer::with-state 
+            <| lexer::integer (s |> string::append c)
+        }
+
+        false -> {
+          lexer
+            |> lexer::with-token
+              <| token::integer s
+              <| string::length s
+            |> lexer::next' c
+        }
+      }
+    }
+
+    lexer::ident s -> {
+      match lexer::is-ident-continue c {
+        true -> {
+          lexer |> lexer::with-state
+            <| lexer::ident (s |> string::append c)
+        }
+
+        false -> {
+          lexer
+            |> lexer::with-token
+              <| token::ident s
+              <| string::length s
+            |> lexer::next' c
+        }
+      }
+    }
+
+    lexer::whitespace l -> {
+      match lexer::is-whitespace c {
+        true  -> lexer |> lexer::with-state <| lexer::whitespace (l + 1)
+        false -> {
+          lexer
+            |> lexer::with-token token::whitespace l
+            |> lexer::next' c
+        }
+      }
+    }
+
+    lexer::group (delim, lexer') -> {
+      match c == lexer::delim-close-str delim and lexer::is-not-in-group lexer' {
+        false -> {
+          let lexer' = lexer::next lexer' c
+          lexer |> lexer::with-state <| lexer::group (delim, lexer')
+        }
+
+        true  -> lexer |> lexer::end-group delim lexer'
+      }
+    }
+
+    lexer::string (parts, state, len) -> {
+      lexer |> (match state {
+        lexer::literal s -> {
+          match c {
+            "\"" -> {
+              lexer::with-token
+                <| token::format (list::reverse [token::string s; ..parts])
+                <| len + string::length c
+            }
+
+            "\\" -> {
+              let state = lexer::escape s
+              lexer::with-state <| lexer::string (parts, state, len + string::length c)
+            }
+            
+            "{"  -> {
+              let lexer' = lexer {
+                emitter: lexer.emitter
+                state:   lexer::idle
+                tokens:  []
+                
+                file:    lexer.file
+                offset:  lexer.offset + len + string::length c
+              }
+
+              let parts = [token::string s; ..parts]
+
+              let state = lexer::format lexer'
+              lexer::with-state <| lexer::string (parts, state, len + string::length c)
+            }
+
+            _ -> {
+              let state = s |> string::append c |> lexer::literal
+              lexer::with-state <| lexer::string (parts, state, len + string::length c)
+            }
+          }
+        }
+
+        lexer::escape s -> {
+          match c {
+            "\"" -> lexer::with-escape parts s "\"" len
+            "\\" -> lexer::with-escape parts s "\\" len
+            "n"  -> lexer::with-escape parts s "\n" len
+            "t"  -> lexer::with-escape parts s "\t" len
+            "r"  -> lexer::with-escape parts s "\r" len
+            "0"  -> lexer::with-escape parts s "\0" len
+
+            _    -> {
+              let span = span {
+                file:  lexer.file
+                start: lexer.offset
+                end:   lexer.offset + len + string::length c
+              }
+
+              let diagnostic = diagnostic::error "invalid escape character `{c}`"
+                |> diagnostic::with-label span "found in string here"
+
+              std::send diagnostic lexer.emitter
+
+              let state = s |> string::append c |> lexer::literal
+              lexer::with-state <| lexer::string (parts, state, len + string::length c)
+            }
+          }
+        }
+
+        lexer::format lexer' -> {
+          match c == "}" and lexer::is-not-in-group lexer' {
+            false -> {
+              let state = lexer' |> lexer::next' c |> lexer::format
+              lexer::with-state <| lexer::string (parts, state, len + string::length c)
+            }
+
+            true -> {
+              let lexer' = lexer::end lexer'
+              let parts = [token::tokens lexer'.tokens; ..parts]
+              let state = lexer::literal ""
+              lexer::with-state <| lexer::string (parts, state, len + string::length c)
+            }
+          }
+        }
+      })
+    }
+  }
+}
+
+fn lexer::with-escape parts s c len {
+  let state = s |> string::append "\0" |> lexer::literal
+  lexer::with-state <| lexer::string (parts, state, len + string::length "\0")
+}
+
+fn lexer::delim-close-str delim {
+  match delim {
+    token::parentheses -> ")"
+    token::bracket     -> "]"
+    token::brace       -> "}"
+  }
+}
+
+fn lexer::next' : str -> lexer -> lexer
+fn lexer::next' c lexer -> lexer::next lexer c
+
+fn lexer::end : lexer -> lexer
+fn lexer::end lexer {
+  lexer |> (match lexer.state {
+    lexer::idle             -> lexer::identity
+    lexer::symbol s         -> lexer::with-symbol s 1
+    lexer::integer s        -> lexer::with-token <| token::integer s <| string::length s
+    lexer::ident s          -> lexer::with-token <| token::ident s   <| string::length s
+    lexer::whitespace l     -> lexer::with-token token::whitespace l
+    lexer::group  (d, l)    -> lexer::end-group d l
+    lexer::string (p, s, l) -> {
+      match s {
+        lexer::literal s -> {
+          let span = span {
+            file:  lexer.file
+            start: lexer.offset
+            end:   lexer.offset + l
+          }
+
+          let diagnostic = diagnostic::error "expected end of string"
+            |> diagnostic::with-label span "found here"
+
+          std::send diagnostic lexer.emitter
+
+          lexer::with-token token::error <| string::length s + 1
+        }
+
+        lexer::escape s -> {
+          std::todo "escape"
+        }
+
+        lexer::format lexer' -> {
+          std::todo "format"
+        }
+      }
+    }
+  })
+}
+
+fn lexer::start-group delimiter lexer {
+  let lexer' = lexer {
+    emitter: lexer.emitter
+    state:   lexer::idle
+    tokens:  []
+
+    file:    lexer.file
+    offset:  lexer.offset + 1
+  }
+
+  lexer |> lexer::with-state <| lexer::group (delimiter, lexer')
+}
+
+fn lexer::end-group delim lexer' lexer {
+  let lexer' = lexer::end lexer'
+
+  let group = token::group {
+    delimiter: delim
+    contents:  lexer'.tokens |> list::reverse
+  }
+
+  let len = lexer'.offset - lexer.offset
+  lexer |> lexer::with-token <| token::group group <| len
+}
+
+fn lexer::start-symbol s -> lexer::with-state <| lexer::symbol s
+fn lexer::with-symbol s -> lexer::with-token <| token::symbol s
+
+fn lexer::with-state state lexer {
+  lexer {
+    emitter: lexer.emitter
+    state:   state
+    tokens:  lexer.tokens
+
+    file:    lexer.file
+    offset:  lexer.offset
+  }
+}
+
+fn lexer::with-token token l lexer {
+  let span = span {
+    file:  lexer.file
+    start: lexer.offset
+    end:   lexer.offset + l
+  }
+
+  lexer {
+    emitter: lexer.emitter
+    state:   lexer::idle
+    tokens:  [token, span; ..lexer.tokens]
+
+    file:    lexer.file
+    offset:  lexer.offset + l
+  }
+}
+
+fn lexer::is-digit c {
+  match c {
+    "0" -> true
+    "1" -> true
+    "2" -> true
+    "3" -> true
+    "4" -> true
+    "5" -> true
+    "6" -> true
+    "7" -> true
+    "8" -> true
+    "9" -> true
+    _   -> false
+  }
+}
+
+fn lexer::is-whitespace c {
+  match c {
+    " "  -> true 
+    "\t" -> true
+    "\r" -> true
+    _    -> false
+  }
+}
+
+fn lexer::is-ident-start c {
+  "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    |> string::graphemes
+    |> list::contains c
+}
+
+fn lexer::is-ident-continue c {
+  lexer::is-ident-start c or lexer::is-digit c or c == "_" or c == "-" or c == "'"
+}

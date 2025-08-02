@@ -24,7 +24,7 @@ pub type Body = super::Body<Type>;
 pub type Bodies = super::Bodies<Type>;
 pub type Bid = super::Bid<Type>;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Program {
     pub modules: Vec<Module>,
     pub bodies: Bodies,

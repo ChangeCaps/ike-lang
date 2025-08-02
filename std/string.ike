@@ -19,8 +19,8 @@ fn string::append a b -> string::prepend b a
 
 fn string::repeat : int -> str -> str
 fn string::repeat n s {
-  match n <= 1 {
-    true  -> s
+  match n <= 0 {
+    true  -> ""
     false -> string::repeat (n - 1) s |> string::append s
   }
 }

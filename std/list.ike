@@ -10,14 +10,14 @@ fn list::length xs {
 }
 
 /// Get the nth element of a list.
-fn list::nth : ['a] -> int -> option<'a>
+fn list::nth : ['a] -> int -> option 'a
 fn list::nth xs n {
   match xs {
     []        -> none
     [x; ..xs] -> {
-      match n == 0 {
-        true  -> some x
-        false -> list::nth xs (n - 1)
+      match n {
+        1 -> some x
+        _ -> list::nth xs (n - 1)
       }
     }
   }
@@ -26,20 +26,20 @@ fn list::nth xs n {
 /// Skip the first n elements of a list.
 fn list::skip : int -> ['a] -> ['a]
 fn list::skip n xs {
-  match xs, n == 0 {
-    [], _                -> []
-    [x; ..xs], false     -> list::skip (n - 1) xs
-    [x; ..xs], true      -> xs
+  match xs, n {
+    [], _        -> []
+    [x; ..xs], 1 -> xs
+    [x; ..xs], _ -> list::skip (n - 1) xs
   }
 }
 
 /// Take the first n elements of a list.
 fn list::take : int -> ['a] -> ['a]
 fn list::take n xs {
-  match xs, n == 0 {
-    [], _                -> []
-    [x; ..xs], false     -> [x; ..list::take (n - 1) xs]
-    [x; ..xs], true      -> []
+  match xs, n {
+    [], _        -> []
+    [x; ..xs], 1 -> []
+    [x; ..xs], _ -> [x; ..list::take (n - 1) xs]
   }
 }
 
@@ -64,14 +64,18 @@ fn list::concat xss {
 /// Reverse a list.
 fn list::reverse : ['a] -> ['a]
 fn list::reverse xs {
+  list::reverse' xs []
+}
+
+fn list::reverse' xs ys {
   match xs {
-    []          -> []
-    [x; ..xs]   -> list::append (list::reverse xs) [x]
-  } 
+    []        -> ys
+    [x; ..xs] -> list::reverse' xs [x; ..ys]
+  }
 }
 
 /// Zip two lists together.
-fn list::zip : ['a] -> ['b] -> ['a * 'b]
+fn list::zip : ['a] -> ['b] -> ['a, 'b]
 fn list::zip xs ys {
   match xs, ys {
     [], _                -> []
@@ -81,7 +85,7 @@ fn list::zip xs ys {
 }
 
 /// Unzip a list of pairs into two separate lists.
-fn list::unzip : ['a * 'b] -> ['a] * ['b]
+fn list::unzip : ['a, 'b] -> ['a], ['b]
 fn list::unzip xs {
   match xs {
     []           -> [], []
@@ -116,7 +120,7 @@ fn list::map f xs {
 }
 
 /// Filter a list and map the results using a function.
-fn list::filter-map : ('a -> option<'b>) -> ['a] -> ['b]
+fn list::filter-map : ('a -> option 'b) -> ['a] -> ['b]
 fn list::filter-map f xs {
   match xs {
     []          -> []
@@ -134,7 +138,7 @@ fn list::all : ('a -> bool) -> ['a] -> bool
 fn list::all f xs {
   match xs {
     []        -> true
-    [x; ..xs] -> f x && list::all f xs
+    [x; ..xs] -> f x and list::all f xs
   }
 }
 
@@ -143,16 +147,16 @@ fn list::any : ('a -> bool) -> ['a] -> bool
 fn list::any f xs {
   match xs {
     []        -> false
-    [x; ..xs] -> f x || list::any f xs
+    [x; ..xs] -> f x or list::any f xs
   }
 }
 
 /// Check if a list contains a specific element.
 fn list::contains : 'a -> ['a] -> bool
-fn list::contains x -> list::any \y -> y == x
+fn list::contains x -> list::any |y| y == x
 
 /// Find the first element in a list that satisfies a predicate.
-fn list::find : ('a -> bool) -> ['a] -> option<'a>
+fn list::find : ('a -> bool) -> ['a] -> option 'a
 fn list::find f xs {
   match xs {
     []          -> none
@@ -165,7 +169,7 @@ fn list::find f xs {
   }
 }
 
-fn list::find-map : ('a -> option<'b>) -> ['a] -> option<'b>
+fn list::find-map : ('a -> option 'b) -> ['a] -> option 'b
 fn list::find-map f xs {
   match xs {
     []        -> none    
@@ -179,7 +183,7 @@ fn list::find-map f xs {
 }
 
 /// Fold a list from the left with an accumulator.
-fn list::foldl : 'a -> ('a -> 'b -> 'a)  -> ['b] -> 'a
+fn list::foldl : 'a -> ('a -> 'b -> 'a) -> ['b] -> 'a
 fn list::foldl acc f xs {
   match xs {
     []        -> acc
@@ -187,23 +191,10 @@ fn list::foldl acc f xs {
   }
 }
 
-/// Unwrap a list of [results], returning the first error if any.
-fn list::try : [result<'a, 'e>] -> result<['a], 'e>
-fn list::try xs {
-  match xs {
-    []        -> ok []
-    [x; ..xs] -> match x, list::try xs {
-      err e, _    -> err e
-      _, err e    -> err e
-      ok x, ok xs -> ok [x; ..xs]
-    }
-  }
-}
-
 /// Create an iterator over the elements of a list.
-fn list::iter : ['a] -> iter<'a>
+fn list::iter : ['a] -> iter 'a
 fn list::iter xs {
-  iter::new \_ -> {
+  iter::new |_| {
     match xs {
       []        -> none
       [x; ..xs] -> some (x, list::iter xs)

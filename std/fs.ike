@@ -1,25 +1,25 @@
-extern fs::read : str -> result<str, str>
+extern fs::read : str -> result str str
 
 fn fs::is-dir : str -> bool
 fn fs::is-dir path -> {
   os::execute ["test"; "-d"; path]
-  |> result::map \s -> s.code == 0
+  |> result::map |s| s.code == 0
   |> result::ok-or false
 }
 
 fn fs::is-file : str -> bool
 fn fs::is-file path -> {
   os::execute ["test"; "-f"; path]
-  |> result::map \s -> s.code == 0
+  |> result::map |s| s.code == 0
   |> result::ok-or false
 }
 
-fn fs::read-dir : str -> result<[str], str>
+fn fs::read-dir : str -> result [str] str
 fn fs::read-dir path -> {
   os::execute ["ls"; "-a"; path]
-  |> result::map \s -> {
+  |> result::map |s| {
     s.output
     |> string::split "\n"
-    |> list::filter \s -> s != "." && s != ".."
+    |> list::filter |s| s != "." and s != ".."
   }
 }

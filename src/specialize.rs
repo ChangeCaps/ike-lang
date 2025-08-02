@@ -1,4 +1,8 @@
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    error::Error,
+    fmt,
+};
 
 use crate::{
     diagnostic::Emitter,
@@ -7,6 +11,14 @@ use crate::{
 
 #[derive(Debug)]
 pub struct SpecializeError;
+
+impl fmt::Display for SpecializeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "an error occurred while specializing")
+    }
+}
+
+impl Error for SpecializeError {}
 
 pub fn specialize(
     uir: uir::Program,
@@ -106,6 +118,15 @@ impl Specializer<'_> {
             uir::ExprKind::String(value) => tir::ExprKind::String(value),
             uir::ExprKind::Local(lid) => tir::ExprKind::Local(lid.cast()),
 
+            uir::ExprKind::Format(parts) => {
+                let parts = parts
+                    .into_iter()
+                    .map(|part| self.specialize_expr(part, generics))
+                    .collect::<Result<_, _>>()?;
+
+                tir::ExprKind::Format(parts)
+            }
+
             uir::ExprKind::Body(bid) => {
                 let ty = self.uir.tcx.substitute(self.uir[bid].ty.clone());
                 let generics = Self::extract_generics(ty, expected.clone());
@@ -128,6 +149,11 @@ impl Specializer<'_> {
                 };
 
                 tir::ExprKind::Variant(name, value)
+            }
+
+            uir::ExprKind::Try(value) => {
+                let value = self.specialize_expr(*value, generics)?;
+                tir::ExprKind::Try(Box::new(value))
             }
 
             uir::ExprKind::Call(target, input) => {
@@ -235,7 +261,9 @@ impl Specializer<'_> {
                 tir::PatternKind::Tuple(new_patterns)
             }
 
+            uir::PatternKind::Int(value) => tir::PatternKind::Int(value),
             uir::PatternKind::Bool(value) => tir::PatternKind::Bool(value),
+            uir::PatternKind::String(value) => tir::PatternKind::String(value),
 
             uir::PatternKind::Variant(ty, name, value) => {
                 let ty = self.specialize_type(ty, generics)?;
@@ -274,18 +302,18 @@ impl Specializer<'_> {
                 None => Ok(tir::Type::Unit),
             },
 
-            uir::Type::App(app) => Ok(match app {
-                uir::App::Int => tir::Type::Int,
-                uir::App::Str => tir::Type::Str,
-                uir::App::Bool => tir::Type::Bool,
-                uir::App::Unit => tir::Type::Unit,
+            uir::Type::App(app) => Ok(match app.kind {
+                uir::AppKind::Int => tir::Type::Int,
+                uir::AppKind::Str => tir::Type::Str,
+                uir::AppKind::Bool => tir::Type::Bool,
+                uir::AppKind::Unit => tir::Type::Unit,
 
-                uir::App::List(item) => {
+                uir::AppKind::List(item) => {
                     let item = self.specialize_type(*item, generics)?;
                     tir::Type::List(Box::new(item))
                 }
 
-                uir::App::Tuple(fields) => {
+                uir::AppKind::Tuple(fields) => {
                     let fields = fields
                         .into_iter()
                         .map(|ty| self.specialize_type(ty, generics))
@@ -294,7 +322,7 @@ impl Specializer<'_> {
                     tir::Type::Tuple(fields)
                 }
 
-                uir::App::Newtype(tid, arguments) => {
+                uir::AppKind::Newtype(tid, arguments) => {
                     let arguments = arguments
                         .into_iter()
                         .map(|ty| self.specialize_type(ty, generics))
@@ -304,7 +332,7 @@ impl Specializer<'_> {
                     tir::Type::Newtype(tid, arguments)
                 }
 
-                uir::App::Function(input, output) => {
+                uir::AppKind::Function(input, output) => {
                     let input = self.specialize_type(*input, generics)?;
                     let output = self.specialize_type(*output, generics)?;
 
@@ -384,6 +412,15 @@ impl Specializer<'_> {
 
                 Ok(tir_tid)
             }
+
+            uir::NewtypeKind::Alias(ref aliased) => {
+                let aliased = self.specialize_type(aliased.clone(), &generics)?;
+                let tir_tid = self.tir.types.push_newtype(tir::Newtype::Alias(aliased));
+
+                self.types.insert((tid, arguments), tir_tid);
+
+                Ok(tir_tid)
+            }
         }
     }
 
@@ -407,28 +444,28 @@ impl Specializer<'_> {
                 generics.insert(var, expected);
             }
 
-            uir::Type::App(app) => match (app, expected) {
-                (uir::App::Int, tir::Type::Int)
-                | (uir::App::Str, tir::Type::Str)
-                | (uir::App::Bool, tir::Type::Bool)
-                | (uir::App::Unit, tir::Type::Unit) => {}
+            uir::Type::App(app) => match (app.kind, expected) {
+                (uir::AppKind::Int, tir::Type::Int)
+                | (uir::AppKind::Str, tir::Type::Str)
+                | (uir::AppKind::Bool, tir::Type::Bool)
+                | (uir::AppKind::Unit, tir::Type::Unit) => {}
 
-                (uir::App::List(ty), tir::Type::List(expected)) => {
+                (uir::AppKind::List(ty), tir::Type::List(expected)) => {
                     Self::extract_generics_impl(*ty, *expected, generics);
                 }
 
-                (uir::App::Tuple(tys), tir::Type::Tuple(expected)) => {
+                (uir::AppKind::Tuple(tys), tir::Type::Tuple(expected)) => {
                     for (ty, expected) in tys.into_iter().zip(expected) {
                         Self::extract_generics_impl(ty, expected, generics);
                     }
                 }
 
-                (uir::App::Function(input, output), tir::Type::Function(e_input, e_output)) => {
+                (uir::AppKind::Function(input, output), tir::Type::Function(e_input, e_output)) => {
                     Self::extract_generics_impl(*input, *e_input, generics);
                     Self::extract_generics_impl(*output, *e_output, generics);
                 }
 
-                (uir::App::Newtype(_, args), tir::Type::Newtype(_, expected_args)) => {
+                (uir::AppKind::Newtype(_, args), tir::Type::Newtype(_, expected_args)) => {
                     for (arg, expected_arg) in args.into_iter().zip(expected_args) {
                         Self::extract_generics_impl(arg, expected_arg, generics);
                     }

@@ -5,6 +5,23 @@ use crate::{
 
 use super::{Token, TokenStream, parse_ident, parse_path};
 
+fn is_type_term(tokens: &TokenStream) -> bool {
+    let (token, _) = tokens.peek();
+
+    matches!(
+        token,
+        Token::Int
+            | Token::Str
+            | Token::Bool
+            | Token::Under
+            | Token::Quote
+            | Token::Ident(_)
+            | Token::LParen
+            | Token::LBracket
+            | Token::LBrace
+    )
+}
+
 fn parse_term_type(tokens: &mut TokenStream) -> Result<Type, Diagnostic> {
     let (token, span) = tokens.peek();
 
@@ -50,7 +67,7 @@ fn parse_term_type(tokens: &mut TokenStream) -> Result<Type, Diagnostic> {
             let name = parse_path(tokens)?;
 
             let span = name.span;
-            let kind = TypeKind::Path(name);
+            let kind = TypeKind::Path(name, Vec::new());
             Ok(Type { kind, span })
         }
 
@@ -88,20 +105,37 @@ fn parse_term_type(tokens: &mut TokenStream) -> Result<Type, Diagnostic> {
     }
 }
 
-fn parse_tuple_type(tokens: &mut TokenStream) -> Result<Type, Diagnostic> {
-    let ty = parse_term_type(tokens)?;
+fn parse_generic_type(tokens: &mut TokenStream) -> Result<Type, Diagnostic> {
+    let mut ty = parse_term_type(tokens)?;
 
-    if !tokens.is(&Token::Star) {
+    let TypeKind::Path(_, ref mut generics) = ty.kind else {
+        return Ok(ty);
+    };
+
+    while is_type_term(tokens) {
+        let generic = parse_term_type(tokens)?;
+
+        ty.span = ty.span.join(generic.span);
+        generics.push(generic);
+    }
+
+    Ok(ty)
+}
+
+fn parse_tuple_type(tokens: &mut TokenStream) -> Result<Type, Diagnostic> {
+    let ty = parse_generic_type(tokens)?;
+
+    if !tokens.is(&Token::Comma) {
         return Ok(ty);
     }
 
     let mut span = ty.span;
     let mut items = vec![ty];
 
-    while tokens.is(&Token::Star) {
+    while tokens.is(&Token::Comma) {
         tokens.consume();
 
-        let item = parse_term_type(tokens)?;
+        let item = parse_generic_type(tokens)?;
         span = span.join(item.span);
         items.push(item);
     }

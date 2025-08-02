@@ -6,10 +6,10 @@ fn assert condition message {
   }
 }
 
-fn panic : str -> 'a
+fn panic : 'a -> 'a
 fn panic message {
   io::print "thread main panic: `"
-  io::print message
+  io::print <| debug::format message
   io::println "`"
   os::exit 1
 }

@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::diagnostic::{Diagnostic, Sid, Span};
+use crate::diagnostic::{Diagnostic, Emitter, Sid, Span};
 
 use super::{Token, TokenStream};
 
@@ -107,7 +107,11 @@ fn lex_integer(lexer: &mut Lexer) -> Token {
     Token::Integer(number.parse().unwrap())
 }
 
-pub fn tokenize(input: &str, source: Sid) -> Result<TokenStream, Diagnostic> {
+pub fn tokenize(
+    input: &str,
+    source: Sid,
+    emitter: &mut dyn Emitter,
+) -> Result<TokenStream, TokenStream> {
     let mut lexer = Lexer {
         input,
         offset: 0,
@@ -115,6 +119,7 @@ pub fn tokenize(input: &str, source: Sid) -> Result<TokenStream, Diagnostic> {
     };
 
     let mut tokens = Vec::new();
+    let mut is_error = false;
 
     while let Some(c) = lexer.peek() {
         let start = lexer.offset;
@@ -141,6 +146,11 @@ pub fn tokenize(input: &str, source: Sid) -> Result<TokenStream, Diagnostic> {
                 lexer.advance();
             }
 
+            let comment = &lexer.input[start + 2..lexer.offset];
+            let span = lexer.span_from(start);
+
+            tokens.push((Token::Comment(comment.to_string()), span));
+
             continue;
         }
 
@@ -156,9 +166,11 @@ pub fn tokenize(input: &str, source: Sid) -> Result<TokenStream, Diagnostic> {
             continue;
         }
 
-        if c != 'f' {
+        if c != 'f' && c != 'o' {
             // handle two-character symbols
-            if let Ok(token) = Token::from_str(&lexer.remaining()[..2]) {
+            if lexer.remaining().len() >= 2
+                && let Ok(token) = Token::from_str(&lexer.remaining()[..2])
+            {
                 lexer.advance();
                 lexer.advance();
                 tokens.push((token, lexer.span_from(start)));
@@ -180,14 +192,19 @@ pub fn tokenize(input: &str, source: Sid) -> Result<TokenStream, Diagnostic> {
         }
 
         let span = lexer.span_from(start);
-        let message = format!("Unexpected character: '{}'", c);
+        let message = format!("Unexpected character: '{c}'");
         let diagnostic = Diagnostic::error(message).with_span(span);
+        emitter.emit(diagnostic);
 
-        return Err(diagnostic);
+        is_error = true;
+        break;
     }
 
     let eof_span = lexer.span_from(lexer.offset);
     tokens.push((Token::Eof, eof_span));
 
-    Ok(TokenStream::new(tokens))
+    match is_error {
+        false => Ok(TokenStream::new(tokens)),
+        true => Err(TokenStream::new(tokens)),
+    }
 }

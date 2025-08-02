@@ -1,20 +1,22 @@
 use std::{
     collections::{HashMap, HashSet},
+    fmt,
     ops::{Index, IndexMut},
 };
 
 use crate::diagnostic::{Diagnostic, Emitter, Span};
 
-use super::{App, Type, Var};
+use super::{App, AppKind, Type, Var};
 
 #[derive(Debug)]
 pub struct TypeError;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct TypeContext {
     newtypes: Vec<Newtype>,
     bounds: HashMap<Var, Bounds>,
     subst: HashMap<Var, Type>,
+    cache: HashSet<(Type, Type)>,
     errors: Vec<Diagnostic>,
 }
 
@@ -30,6 +32,7 @@ impl TypeContext {
             newtypes: Vec::new(),
             bounds: HashMap::new(),
             subst: HashMap::new(),
+            cache: HashSet::new(),
             errors: Vec::new(),
         }
     }
@@ -76,7 +79,10 @@ impl TypeContext {
                 }
             }
 
-            Type::App(App::Newtype(tid, ref generics)) => {
+            Type::App(App {
+                kind: AppKind::Newtype(tid, ref generics),
+                ..
+            }) => {
                 let newtype = &self[tid];
 
                 let NewtypeKind::Record(record) = &newtype.kind else {
@@ -136,7 +142,9 @@ impl TypeContext {
                 bounds.number = true;
             }
 
-            Type::App(App::Int) => {}
+            Type::App(App {
+                kind: AppKind::Int, ..
+            }) => {}
 
             Type::App(_) => {
                 let diagnostic = Diagnostic::error(format!(
@@ -165,7 +173,7 @@ impl TypeContext {
                     return;
                 }
 
-                let fresh = Var::fresh();
+                let fresh = Var::fresh(var.span());
                 new_vars.insert(*var, fresh);
 
                 if let Some(bounds) = self.bounds.get(var).cloned() {
@@ -186,26 +194,26 @@ impl TypeContext {
                 *var = fresh;
             }
 
-            Type::App(app) => match app {
-                App::Int | App::Bool | App::Str | App::Unit => {}
+            Type::App(app) => match app.kind {
+                AppKind::Int | AppKind::Bool | AppKind::Str | AppKind::Unit => {}
 
-                App::List(element) => {
+                AppKind::List(ref mut element) => {
                     self.instantiate_impl(&mut *element, new_vars);
                 }
 
-                App::Tuple(fields) => {
+                AppKind::Tuple(ref mut fields) => {
                     for field in fields {
                         self.instantiate_impl(field, new_vars);
                     }
                 }
 
-                App::Newtype(_, generics) => {
+                AppKind::Newtype(_, ref mut generics) => {
                     for generic in generics {
                         self.instantiate_impl(generic, new_vars);
                     }
                 }
 
-                App::Function(input, output) => {
+                AppKind::Function(ref mut input, ref mut output) => {
                     self.instantiate_impl(&mut *input, new_vars);
                     self.instantiate_impl(&mut *output, new_vars);
                 }
@@ -219,6 +227,12 @@ impl TypeContext {
         } else if let Some(rhs) = self.substitute_shallow(&rhs) {
             return self.unify(lhs, rhs, span);
         }
+
+        if self.cache.contains(&(lhs.clone(), rhs.clone())) {
+            return;
+        }
+
+        self.cache.insert((lhs.clone(), rhs.clone()));
 
         if lhs == rhs {
             return;
@@ -245,17 +259,23 @@ impl TypeContext {
     }
 
     fn unify_app_app(&mut self, lhs: App, rhs: App, span: Span) {
-        match (lhs, rhs) {
-            (App::Int, App::Int)
-            | (App::Bool, App::Bool)
-            | (App::Str, App::Str)
-            | (App::Unit, App::Unit) => {}
+        if let Some(lhs) = self.substitute_alias(&lhs) {
+            return self.unify(lhs, Type::App(rhs), span);
+        } else if let Some(rhs) = self.substitute_alias(&rhs) {
+            return self.unify(Type::App(lhs), rhs, span);
+        }
 
-            (App::List(lhs_element), App::List(rhs_element)) => {
+        match (lhs.kind, rhs.kind) {
+            (AppKind::Int, AppKind::Int)
+            | (AppKind::Bool, AppKind::Bool)
+            | (AppKind::Str, AppKind::Str)
+            | (AppKind::Unit, AppKind::Unit) => {}
+
+            (AppKind::List(lhs_element), AppKind::List(rhs_element)) => {
                 self.unify(*lhs_element, *rhs_element, span);
             }
 
-            (App::Tuple(lhs_fields), App::Tuple(rhs_fields)) => {
+            (AppKind::Tuple(lhs_fields), AppKind::Tuple(rhs_fields)) => {
                 if lhs_fields.len() != rhs_fields.len() {
                     let diagnostic = Diagnostic::error(format!(
                         "cannot unify tuple types with different lengths: `{}` and `{}`",
@@ -273,7 +293,7 @@ impl TypeContext {
                 }
             }
 
-            (App::Newtype(lhs_tid, lhs_generics), App::Newtype(rhs_tid, rhs_generics)) => {
+            (AppKind::Newtype(lhs_tid, lhs_generics), AppKind::Newtype(rhs_tid, rhs_generics)) => {
                 if lhs_tid != rhs_tid {
                     let message = format!(
                         "cannot unify newtypes: `{}` and `{}`",
@@ -293,21 +313,58 @@ impl TypeContext {
                 }
             }
 
-            (App::Function(lhs_input, lhs_output), App::Function(rhs_input, rhs_output)) => {
+            (
+                AppKind::Function(lhs_input, lhs_output),
+                AppKind::Function(rhs_input, rhs_output),
+            ) => {
                 self.unify(*lhs_input, *rhs_input, span);
                 self.unify(*lhs_output, *rhs_output, span);
             }
 
-            (lhs, rhs) => {
-                let diagnostic = Diagnostic::error(format!(
-                    "cannot unify types: `{}` and `{}`",
-                    self.format_type(&Type::App(lhs)),
-                    self.format_type(&Type::App(rhs)),
-                ))
-                .with_label(span, "arising from here");
+            (lhs_kind, rhs_kind) => {
+                let lhs_ty = self.format_type(&Type::App(App {
+                    kind: lhs_kind,
+                    span: lhs.span,
+                }));
+
+                let rhs_ty = self.format_type(&Type::App(App {
+                    kind: rhs_kind,
+                    span: rhs.span,
+                }));
+
+                let diagnostic =
+                    Diagnostic::error(format!("cannot unify types: `{lhs_ty}` and `{rhs_ty}`",))
+                        .with_label(span, "constraint arising from here")
+                        .with_label(lhs.span, format!("`{lhs_ty}` here"))
+                        .with_label(rhs.span, format!("`{rhs_ty}` here"));
 
                 self.errors.push(diagnostic);
             }
+        }
+    }
+
+    fn substitute_alias(&self, app: &App) -> Option<Type> {
+        match app.kind {
+            AppKind::Newtype(tid, ref generics) => {
+                let newtype = &self[tid];
+
+                match newtype.kind {
+                    NewtypeKind::Alias(ref aliased) => {
+                        let map = newtype
+                            .generics
+                            .iter()
+                            .map(|(_, v)| *v)
+                            .zip(generics.iter().cloned())
+                            .collect();
+
+                        Some(aliased.clone().substitute(&map))
+                    }
+
+                    _ => None,
+                }
+            }
+
+            _ => None,
         }
     }
 
@@ -321,6 +378,9 @@ impl TypeContext {
         None
     }
 
+    /// Deeply substitute a type using the substitution table within the context.
+    ///
+    /// This will compute the most concrete type currently possible.
     pub fn substitute(&self, ty: Type) -> Type {
         match ty {
             Type::Var(var) => match self.subst.get(&var) {
@@ -328,36 +388,48 @@ impl TypeContext {
                 None => Type::Var(var),
             },
 
-            Type::App(app) => match app {
-                App::Int | App::Bool | App::Str | App::Unit => Type::App(app),
+            Type::App(app) => match app.kind {
+                AppKind::Int | AppKind::Bool | AppKind::Str | AppKind::Unit => Type::App(app),
 
-                App::List(mut element) => {
+                AppKind::List(mut element) => {
                     *element = self.substitute(*element);
 
-                    Type::App(App::List(element))
+                    Type::App(App {
+                        kind: AppKind::List(element),
+                        span: app.span,
+                    })
                 }
 
-                App::Tuple(mut fields) => {
+                AppKind::Tuple(mut fields) => {
                     for field in &mut fields {
                         *field = self.substitute(field.clone());
                     }
 
-                    Type::App(App::Tuple(fields))
+                    Type::App(App {
+                        kind: AppKind::Tuple(fields),
+                        span: app.span,
+                    })
                 }
 
-                App::Newtype(tid, mut generics) => {
+                AppKind::Newtype(tid, mut generics) => {
                     for generic in &mut generics {
                         *generic = self.substitute(generic.clone());
                     }
 
-                    Type::App(App::Newtype(tid, generics))
+                    Type::App(App {
+                        kind: AppKind::Newtype(tid, generics),
+                        span: app.span,
+                    })
                 }
 
-                App::Function(mut input, mut output) => {
+                AppKind::Function(mut input, mut output) => {
                     *input = self.substitute(*input);
                     *output = self.substitute(*output);
 
-                    Type::App(App::Function(input, output))
+                    Type::App(App {
+                        kind: AppKind::Function(input, output),
+                        span: app.span,
+                    })
                 }
             },
         }
@@ -378,7 +450,7 @@ impl TypeContext {
 
         let forall = var_names
             .values()
-            .map(|name| format!("'{}", name))
+            .map(|name| format!("'{name}"))
             .collect::<Vec<_>>()
             .join(" ");
 
@@ -391,7 +463,7 @@ impl TypeContext {
             })
             .map(|(name, bounds)| {
                 let bounds_str = self.format_bounds(&bounds, &var_names);
-                format!("'{}: {}", name, bounds_str)
+                format!("'{name}: {bounds_str}")
             })
             .collect::<Vec<_>>();
 
@@ -444,26 +516,26 @@ impl TypeContext {
                 }
             }
 
-            Type::App(app) => match app {
-                App::Int | App::Bool | App::Str | App::Unit => {}
+            Type::App(app) => match app.kind {
+                AppKind::Int | AppKind::Bool | AppKind::Str | AppKind::Unit => {}
 
-                App::List(element) => {
+                AppKind::List(ref element) => {
                     self.enumerate_vars(element, vars);
                 }
 
-                App::Tuple(fields) => {
+                AppKind::Tuple(ref fields) => {
                     for field in fields {
                         self.enumerate_vars(field, vars);
                     }
                 }
 
-                App::Newtype(_, generics) => {
+                AppKind::Newtype(_, ref generics) => {
                     for generic in generics {
                         self.enumerate_vars(generic, vars);
                     }
                 }
 
-                App::Function(input, output) => {
+                AppKind::Function(ref input, ref output) => {
                     self.enumerate_vars(input, vars);
                     self.enumerate_vars(output, vars);
                 }
@@ -479,28 +551,28 @@ impl TypeContext {
         match ty {
             Type::Var(var) => format!("'{}", vars[var]),
 
-            Type::App(app) => match app {
-                App::Int => String::from("int"),
-                App::Str => String::from("str"),
-                App::Bool => String::from("bool"),
-                App::Unit => String::from("{}"),
+            Type::App(app) => match app.kind {
+                AppKind::Int => String::from("int"),
+                AppKind::Str => String::from("str"),
+                AppKind::Bool => String::from("bool"),
+                AppKind::Unit => String::from("{}"),
 
-                App::List(element) => {
+                AppKind::List(ref element) => {
                     let element_str = self.format_type_impl(element, vars, 0);
-                    format!("[{}]", element_str)
+                    format!("[{element_str}]")
                 }
 
-                App::Tuple(fields) => {
+                AppKind::Tuple(ref fields) => {
                     let fields_str: Vec<String> = fields
                         .iter()
                         .map(|field| self.format_type_impl(field, vars, 1))
                         .collect();
 
-                    fields_str.join(" * ")
+                    fields_str.join(", ")
                 }
 
-                App::Newtype(tid, generics) => {
-                    let newtype = &self[*tid];
+                AppKind::Newtype(tid, ref generics) => {
+                    let newtype = &self[tid];
 
                     let generics = generics
                         .iter()
@@ -511,17 +583,17 @@ impl TypeContext {
                         return newtype.name.clone();
                     }
 
-                    format!("{}<{}>", newtype.name, generics.join(", "))
+                    format!("{} {}", newtype.name, generics.join(" "))
                 }
 
-                App::Function(input, output) => {
+                AppKind::Function(ref input, ref output) => {
                     let input_str = self.format_type_impl(input, vars, 1);
                     let output_str = self.format_type_impl(output, vars, 0);
 
-                    let function = format!("{} -> {}", input_str, output_str);
+                    let function = format!("{input_str} -> {output_str}");
 
                     if p > 0 {
-                        format!("({})", function)
+                        format!("({function})")
                     } else {
                         function
                     }
@@ -571,6 +643,12 @@ pub struct Tid {
     index: u64,
 }
 
+impl fmt::Display for Tid {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "t{}", self.index)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Newtype {
     pub name: String,
@@ -582,6 +660,7 @@ pub struct Newtype {
 pub enum NewtypeKind {
     Record(Record),
     Union(Union),
+    Alias(Type),
 }
 
 #[derive(Clone, Debug, PartialEq)]

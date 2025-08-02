@@ -1,6 +1,9 @@
+mod pattern;
+
 use std::{
     collections::{HashMap, HashSet},
-    iter, mem,
+    error::Error,
+    fmt, mem,
     ops::{Deref, DerefMut},
 };
 
@@ -12,6 +15,14 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub struct LowerError;
+
+impl fmt::Display for LowerError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "an error occurred while lowering")
+    }
+}
+
+impl Error for LowerError {}
 
 struct Newtype {
     ast: ast::Newtype,
@@ -54,6 +65,10 @@ impl<'a> Lowerer<'a> {
         }
     }
 
+    pub fn emitter(&mut self) -> &mut dyn Emitter {
+        self.emitter
+    }
+
     pub fn create_module<'s>(&mut self, path: impl Iterator<Item = &'s str>) -> ir::Mid {
         self.create_module_from(self.ir.root, path)
     }
@@ -88,14 +103,32 @@ impl<'a> Lowerer<'a> {
             .join("::")
     }
 
-    pub fn add_module(&mut self, path: &[&str], ast: ast::Module) -> Result<(), LowerError> {
+    pub fn add_module(&mut self, path: &[&str], ast: &ast::Module) -> Result<(), LowerError> {
+        for file in ast.files.values() {
+            self.add_file(path, file.clone())?;
+        }
+
+        for (name, module) in &ast.modules {
+            let mut path = path.to_vec();
+            path.push(name);
+
+            self.add_module(&path, module)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn add_file(&mut self, path: &[&str], ast: ast::File) -> Result<(), LowerError> {
         let module = self.create_module(path.iter().copied());
 
         for item in ast.items {
             match item {
                 ast::Item::Import(ast) => {
                     let name = ast.path.name().to_string();
-                    self.ir[module].imports.insert(name, ast.path.segments);
+                    (self.ir[module].imports).insert(
+                        name, //
+                        ast.path.segments().map(String::from).collect(),
+                    );
                 }
 
                 ast::Item::Newtype(ast) => {
@@ -104,6 +137,7 @@ impl<'a> Lowerer<'a> {
                             let union = ir::Union {
                                 variants: Vec::new(),
                             };
+
                             ir::NewtypeKind::Union(union)
                         }
 
@@ -111,13 +145,15 @@ impl<'a> Lowerer<'a> {
                             let record = ir::Record { fields: Vec::new() };
                             ir::NewtypeKind::Record(record)
                         }
+
+                        ast::NewtypeKind::Alias(_) => ir::NewtypeKind::Alias(ir::Type::dummy()),
                     };
 
                     let mut generics = Vec::new();
 
-                    for param in ast.generics.iter() {
-                        let var = ir::Var::fresh();
-                        generics.push((param.clone(), var));
+                    for (name, span) in ast.generics.iter() {
+                        let var = ir::Var::fresh(*span);
+                        generics.push((name.clone(), var));
                     }
 
                     let newtype = ir::Newtype {
@@ -133,10 +169,12 @@ impl<'a> Lowerer<'a> {
                     if let ast::NewtypeKind::Union(ref variants) = ast.kind {
                         for variant in variants {
                             let name = variant.name.clone();
-                            let variant = (tid, name.clone());
+                            let submodule = self.create_module_from(submodule, name.modules());
 
-                            let existing =
-                                self.ir[submodule].variants.insert(name.clone(), variant);
+                            let existing = self.ir[submodule].variants.insert(
+                                name.name().to_string(), //
+                                (tid, name.to_string()),
+                            );
 
                             if existing.is_some() {
                                 let diagnostic = Diagnostic::error(format!(
@@ -150,15 +188,18 @@ impl<'a> Lowerer<'a> {
                             }
 
                             let body = ir::Body {
-                                name: Self::create_name(path, iter::once(name.as_str())),
+                                name: Self::create_name(path, name.segments()),
                                 locals: ir::Locals::default(),
                                 inputs: Vec::new(),
                                 expr: None,
-                                ty: ir::Type::unit(),
+                                ty: ir::Type::dummy(),
                             };
 
                             let bid = self.ir.bodies.push(body);
-                            let existing = self.ir[submodule].bodies.insert(name.clone(), bid);
+                            let existing = self.ir[submodule].bodies.insert(
+                                name.name().to_string(), //
+                                bid,
+                            );
 
                             if existing.is_some() {
                                 let diagnostic = Diagnostic::error(format!(
@@ -173,8 +214,10 @@ impl<'a> Lowerer<'a> {
                         }
                     }
 
-                    let existing =
-                        (self.ir[submodule].newtypes).insert(ast.name.name().to_string(), tid);
+                    let existing = self.ir[submodule].newtypes.insert(
+                        ast.name.name().to_string(), //
+                        tid,
+                    );
 
                     if existing.is_some() {
                         let diagnostic = Diagnostic::error(format!(
@@ -202,14 +245,16 @@ impl<'a> Lowerer<'a> {
                         locals: ir::Locals::default(),
                         inputs: Vec::new(),
                         expr: None,
-                        ty: ir::Type::infer(),
+                        ty: ir::Type::infer(ast.span),
                     };
 
                     let bid = self.ir.bodies.push(body.clone());
 
                     let submodule = self.create_module_from(module, ast.name.modules());
-                    let existing =
-                        (self.ir[submodule].bodies).insert(ast.name.name().to_string(), bid);
+                    let existing = (self.ir[submodule].bodies).insert(
+                        ast.name.name().to_string(), //
+                        bid,
+                    );
 
                     if existing.is_some() {
                         let diagnostic = Diagnostic::error(format!(
@@ -231,7 +276,7 @@ impl<'a> Lowerer<'a> {
                         locals: ir::Locals::default(),
                         inputs: Vec::new(),
                         expr: None,
-                        ty: ir::Type::infer(),
+                        ty: ir::Type::infer(ast.span),
                     };
 
                     let bid = self.ir.bodies.push(body.clone());
@@ -288,7 +333,16 @@ impl<'a> Lowerer<'a> {
                 panic!();
             };
 
-            let bid = self.ir[module].bodies[ascription.name.name()];
+            let Some(&bid) = self.ir[module].bodies.get(ascription.name.name()) else {
+                let diagnostic =
+                    Diagnostic::error(format!("function `{}` not found", ascription.name))
+                        .with_label(ascription.span, "for ascription found here");
+
+                self.emitter.emit(diagnostic);
+
+                return Err(LowerError);
+            };
+
             let ty = self.ir[bid].ty.clone();
 
             self.ir.tcx.unify(ty, expected, ascription.span);
@@ -328,7 +382,7 @@ impl<'a> Lowerer<'a> {
             }
 
             let Some(&submodule) = self.ir.modules[current].modules.get(segment) else {
-                let diagnostic = Diagnostic::error(format!("unresolved module: {}", segment));
+                let diagnostic = Diagnostic::error(format!("unresolved module: {segment}"));
 
                 self.emitter.emit(diagnostic);
                 return Err(LowerError);
@@ -370,7 +424,7 @@ impl<'a> Lowerer<'a> {
         }
 
         if !imported {
-            let diagnostic = Diagnostic::error(format!("unresolved import: {}", last));
+            let diagnostic = Diagnostic::error(format!("unresolved import: {last}"));
 
             self.emitter.emit(diagnostic);
             return Err(LowerError);
@@ -402,8 +456,9 @@ impl<'a> Lowerer<'a> {
                             None => None,
                         };
 
-                        let generics = (0..generics.len())
-                            .map(|_| ir::Type::infer())
+                        let generics = generics
+                            .iter()
+                            .map(|(_, var)| ir::Type::infer(var.span()))
                             .collect::<Vec<_>>();
 
                         let body = match ty {
@@ -419,15 +474,19 @@ impl<'a> Lowerer<'a> {
 
                                 let mut locals = ir::Locals::default();
                                 let lid = locals.push(ir::Local {
-                                    name: variant.name.clone(),
+                                    name: variant.name.name().to_string(),
                                     ty: ty.clone(),
                                 });
 
-                                let output_ty = ir::Type::newtype(tid, generics);
-                                let function_ty = ir::Type::function(ty.clone(), output_ty.clone());
+                                let output_ty = ir::Type::newtype(tid, generics, variant.span);
+                                let function_ty = ir::Type::function(
+                                    ty.clone(),
+                                    output_ty.clone(),
+                                    variant.span, //
+                                );
 
                                 ir::Body {
-                                    name: variant.name.clone(),
+                                    name: variant.name.to_string(),
                                     locals,
                                     inputs: vec![ir::Pattern {
                                         kind: ir::PatternKind::Binding(lid),
@@ -450,27 +509,36 @@ impl<'a> Lowerer<'a> {
                             }
 
                             None => ir::Body {
-                                name: variant.name.clone(),
+                                name: variant.name.to_string(),
                                 locals: ir::Locals::default(),
                                 inputs: Vec::new(),
                                 expr: Some(ir::Expr {
-                                    kind: ir::ExprKind::Variant(variant.name.clone(), None),
+                                    kind: ir::ExprKind::Variant(variant.name.to_string(), None),
                                     span: variant.span,
-                                    ty: ir::Type::newtype(tid, generics.clone()),
+                                    ty: ir::Type::newtype(tid, generics.clone(), variant.span),
                                 }),
-                                ty: ir::Type::newtype(tid, generics),
+                                ty: ir::Type::newtype(tid, generics, variant.span),
                             },
                         };
 
-                        type_lowerer.ir[newtype.submodule]
-                            .variants
-                            .insert(variant.name.clone(), (tid, variant.name.clone()));
+                        let submodule = type_lowerer
+                            .ir
+                            .get_module(newtype.submodule, variant.name.modules())
+                            .unwrap();
 
-                        let bid = type_lowerer.ir[newtype.submodule].bodies[&variant.name];
+                        let variant_name = variant.name.name().to_string();
+
+                        type_lowerer.ir[submodule].variants.insert(
+                            variant_name.clone(), //
+                            (tid, variant.name.to_string()),
+                        );
+
+                        let bid = type_lowerer.ir[submodule].bodies[&variant_name];
+
                         type_lowerer.ir.bodies[bid] = body;
 
                         let value = ir::Variant {
-                            name: variant.name,
+                            name: variant.name.to_string(),
                             ty,
                         };
 
@@ -496,6 +564,12 @@ impl<'a> Lowerer<'a> {
                     }
 
                     let kind = ir::NewtypeKind::Record(record);
+                    self.ir.tcx[tid].kind = kind;
+                }
+
+                ast::NewtypeKind::Alias(alias) => {
+                    let alias = type_lowerer.lower_type(alias)?;
+                    let kind = ir::NewtypeKind::Alias(alias);
                     self.ir.tcx[tid].kind = kind;
                 }
             }
@@ -540,7 +614,7 @@ impl<'a> Lowerer<'a> {
 
         let mut params = Vec::new();
         for pattern in function.ast.params {
-            let ty = ir::Type::infer();
+            let ty = ir::Type::infer(pattern.span);
             params.push(ty.clone());
 
             let pattern = lowerer.lower_pattern(pattern, ty)?;
@@ -550,9 +624,9 @@ impl<'a> Lowerer<'a> {
         if let Some(body) = function.ast.body {
             let body = lowerer.lower_expr(body)?;
 
-            let ty = params
-                .into_iter()
-                .rfold(body.ty.clone(), |o, i| ir::Type::function(i, o));
+            let ty = params.into_iter().rfold(body.ty.clone(), |o, i| {
+                ir::Type::function(i, o, function.ast.span)
+            });
 
             lowerer.unify(ty, lowerer.body().ty.clone(), body.span);
             lowerer.body_mut().expr = Some(body);
@@ -577,14 +651,14 @@ struct TypeLowerer<'a, 'b> {
 impl TypeLowerer<'_, '_> {
     fn lower_type(&mut self, ast: ast::Type) -> Result<ir::Type, LowerError> {
         Ok(match ast.kind {
-            ast::TypeKind::Int => ir::Type::int(),
-            ast::TypeKind::Str => ir::Type::str(),
-            ast::TypeKind::Bool => ir::Type::bool(),
-            ast::TypeKind::Unit => ir::Type::unit(),
+            ast::TypeKind::Int => ir::Type::int(ast.span),
+            ast::TypeKind::Str => ir::Type::str(ast.span),
+            ast::TypeKind::Bool => ir::Type::bool(ast.span),
+            ast::TypeKind::Unit => ir::Type::unit(ast.span),
 
-            ast::TypeKind::Path(path) => {
+            ast::TypeKind::Path(path, generics) => {
                 let Some(module) = self.ir.get_module(self.module, path.modules()) else {
-                    let diagnostic = Diagnostic::error(format!("unresolved module: {}", path))
+                    let diagnostic = Diagnostic::error(format!("unresolved module: {path}"))
                         .with_label(path.span, "found here");
 
                     self.lowerer.emitter.emit(diagnostic);
@@ -592,19 +666,19 @@ impl TypeLowerer<'_, '_> {
                 };
 
                 let Some(&tid) = self.ir[module].newtypes.get(path.name()) else {
-                    let diagnostic = Diagnostic::error(format!("unresolved type: {}", path))
+                    let diagnostic = Diagnostic::error(format!("unresolved type: {path}"))
                         .with_label(path.span, "found here");
 
                     self.lowerer.emitter.emit(diagnostic);
                     return Err(LowerError);
                 };
 
-                if path.generics.len() != self.ir.tcx[tid].generics.len() {
+                if generics.len() != self.ir.tcx[tid].generics.len() {
                     let diagnostic = Diagnostic::error(format!(
                         "wrong number of type parameters for '{}': expected {}, found {}",
                         path,
                         self.ir.tcx[tid].generics.len(),
-                        path.generics.len()
+                        generics.len()
                     ))
                     .with_label(path.span, "found here");
 
@@ -612,18 +686,17 @@ impl TypeLowerer<'_, '_> {
                     return Err(LowerError);
                 }
 
-                let generics = path
-                    .generics
+                let generics = generics
                     .into_iter()
                     .map(|ty| self.lower_type(ty))
                     .collect::<Result<Vec<_>, _>>()?;
 
-                ir::Type::newtype(tid, generics)
+                ir::Type::newtype(tid, generics, path.span)
             }
 
             ast::TypeKind::List(item) => {
                 let item = self.lower_type(*item)?;
-                ir::Type::list(item)
+                ir::Type::list(item, ast.span)
             }
 
             ast::TypeKind::Tuple(fields) => {
@@ -632,14 +705,14 @@ impl TypeLowerer<'_, '_> {
                     .map(|ty| self.lower_type(ty))
                     .collect::<Result<Vec<_>, _>>()?;
 
-                ir::Type::tuple(fields)
+                ir::Type::tuple(fields, ast.span)
             }
 
             ast::TypeKind::Function(input, output) => {
                 let input = self.lower_type(*input)?;
                 let output = self.lower_type(*output)?;
 
-                ir::Type::function(input, output)
+                ir::Type::function(input, output, ast.span)
             }
 
             ast::TypeKind::Generic(name) => {
@@ -651,13 +724,13 @@ impl TypeLowerer<'_, '_> {
                     }
 
                     Generics::Extendable(generics) => {
-                        let var = ir::Var::fresh();
+                        let var = ir::Var::fresh(ast.span);
                         generics.push((name, var));
                         return Ok(ir::Type::Var(var));
                     }
                 }
 
-                let diagnostic = Diagnostic::error(format!("unresolved generic type: {}", name))
+                let diagnostic = Diagnostic::error(format!("unresolved generic type: {name}"))
                     .with_label(ast.span, "found here");
 
                 self.lowerer.emitter.emit(diagnostic);
@@ -673,7 +746,7 @@ impl TypeLowerer<'_, '_> {
                     return Err(LowerError);
                 }
 
-                ir::Type::infer()
+                ir::Type::infer(ast.span)
             }
         })
     }
@@ -777,229 +850,52 @@ impl ExprLowerer<'_, '_> {
         self.lowerer.ir.tcx.field(target, name, ty, span);
     }
 
-    fn lower_type(&mut self, ast: ast::Type) -> Result<ir::Type, LowerError> {
-        let mut type_lowerer = TypeLowerer {
-            lowerer: self.lowerer,
-            module: self.module,
-            generics: Generics::Defined(&[]),
-            allow_inferred: true,
-        };
-
-        type_lowerer.lower_type(ast)
-    }
-
-    fn lower_pattern(
-        &mut self,
-        ast: ast::Pattern,
-        ty: ir::Type,
-    ) -> Result<ir::Pattern, LowerError> {
+    fn lower_expr(&mut self, ast: ast::Expr) -> Result<ir::Expr, LowerError> {
         Ok(match ast.kind {
-            ast::PatternKind::Wildcard => ir::Pattern {
-                kind: ir::PatternKind::Wildcard,
-                span: ast.span,
-            },
-
-            ast::PatternKind::Path(path) => {
-                if let Some(module) = self.ir.get_module(self.module, path.modules()) {
-                    if let Some((tid, variant)) = self.ir[module].variants.get(path.name()).cloned()
-                    {
-                        let generics = (0..self.ir.tcx[tid].generics.len())
-                            .map(|_| ir::Type::infer())
-                            .collect::<Vec<_>>();
-
-                        let union_ty = ir::Type::newtype(tid, generics);
-                        self.unify(union_ty.clone(), ty, ast.span);
-
-                        let kind = ir::PatternKind::Variant(union_ty, variant, None);
-                        return Ok(ir::Pattern {
-                            kind,
-                            span: ast.span,
-                        });
-                    }
-                }
-
-                if path.segments.len() != 1 {
-                    let diagnostic = Diagnostic::error(format!(
-                        "invalid pattern path: '{}', expected a single segment",
-                        path
-                    ))
-                    .with_label(path.span, "found here");
-
-                    self.lowerer.emitter.emit(diagnostic);
-                    return Err(LowerError);
-                }
-
-                let lid = self.body_mut().locals.push(ir::Local {
-                    name: path.name().to_string(),
-                    ty: ty.clone(),
-                });
-
-                self.scope.push(lid);
-
-                ir::Pattern {
-                    kind: ir::PatternKind::Binding(lid),
-                    span: ast.span,
-                }
-            }
-
-            ast::PatternKind::Variant(path, pattern) => {
-                let Some(module) = self.ir.get_module(self.module, path.modules()) else {
-                    let diagnostic = Diagnostic::error(format!("unresolved module: {}", path))
-                        .with_label(path.span, "found here");
-
-                    self.lowerer.emitter.emit(diagnostic);
-                    return Err(LowerError);
-                };
-
-                let Some((tid, variant)) = self.ir[module].variants.get(path.name()).cloned()
-                else {
-                    let diagnostic = Diagnostic::error(format!("unresolved variant: {}", path))
-                        .with_label(path.span, "found here");
-
-                    self.lowerer.emitter.emit(diagnostic);
-                    return Err(LowerError);
-                };
-
-                let generics = (0..self.ir.tcx[tid].generics.len())
-                    .map(|_| ir::Type::infer())
-                    .collect::<Vec<_>>();
-
-                let subst = self.ir.tcx[tid]
-                    .generics
-                    .iter()
-                    .map(|(_, var)| *var)
-                    .zip(generics.clone())
-                    .collect::<HashMap<_, _>>();
-
-                let newtype = &self.ir.tcx[tid];
-                let ir::NewtypeKind::Union(ref union) = newtype.kind else {
-                    unreachable!();
-                };
-
-                let variant_ty = {
-                    let variant = union
-                        .variants
-                        .iter()
-                        .find(|v| v.name == variant)
-                        .expect("variant not found in union");
-
-                    match variant.ty {
-                        Some(ref ty) => ty.clone().substitute(&subst),
-                        None => {
-                            let diagnostic = Diagnostic::error(format!(
-                                "variant '{}' in union '{}' does not have a type",
-                                variant.name, newtype.name
-                            ));
-
-                            self.lowerer.emitter.emit(diagnostic);
-                            return Err(LowerError);
-                        }
-                    }
-                };
-
-                let union_ty = ir::Type::newtype(tid, generics);
-                self.unify(union_ty.clone(), ty, ast.span);
-
-                let pattern = self.lower_pattern(*pattern, variant_ty)?;
-
-                let kind = ir::PatternKind::Variant(union_ty, variant, Some(Box::new(pattern)));
-                ir::Pattern {
-                    kind,
-                    span: ast.span,
-                }
-            }
-
-            ast::PatternKind::Tuple(items) => {
-                let mut types = Vec::new();
-                let mut patterns = Vec::new();
-
-                for item in items {
-                    let item_ty = ir::Type::infer();
-                    let item_pattern = self.lower_pattern(item, item_ty.clone())?;
-
-                    types.push(item_ty);
-                    patterns.push(item_pattern);
-                }
-
-                let tuple_ty = ir::Type::tuple(types);
-                self.unify(ty, tuple_ty, ast.span);
-
-                ir::Pattern {
-                    kind: ir::PatternKind::Tuple(patterns),
-                    span: ast.span,
-                }
-            }
-
-            ast::PatternKind::Bool(value) => {
-                self.unify(ty, ir::Type::bool(), ast.span);
-
-                ir::Pattern {
-                    kind: ir::PatternKind::Bool(value),
-                    span: ast.span,
-                }
-            }
-
-            ast::PatternKind::List(items, rest) => {
-                let item_ty = ir::Type::infer();
-                let list_ty = ir::Type::list(item_ty.clone());
-
-                self.unify(ty, list_ty.clone(), ast.span);
-
-                let mut pattern = match rest {
-                    Some(rest) => self.lower_pattern(*rest, list_ty.clone())?,
-                    None => ir::Pattern {
-                        kind: ir::PatternKind::ListEmpty,
-                        span: ast.span,
-                    },
-                };
-
-                for item in items.into_iter().rev() {
-                    let item_pattern = self.lower_pattern(item, item_ty.clone())?;
-
-                    let span = item_pattern.span;
-                    let kind = ir::PatternKind::ListCons(Box::new(item_pattern), Box::new(pattern));
-                    pattern = ir::Pattern { kind, span };
-                }
-
-                pattern
-            }
-        })
-    }
-
-    fn lower_expr(&mut self, expr: ast::Expr) -> Result<ir::Expr, LowerError> {
-        Ok(match expr.kind {
             ast::ExprKind::Int(value) => ir::Expr {
                 kind: ir::ExprKind::Int(value),
-                span: expr.span,
-                ty: ir::Type::int(),
+                span: ast.span,
+                ty: ir::Type::int(ast.span),
             },
 
             ast::ExprKind::Bool(value) => ir::Expr {
                 kind: ir::ExprKind::Bool(value),
-                span: expr.span,
-                ty: ir::Type::bool(),
+                span: ast.span,
+                ty: ir::Type::bool(ast.span),
             },
 
             ast::ExprKind::String(value) => ir::Expr {
                 kind: ir::ExprKind::String(value),
-                span: expr.span,
-                ty: ir::Type::str(),
+                span: ast.span,
+                ty: ir::Type::str(ast.span),
             },
 
+            ast::ExprKind::Format(parts) => {
+                let parts = parts
+                    .into_iter()
+                    .map(|part| self.lower_expr(part))
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                ir::Expr {
+                    kind: ir::ExprKind::Format(parts),
+                    span: ast.span,
+                    ty: ir::Type::str(ast.span),
+                }
+            }
+
             ast::ExprKind::Path(path) => {
-                if path.segments.len() == 1 {
+                if path.segments().len() == 1 {
                     if let Some(lid) = self.find_local(path.name()) {
                         return Ok(ir::Expr {
                             kind: ir::ExprKind::Local(lid),
-                            span: expr.span,
+                            span: ast.span,
                             ty: self.body().locals[lid].ty.clone(),
                         });
                     }
                 }
 
-                let name = path.segments.last().unwrap();
-                let len = path.segments.len();
-                let path = path.segments.iter().take(len - 1).map(String::as_str);
+                let name = path.segments().last().unwrap();
+                let path = path.modules();
 
                 let module = self.ir.get_module(self.module, path);
 
@@ -1023,16 +919,18 @@ impl ExprLowerer<'_, '_> {
                             ty = self.ir.tcx.instantiate(ty);
                         }
 
+                        ty = ty.with_span(ast.span);
+
                         return Ok(ir::Expr {
                             kind: ir::ExprKind::Body(bid),
-                            span: expr.span,
+                            span: ast.span,
                             ty,
                         });
                     }
                 }
 
-                let diagnostic = Diagnostic::error(format!("unresolved path: {}", name))
-                    .with_label(expr.span, "found here");
+                let diagnostic = Diagnostic::error(format!("unresolved path: {name}"))
+                    .with_label(ast.span, "found here");
 
                 self.lowerer.emitter.emit(diagnostic);
 
@@ -1056,13 +954,13 @@ impl ExprLowerer<'_, '_> {
                 ir::Expr {
                     kind: ir::ExprKind::Let(pattern, Box::new(value)),
                     span,
-                    ty: ir::Type::unit(),
+                    ty: ir::Type::unit(ast.span),
                 }
             }
 
             ast::ExprKind::Record(path, fields) => {
                 let Some(module) = self.ir.get_module(self.module, path.modules()) else {
-                    let diagnostic = Diagnostic::error(format!("unresolved module: {}", path))
+                    let diagnostic = Diagnostic::error(format!("unresolved module: {path}"))
                         .with_label(path.span, "found here");
 
                     self.lowerer.emitter.emit(diagnostic);
@@ -1070,41 +968,22 @@ impl ExprLowerer<'_, '_> {
                 };
 
                 let Some(&tid) = self.ir[module].newtypes.get(path.name()) else {
-                    let diagnostic = Diagnostic::error(format!("unresolved type: {}", path))
+                    let diagnostic = Diagnostic::error(format!("unresolved type: {path}"))
                         .with_label(path.span, "found here");
 
                     self.lowerer.emitter.emit(diagnostic);
                     return Err(LowerError);
                 };
 
-                let newtype = &self.ir.tcx[tid];
-                if path.generics.len() > newtype.generics.len() {
-                    let diagnostic = Diagnostic::error(format!(
-                        "too many type parameters for '{}': expected {}, found {}",
-                        path,
-                        newtype.generics.len(),
-                        path.generics.len()
-                    ))
-                    .with_label(path.span, "found here");
-
-                    self.lowerer.emitter.emit(diagnostic);
-                    return Err(LowerError);
-                }
-
-                let mut generics = Vec::new();
-
-                for ty in path.generics.clone() {
-                    let ty = self.lower_type(ty)?;
-                    generics.push(ty);
-                }
-
                 let newtype = self.ir.tcx[tid].clone();
                 let ir::NewtypeKind::Record(record) = newtype.kind else {
                     unreachable!();
                 };
 
-                for _ in 0..newtype.generics.len() - generics.len() {
-                    generics.push(ir::Type::infer());
+                let mut generics = Vec::new();
+
+                for _ in 0..newtype.generics.len() {
+                    generics.push(ir::Type::infer(path.span));
                 }
 
                 let subst = newtype
@@ -1116,13 +995,12 @@ impl ExprLowerer<'_, '_> {
 
                 let mut ir_fields = Vec::new();
 
-                for (name, value) in fields {
+                for (name, value, _) in fields {
                     let value = self.lower_expr(value)?;
 
                     let Some(field) = record.field(&name) else {
                         let diagnostic = Diagnostic::error(format!(
-                            "type '{}' does not have field '{}'",
-                            path, name
+                            "type '{path}' does not have field '{name}'"
                         ))
                         .with_label(value.span, "found here");
 
@@ -1135,7 +1013,7 @@ impl ExprLowerer<'_, '_> {
 
                     if ir_fields.iter().any(|(n, _)| n == &name) {
                         let diagnostic =
-                            Diagnostic::error(format!("duplicate field '{}' in record", name))
+                            Diagnostic::error(format!("duplicate field '{name}' in record"))
                                 .with_label(value.span, "found here");
 
                         self.lowerer.emitter.emit(diagnostic);
@@ -1151,28 +1029,28 @@ impl ExprLowerer<'_, '_> {
                             "missing field '{}' in record '{}'",
                             field.name, path
                         ))
-                        .with_label(expr.span, "found here");
+                        .with_label(ast.span, "found here");
 
                         self.lowerer.emitter.emit(diagnostic);
                         return Err(LowerError);
                     }
                 }
 
-                let span = expr.span;
-                let ty = ir::Type::newtype(tid, generics);
+                let span = ast.span;
+                let ty = ir::Type::newtype(tid, generics, path.span);
                 let kind = ir::ExprKind::Record(ir_fields);
                 ir::Expr { kind, span, ty }
             }
 
             ast::ExprKind::List(items, rest) => {
-                let item_ty = ir::Type::infer();
-                let list_ty = ir::Type::list(item_ty.clone());
+                let item_ty = ir::Type::infer(ast.span);
+                let list_ty = ir::Type::list(item_ty.clone(), ast.span);
 
                 let mut expr = match rest {
                     Some(rest) => self.lower_expr(*rest)?,
                     None => ir::Expr {
                         kind: ir::ExprKind::ListEmpty,
-                        span: expr.span,
+                        span: ast.span,
                         ty: list_ty.clone(),
                     },
                 };
@@ -1206,9 +1084,43 @@ impl ExprLowerer<'_, '_> {
                     exprs.push(item);
                 }
 
-                let span = expr.span;
-                let ty = ir::Type::tuple(types);
+                let span = ast.span;
+                let ty = ir::Type::tuple(types, ast.span);
                 let kind = ir::ExprKind::Tuple(exprs);
+                ir::Expr { kind, span, ty }
+            }
+
+            ast::ExprKind::Try(value) => {
+                let std = self.ir[self.ir.root].modules["std"];
+                let result = self.ir[std].newtypes["result"];
+
+                let ok = ir::Type::infer(value.span);
+                let err = ir::Type::infer(value.span);
+                let args = vec![ok.clone(), err.clone()];
+
+                let expr = self.lower_expr(*value)?;
+
+                let result_ty = ir::Type::newtype(result, args, ast.span);
+                self.unify(result_ty, expr.ty.clone(), ast.span);
+
+                let return_ty = ir::Type::newtype(
+                    result, //
+                    vec![ir::Type::infer(expr.span), err],
+                    ast.span,
+                );
+
+                let function_ty = self
+                    .body()
+                    .inputs
+                    .iter()
+                    .map(|_| ir::Type::infer(Span::dummy()))
+                    .rfold(return_ty, |o, i| ir::Type::function(i, o, Span::dummy()));
+
+                self.unify(function_ty, self.body().ty.clone(), ast.span);
+
+                let ty = ok;
+                let span = ast.span;
+                let kind = ir::ExprKind::Try(Box::new(expr));
                 ir::Expr { kind, span, ty }
             }
 
@@ -1216,13 +1128,17 @@ impl ExprLowerer<'_, '_> {
                 let input = self.lower_expr(*input)?;
                 let callee = self.lower_expr(*callee)?;
 
-                let output = ir::Type::infer();
-                let function = ir::Type::function(input.ty.clone(), output.clone());
-                self.unify(callee.ty.clone(), function.clone(), expr.span);
+                let output = ir::Type::infer(ast.span);
+                let function = ir::Type::function(
+                    input.ty.clone(),
+                    output.clone(),
+                    input.span, //
+                );
+                self.unify(callee.ty.clone(), function.clone(), ast.span);
 
                 ir::Expr {
                     kind: ir::ExprKind::Call(Box::new(callee), Box::new(input)),
-                    span: expr.span,
+                    span: ast.span,
                     ty: output,
                 }
             }
@@ -1233,7 +1149,7 @@ impl ExprLowerer<'_, '_> {
                     locals: ir::Locals::default(),
                     inputs: Vec::new(),
                     expr: None,
-                    ty: ir::Type::unit(),
+                    ty: ir::Type::dummy(),
                 };
 
                 let bid = self.ir.bodies.push(body);
@@ -1252,7 +1168,7 @@ impl ExprLowerer<'_, '_> {
                 let mut patterns = Vec::new();
 
                 for param in params {
-                    let ty = ir::Type::infer();
+                    let ty = ir::Type::infer(param.span);
                     let pattern = lowerer.lower_pattern(param, ty.clone())?;
 
                     if pattern.kind.is_refutable() {
@@ -1291,7 +1207,7 @@ impl ExprLowerer<'_, '_> {
 
                 let mut ty = types
                     .into_iter()
-                    .rfold(expr.ty.clone(), |o, i| ir::Type::function(i, o));
+                    .rfold(expr.ty.clone(), |o, i| ir::Type::function(i, o, ast.span));
 
                 let span = expr.span;
                 lowerer.body_mut().expr = Some(expr);
@@ -1316,7 +1232,11 @@ impl ExprLowerer<'_, '_> {
 
                     let kind = ir::ExprKind::Call(Box::new(expr), Box::new(input));
 
-                    let ir::Type::App(ir::App::Function(_, output)) = ty else {
+                    let ir::Type::App(ir::App {
+                        kind: ir::AppKind::Function(_, output),
+                        ..
+                    }) = ty
+                    else {
                         unreachable!();
                     };
 
@@ -1331,7 +1251,7 @@ impl ExprLowerer<'_, '_> {
                 expr
             }
 
-            ast::ExprKind::Binary(op, lhs, rhs) => {
+            ast::ExprKind::Binary(op, op_span, lhs, rhs) => {
                 let op = match op {
                     ast::BinOp::Add => ir::BinOp::Add,
                     ast::BinOp::Sub => ir::BinOp::Sub,
@@ -1357,47 +1277,47 @@ impl ExprLowerer<'_, '_> {
                     | ir::BinOp::Mul
                     | ir::BinOp::Div
                     | ir::BinOp::Mod => {
-                        self.unify(lhs.ty.clone(), rhs.ty.clone(), expr.span);
-                        self.number(lhs.ty.clone(), expr.span);
+                        self.unify(lhs.ty.clone(), rhs.ty.clone(), ast.span);
+                        self.number(lhs.ty.clone(), op_span);
 
                         lhs.ty.clone()
                     }
 
                     ir::BinOp::Gt | ir::BinOp::Lt | ir::BinOp::Ge | ir::BinOp::Le => {
-                        self.unify(lhs.ty.clone(), rhs.ty.clone(), expr.span);
-                        self.number(lhs.ty.clone(), expr.span);
+                        self.unify(lhs.ty.clone(), rhs.ty.clone(), ast.span);
+                        self.number(lhs.ty.clone(), op_span);
 
-                        ir::Type::bool()
+                        ir::Type::bool(ast.span)
                     }
 
                     ir::BinOp::Eq | ir::BinOp::Ne => {
-                        self.unify(lhs.ty.clone(), rhs.ty.clone(), expr.span);
+                        self.unify(lhs.ty.clone(), rhs.ty.clone(), ast.span);
 
-                        ir::Type::bool()
+                        ir::Type::bool(ast.span)
                     }
 
                     ir::BinOp::And | ir::BinOp::Or => {
-                        self.unify(lhs.ty.clone(), ir::Type::bool(), expr.span);
-                        self.unify(rhs.ty.clone(), ir::Type::bool(), expr.span);
+                        self.unify(lhs.ty.clone(), ir::Type::bool(op_span), ast.span);
+                        self.unify(rhs.ty.clone(), ir::Type::bool(op_span), ast.span);
 
-                        ir::Type::bool()
+                        ir::Type::bool(ast.span)
                     }
                 };
 
-                let span = expr.span;
+                let span = ast.span;
                 let kind = ir::ExprKind::Binary(op, Box::new(lhs), Box::new(rhs));
                 ir::Expr { kind, span, ty }
             }
 
-            ast::ExprKind::Field(target, name) => {
+            ast::ExprKind::Field(target, name, _) => {
                 let target = self.lower_expr(*target)?;
 
-                let ty = ir::Type::infer();
-                self.field(target.ty.clone(), &name, ty.clone(), expr.span);
+                let ty = ir::Type::infer(ast.span);
+                self.field(target.ty.clone(), &name, ty.clone(), ast.span);
 
                 ir::Expr {
                     kind: ir::ExprKind::Field(Box::new(target), name),
-                    span: expr.span,
+                    span: ast.span,
                     ty,
                 }
             }
@@ -1406,7 +1326,7 @@ impl ExprLowerer<'_, '_> {
                 let target = self.lower_expr(*target)?;
 
                 let mut ir_arms = Vec::new();
-                let ty = ir::Type::infer();
+                let ty = ir::Type::infer(ast.span);
 
                 for arm in arms {
                     let old_scope_len = self.scope.len();
@@ -1419,16 +1339,16 @@ impl ExprLowerer<'_, '_> {
                     self.scope.truncate(old_scope_len);
                 }
 
-                self.exhaust(&ir_arms, expr.span)?;
+                self.exhaust(&ir_arms, ast.span)?;
 
-                let span = expr.span;
+                let span = ast.span;
                 let kind = ir::ExprKind::Match(Box::new(target), ir_arms);
                 ir::Expr { kind, span, ty }
             }
 
             ast::ExprKind::Block(ast_exprs) => {
                 let mut ir_exprs = Vec::new();
-                let mut ty = ir::Type::unit();
+                let mut ty = ir::Type::unit(ast.span);
 
                 // save current scope length to restore later
                 let old_scope_len = self.scope.len();
@@ -1444,7 +1364,7 @@ impl ExprLowerer<'_, '_> {
 
                 ir::Expr {
                     kind: ir::ExprKind::Block(ir_exprs),
-                    span: expr.span,
+                    span: ast.span,
                     ty,
                 }
             }
@@ -1470,11 +1390,17 @@ impl ExprLowerer<'_, '_> {
         let cons = match matrix.pattern() {
             Some(pattern) => match pattern.kind {
                 ir::PatternKind::Bool(_) => vec![Cons::Bool(true), Cons::Bool(false)],
+                ir::PatternKind::Int(_) => vec![Cons::Int],
+                ir::PatternKind::String(_) => vec![Cons::String],
                 ir::PatternKind::ListEmpty => vec![Cons::List(false), Cons::List(true)],
                 ir::PatternKind::ListCons(_, _) => vec![Cons::List(false), Cons::List(true)],
 
                 ir::PatternKind::Variant(ref ty, _, _) => {
-                    let ir::Type::App(ir::App::Newtype(tid, _)) = ty else {
+                    let ir::Type::App(ir::App {
+                        kind: ir::AppKind::Newtype(tid, _),
+                        ..
+                    }) = ty
+                    else {
                         unreachable!();
                     };
 
@@ -1593,6 +1519,8 @@ impl Matrix {
 
 #[derive(Debug)]
 enum Cons {
+    String,
+    Int,
     Bool(bool),
     List(bool),
     Tuple(usize),
@@ -1603,18 +1531,24 @@ enum Cons {
 impl Cons {
     fn arity(&self) -> usize {
         match self {
-            Cons::Bool(_) => 0,
-            Cons::List(false) => 0,
+            Cons::String
+            | Cons::Int
+            | Cons::Bool(_)
+            | Cons::List(false)
+            | Cons::Variant(_, false)
+            | Cons::Wildcard => 0,
+
             Cons::List(true) => 2,
             Cons::Tuple(len) => *len,
             Cons::Variant(_, true) => 1,
-            Cons::Variant(_, false) => 0,
-            Cons::Wildcard => 0,
         }
     }
 
     fn specialize(&self, pattern: &ir::Pattern) -> Option<Vec<ir::Pattern>> {
         match (self, &pattern.kind) {
+            (Cons::String, ir::PatternKind::String(_)) => None,
+            (Cons::Int, ir::PatternKind::Int(_)) => None,
+
             (Cons::Bool(true), ir::PatternKind::Bool(true)) => Some(Vec::new()),
             (Cons::Bool(false), ir::PatternKind::Bool(false)) => Some(Vec::new()),
 

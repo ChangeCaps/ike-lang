@@ -1,0 +1,7 @@
+type in 'a = {}
+type out 'a = {}
+
+extern channel : in 'a, out 'a
+extern send : 'a -> in 'a -> {}
+extern recv : out 'a -> 'a
+extern try-recv : out 'a -> option 'a

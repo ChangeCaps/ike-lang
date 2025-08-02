@@ -1,6 +1,6 @@
-type option<'a> = some 'a | none
+type option 'a = some 'a | none
 
-fn option::assert : option<'a> -> 'a
+fn option::assert : option 'a -> 'a
 fn option::assert opt {
   match opt {
     some a -> a
@@ -8,7 +8,7 @@ fn option::assert opt {
   }
 }
 
-fn option::map : ('a -> 'b) -> option<'a> -> option<'b>
+fn option::map : ('a -> 'b) -> option 'a -> option 'b
 fn option::map f opt {
   match opt {
     some a -> some (f a)
@@ -16,7 +16,7 @@ fn option::map f opt {
   }
 }
 
-fn option::some-or : 'a -> option<'a> -> 'a
+fn option::some-or : 'a -> option 'a -> 'a
 fn option::some-or a opt {
   match opt {
     some a -> a
@@ -24,7 +24,7 @@ fn option::some-or a opt {
   }
 }
 
-fn option::ok-or : option<'a> -> 'e -> result<'a, 'e> 
+fn option::ok-or : option 'a  -> 'e -> result 'a 'e  
 fn option::ok-or opt e {
   match opt {
     some x -> ok x
@@ -32,15 +32,7 @@ fn option::ok-or opt e {
   }
 }
 
-fn option::or : option<'a> -> option<'a> -> option<'a>
-fn option::or b a {
-  match a {
-    some v -> some v
-    none   -> b
-  }
-}
-
-fn option::or-else : ({} -> option<'a>) -> option<'a> -> option<'a>
+fn option::or-else : ({} -> option 'a) -> option 'a -> option 'a
 fn option::or-else f opt {
   match opt {
     some a -> some a
@@ -48,7 +40,7 @@ fn option::or-else f opt {
   }
 }
 
-fn option::is-none-or : ('a -> bool) -> option<'a> -> bool
+fn option::is-none-or : ('a -> bool) -> option 'a -> bool
 fn option::is-none-or f opt {
   match opt {
     some a -> f a
