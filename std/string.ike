@@ -8,7 +8,7 @@ extern string::split : str -> str -> [str]
 extern string::graphemes : str -> [str]
 
 /// Get the length of a string.
-extern string::length : str -> int
+extern string::len : str -> int
 
 /// Get the substring of 'str' from 'start' to 'end'.
 extern string::sub : int -> int -> str -> str

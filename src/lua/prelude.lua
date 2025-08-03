@@ -194,7 +194,7 @@ E["std::string::graphemes"] = function()
   end
 end
 
-E["std::string::length"] = function()
+E["std::string::len"] = function()
   return function(str)
     return string.len(str)
   end

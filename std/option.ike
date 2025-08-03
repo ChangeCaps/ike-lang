@@ -40,6 +40,14 @@ fn option::or-else f opt {
   }
 }
 
+fn option::is-some-and : ('a -> bool) -> option 'a -> bool
+fn option::is-some-and f opt {
+  match opt {
+    some a -> f a
+    none   -> false
+  }
+}
+ 
 fn option::is-none-or : ('a -> bool) -> option 'a -> bool
 fn option::is-none-or f opt {
   match opt {

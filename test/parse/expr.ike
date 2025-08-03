@@ -1,4 +1,6 @@
 fn main {
   let x = foo (a + b)
-  let y = "{0}{1}"
+  let y = "{0}{100}"
+    |> std::string::graphemes
+    |> std::debug::print
 }

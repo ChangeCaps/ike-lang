@@ -5,10 +5,6 @@ import std::io
 import std::list
 
 fn main {
-  let in, out = std::channel
-
-  std::spawn <| |_| emit out
-
   let file = file {
     path: "test/parse/expr.ike"
   }
@@ -16,24 +12,29 @@ fn main {
   let input = std::fs::read "test/parse/expr.ike"
     |> std::result::assert
 
-  let result = lex::tokenize in file input
-  result |> list::map |t, _| debug-token t 0
+
+  let ts, diagnostics = lex::tokenize file input
+  ts |> list::map |t, s| debug-token t s 0
+
+  std::debug::print "size {string::len input}"
+
+  diagnostics |> list::map std::debug::print
 }
 
-fn debug-token token indent {
+fn debug-token token span indent {
   " " |> string::repeat indent |> io::print
 
   match token {
     token::group group   -> {
-      io::println "group `{group.delimiter}`" 
+      io::println "group `{group.delimiter}` {span}" 
 
-      group.contents |> list::map |t, _| debug-token t (indent + 2)
+      group.contents |> list::map |t, s| debug-token t s (indent + 2)
 
       {}
     }
 
     token::format parts  -> {
-      io::println "format"
+      io::println "format {span}"
 
       parts |> list::map |p| {
         match p {
@@ -46,7 +47,7 @@ fn debug-token token indent {
             " " |> string::repeat (indent + 2) |> io::print
             io::println "format-tokens"
 
-            ts |> list::map |t, _| debug-token t (indent + 4)
+            ts |> list::map |t, s| debug-token t s (indent + 4)
 
             {}
           }
@@ -56,16 +57,11 @@ fn debug-token token indent {
       {}
     }
 
-    token::symbol symbol -> io::println "symbol `{symbol}`"
-    token::ident ident   -> io::println "ident `{ident}`"
-    token::integer s     -> io::println "integer `{s}`"
-    token::whitespace    -> io::println "whitespace"
-    token::newline       -> io::println "newline"
-    token::error         -> io::println "error"
+    token::symbol symbol -> io::println "symbol `{symbol}` {span}"
+    token::ident ident   -> io::println "ident `{ident}` {span}"
+    token::integer s     -> io::println "integer `{s}` {span}"
+    token::whitespace    -> io::println "whitespace {span}"
+    token::newline       -> io::println "newline {span}"
+    token::error         -> io::println "error {span}"
   }
-}
-
-fn emit out {
-  std::recv out |> std::debug::print
-  emit out
 }

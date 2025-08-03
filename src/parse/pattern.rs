@@ -14,6 +14,7 @@ fn is_pattern(tokens: &TokenStream) -> bool {
             | Token::True
             | Token::False
             | Token::Ident(_)
+            | Token::String(_)
             | Token::LParen
             | Token::LBracket
     )
@@ -72,6 +73,7 @@ fn parse_pattern_term(
         Token::String(string) => {
             tokens.consume();
 
+            let string = string.replace("{{", "{").replace("}}", "}");
             let kind = PatternKind::String(string);
             Ok(Pattern { kind, span })
         }
