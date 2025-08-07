@@ -1,0 +1,74 @@
+import ike::span
+
+/// A list of tokens.
+alias tokens = [token, span]
+
+/// A token.
+type token = token::unknown str
+           | token::error
+
+           // TODO: name this
+           | token::ident   str
+           | token::integer str
+           | token::comment str
+           | token::string str
+
+           // format string parts
+           //
+           // start of format string eg. `"hello {`
+           // continue of format string eg. `}, {`
+           // end of format string eg. `}!"`
+           //
+           // a whole format string might be `"hello {name}, {greeting}!"` 
+           | token::format-start str
+           | token::format-continue str
+           | token::format-end str
+
+           // special tokens
+           | token::whitespace
+           | token::newline
+           | token::end-of-file
+
+           // keywords
+
+           // two-character symbols
+           | token::dotdot
+           | token::rarrow
+           | token::larrow
+           | token::coloncolon
+           | token::eqeq
+           | token::noteq
+           | token::lteq
+           | token::gteq
+           | token::ltpipe
+           | token::pipegt
+
+           // one-character symbols
+           | token::open-paren
+           | token::close-paren
+           | token::open-brace
+           | token::close-brace
+           | token::open-bracket
+           | token::close-bracket
+           | token::semi
+           | token::colon
+           | token::comma
+           | token::dot
+           | token::pound
+           | token::under
+           | token::plus
+           | token::minus
+           | token::star
+           | token::slash
+           | token::backslash
+           | token::percent
+           | token::amp
+           | token::pipe
+           | token::caret
+           | token::bang
+           | token::question
+           | token::quote
+           | token::eq
+           | token::tilde
+           | token::lt
+           | token::gt

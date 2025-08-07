@@ -1,67 +1,16 @@
-import lex::token
-
 import std::string
 import std::io
 import std::list
 
 fn main {
-  let file = file {
-    path: "test/parse/expr.ike"
-  }
+  let file = file::new "ike/parse/tokenize.ike"
+  let ts, diagnostics = parse::tokenize file 
+    <| (file |> file::read |> std::result::assert)
 
-  let input = std::fs::read "test/parse/expr.ike"
-    |> std::result::assert
+  diagnostics
+    |> list::map diagnostic::format
+    |> list::foldl "" string::append
+    |> io::print
 
-
-  let ts, diagnostics = lex::tokenize file input
-  ts |> list::map |t, s| debug-token t s 0
-
-  std::debug::print "size {string::len input}"
-
-  diagnostics |> list::map std::debug::print
-}
-
-fn debug-token token span indent {
-  " " |> string::repeat indent |> io::print
-
-  match token {
-    token::group group   -> {
-      io::println "group `{group.delimiter}` {span}" 
-
-      group.contents |> list::map |t, s| debug-token t s (indent + 2)
-
-      {}
-    }
-
-    token::format parts  -> {
-      io::println "format {span}"
-
-      parts |> list::map |p| {
-        match p {
-          token::string s -> {
-            " " |> string::repeat (indent + 2) |> io::print
-            io::println "format-string '{s}'"
-          }
-
-          token::tokens ts -> {
-            " " |> string::repeat (indent + 2) |> io::print
-            io::println "format-tokens"
-
-            ts |> list::map |t, s| debug-token t s (indent + 4)
-
-            {}
-          }
-        }
-      }
-
-      {}
-    }
-
-    token::symbol symbol -> io::println "symbol `{symbol}` {span}"
-    token::ident ident   -> io::println "ident `{ident}` {span}"
-    token::integer s     -> io::println "integer `{s}` {span}"
-    token::whitespace    -> io::println "whitespace {span}"
-    token::newline       -> io::println "newline {span}"
-    token::error         -> io::println "error {span}"
-  }
+  std::debug::print ts
 }

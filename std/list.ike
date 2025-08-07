@@ -1,23 +1,39 @@
 //! List operations 
 
-/// Compute the length of a list.
-fn list::length : ['a] -> int
-fn list::length xs {
+fn list::first : ['a] -> option 'a
+fn list::first xs {
   match xs {
-    []          -> 0
-    [x; ..xs]   -> 1 + list::length xs
+    []      -> none
+    [x; ..] -> some x
+  }
+}
+
+fn list::rest : ['a] -> option ['a]
+fn list::rest xs {
+  match xs {
+    []        -> none
+    [_; ..xs] -> some xs
+  }
+}
+
+/// Compute the length of a list.
+fn list::len : ['a] -> int
+fn list::len xs {
+  match xs {
+    []        -> 0
+    [x; ..xs] -> 1 + list::len xs
   }
 }
 
 /// Get the nth element of a list.
-fn list::nth : ['a] -> int -> option 'a
-fn list::nth xs n {
+fn list::nth : int -> ['a] -> option 'a
+fn list::nth n xs {
   match xs {
     []        -> none
     [x; ..xs] -> {
       match n {
-        1 -> some x
-        _ -> list::nth xs (n - 1)
+        0 -> some x
+        _ -> list::nth (n - 1) xs
       }
     }
   }

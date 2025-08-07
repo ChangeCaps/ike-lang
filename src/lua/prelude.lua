@@ -114,11 +114,11 @@ local function toString(value, no_quote_strings)
 
     return result
   elseif type(value) == "string" then
-    value = value:gsub("\n", "\\n"):gsub("\r", "\\r"):gsub("\t", "\\t")
-
     if no_quote_strings then
       return value
     end
+
+    value = value:gsub("\n", "\\n"):gsub("\r", "\\r"):gsub("\t", "\\t")
 
     return "\"" .. value .. "\""
   else

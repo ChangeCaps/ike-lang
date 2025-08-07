@@ -1,0 +1,424 @@
+import std::string
+import std::list
+import std::option
+import std::some
+import std::none
+
+import ike::file
+import ike::diagnostic
+
+fn tokenize : file -> str -> tokens, [diagnostic]
+fn tokenize file contents {
+  let lexer = lexer {
+    diagnostics: []
+    graphs:      string::graphemes contents
+    file:        file
+    offset:      0
+    format:      []
+  }
+
+  let ts, lexer = lexer::lex [] lexer
+  list::reverse ts, lexer.diagnostics
+}
+
+type lexer = {
+  diagnostics: [diagnostic]
+  graphs:      [str]
+  file:        file
+  offset:      int
+  format:      [int, span]
+}
+
+fn lexer::span : int -> lexer -> span
+fn lexer::span len lexer {
+  span {
+    file:  lexer.file
+    start: lexer.offset
+    end:   lexer.offset + len
+  }
+}
+
+fn lexer::lex : tokens -> lexer -> tokens, lexer
+fn lexer::lex ts lexer {
+  let f = match lexer::peek lexer {
+    none -> lexer::eof
+    some g -> {
+      match g, (lexer |> lexer::advance |> lexer::peek) {
+        "\"", _ -> |ts lexer| {
+          lexer
+            |> lexer::advance
+            |> lexer::string lexer.offset true "" ts
+        }
+        
+        "{{", _ -> lexer::open-brace
+        "}}", _ -> lexer::close-brace
+
+        "0",  _ -> lexer::number
+        "1",  _ -> lexer::number
+        "2",  _ -> lexer::number
+        "3",  _ -> lexer::number
+        "4",  _ -> lexer::number
+        "5",  _ -> lexer::number
+        "6",  _ -> lexer::number
+        "7",  _ -> lexer::number
+        "8",  _ -> lexer::number
+        "9",  _ -> lexer::number
+
+        "/", some "/" -> lexer::comment
+
+        ".", some "." -> lexer::two-symbol ".." token::dotdot
+        "-", some ">" -> lexer::two-symbol "->" token::rarrow
+        "<", some "-" -> lexer::two-symbol "<-" token::larrow
+        ":", some ":" -> lexer::two-symbol "::" token::coloncolon
+        "=", some "=" -> lexer::two-symbol "==" token::eqeq
+        "!", some "=" -> lexer::two-symbol "!=" token::noteq
+        "<", some "=" -> lexer::two-symbol "<=" token::lteq
+        ">", some "=" -> lexer::two-symbol ">=" token::gteq
+        "<", some "|" -> lexer::two-symbol "<|" token::ltpipe
+        "|", some ">" -> lexer::two-symbol "|>" token::pipegt
+
+        "(",  _ -> lexer::one-symbol g token::open-paren
+        ")",  _ -> lexer::one-symbol g token::close-paren
+        "[",  _ -> lexer::one-symbol g token::open-bracket
+        "]",  _ -> lexer::one-symbol g token::close-bracket
+        ";",  _ -> lexer::one-symbol g token::semi
+        ":",  _ -> lexer::one-symbol g token::colon
+        ",",  _ -> lexer::one-symbol g token::comma
+        ".",  _ -> lexer::one-symbol g token::dot
+        "#",  _ -> lexer::one-symbol g token::pound
+        "_",  _ -> lexer::one-symbol g token::under
+        "+",  _ -> lexer::one-symbol g token::plus
+        "-",  _ -> lexer::one-symbol g token::minus
+        "*",  _ -> lexer::one-symbol g token::star
+        "/",  _ -> lexer::one-symbol g token::slash
+        "\\", _ -> lexer::one-symbol g token::backslash
+        "%",  _ -> lexer::one-symbol g token::percent
+        "&",  _ -> lexer::one-symbol g token::amp
+        "|",  _ -> lexer::one-symbol g token::pipe
+        "?",  _ -> lexer::one-symbol g token::question
+        "'",  _ -> lexer::one-symbol g token::quote
+        "=",  _ -> lexer::one-symbol g token::eq
+        "~",  _ -> lexer::one-symbol g token::tilde
+        "<",  _ -> lexer::one-symbol g token::lt
+        ">",  _ -> lexer::one-symbol g token::gt
+
+        " ",  _ -> lexer::whitespace
+        "\t", _ -> lexer::whitespace
+        "\r", _ -> lexer::whitespace
+
+        "\n", _ -> lexer::newline
+
+        g, _ -> {
+          match lexer::is-ident-start g {
+            true  -> lexer::ident
+            false -> lexer::unexpected-character g
+          }
+        }
+      }
+    }
+  }
+
+  f ts lexer
+}
+
+fn lexer::string start is-quote s ts lexer {
+  match lexer::peek lexer {
+    some g -> {
+      match g, (lexer |> lexer::advance |> lexer::peek) {
+        "\"", _ -> match is-quote {
+          true  -> lexer::end-string false start s token::string ts lexer
+          false -> lexer::end-string false start s token::format-end ts lexer
+        }
+
+        "{{", some "{{" -> lexer::string-escape start is-quote s "{{" ts lexer
+        "}}", some "}}" -> lexer::string-escape start is-quote s "}}" ts lexer
+
+        "\\", some "\"" -> lexer::string-escape start is-quote s "\"" ts lexer
+        "\\", some "\\" -> lexer::string-escape start is-quote s "\\" ts lexer
+        "\\", some "n"  -> lexer::string-escape start is-quote s "\n" ts lexer
+        "\\", some "r"  -> lexer::string-escape start is-quote s "\r" ts lexer
+        "\\", some "t"  -> lexer::string-escape start is-quote s "\t" ts lexer
+
+        "{{", _ -> match is-quote {
+          true  -> lexer::end-string true start s token::format-start ts lexer
+          false -> lexer::end-string true start s token::format-continue ts lexer
+        }
+
+        "}}", _ -> {
+          let span = span {
+            file:  lexer.file
+            start: lexer.offset
+            end:   lexer.offset + string::len "}}"
+          }
+
+          let diagnostic = diagnostic::error "unexpected closing brace"
+            |> diagnostic::with-label span "found here"
+
+          lexer
+            |> lexer::advance
+            |> lexer::with-diagnostic diagnostic
+            |> lexer::string start is-quote s ts
+        }
+
+        g, _ -> {
+          let s = string::append g s
+
+          lexer
+            |> lexer::advance
+            |> lexer::string start is-quote s ts
+        }
+      }
+    }
+
+    none -> {
+      let span = span {
+        file:  lexer.file
+        start: start
+        end:   start + string::len "\""
+      }
+
+      let diagnostic = diagnostic::error "expected end of string"
+        |> diagnostic::with-label span "starting here"
+
+      let ts = [token::error, span; ..ts]
+      lexer::lex ts lexer
+    }
+  }
+}
+
+fn lexer::string-escape start is-quote s g ts lexer {
+  lexer
+    |> lexer::advance
+    |> lexer::advance
+    |> lexer::string start is-quote (string::append g s) ts
+}
+
+fn lexer::end-string is-format start s f ts lexer {
+  let lexer = lexer::advance lexer
+
+  let span = span {
+    file:  lexer.file
+    start: start
+    end:   lexer.offset
+  }
+
+  let lexer = match is-format {
+    true  -> lexer::with-format span lexer
+    false -> lexer
+  }
+
+  let ts = [f s, span; ..ts]
+  lexer::lex ts lexer
+}
+
+fn lexer::open-brace ts lexer {
+  match lexer.format {
+    [opens, format-span; ..fs] -> {
+      let span = lexer |> lexer::span <| string::len "{{"
+      lexer
+        |> lexer::with-formats [opens + 1, format-span; ..fs]
+        |> lexer::one-symbol "{{" token::open-brace ts
+    }
+
+    [] -> lexer::one-symbol "{{" token::open-brace ts lexer
+  }
+}
+
+fn lexer::close-brace ts lexer {
+  match lexer.format {
+    [0,               _; ..fs] -> {
+      lexer
+        |> lexer::advance
+        |> lexer::with-formats fs
+        |> lexer::string lexer.offset false "" ts
+    }
+
+    [opens, format-span; ..fs] -> {
+      let span = lexer |> lexer::span <| string::len "}}"
+      lexer
+        |> lexer::with-formats [opens - 1, format-span; ..fs] 
+        |> lexer::one-symbol "}}" token::close-brace ts
+    }
+
+    [] -> lexer::one-symbol "}}" token::close-brace ts lexer
+  }
+}
+
+fn lexer::two-symbol s t ts lexer {
+  let span = lexer |> lexer::span <| string::len s
+  let ts = [t, span; ..ts]
+  lexer
+    |> lexer::advance
+    |> lexer::advance
+    |> lexer::lex ts
+}
+
+fn lexer::one-symbol s t ts lexer {
+  let span = lexer |> lexer::span <| string::len s
+  let ts = [t, span; ..ts]
+  lexer
+    |> lexer::advance
+    |> lexer::lex ts
+}
+
+fn lexer::newline ts lexer {
+  let span = lexer |> lexer::span <| string::len "\n"
+  let ts = [token::newline, span; ..ts]
+  lexer
+    |> lexer::advance
+    |> lexer::lex ts
+}
+
+
+fn lexer::comment ts lexer {
+  let comment, lexer' = lexer |> lexer::take-while |g| g != "\n"
+
+  let span = lexer |> lexer::span <| string::len comment
+  let ts = [token::comment comment, span; ..ts]
+  lexer'
+    |> lexer::advance
+    |> lexer::lex ts
+}
+
+fn lexer::number ts lexer {
+  let num, lexer' = lexer |> lexer::take-while lexer::is-digit
+
+  let span = lexer |> lexer::span <| string::len num
+  let ts = [token::integer num, span; ..ts]
+  lexer::lex ts lexer'
+}
+
+fn lexer::ident ts lexer {
+  let ident, lexer' = lexer |> lexer::take-while lexer::is-ident-continue
+
+  let span = lexer |> lexer::span <| string::len ident
+  let ts = [token::ident ident, span; ..ts]
+  lexer::lex ts lexer'
+}
+
+fn lexer::whitespace ts lexer {
+  let ws, lexer' = lexer::take-while lexer::is-whitespace lexer
+  let span = lexer |> lexer::span <| string::len ws 
+  let ts = [token::whitespace, span; ..ts]
+  lexer::lex ts lexer'
+}
+
+fn lexer::eof ts lexer {
+  let span = lexer::span 0 lexer
+  let ts = [token::end-of-file, span; ..ts]
+  ts, lexer
+}
+
+fn lexer::unexpected-character g ts lexer {
+  let span = lexer |> lexer::span <| string::len g 
+
+  let diagnostic = diagnostic::error "unexpected character `{g}`"
+    |> diagnostic::with-label span "found here"
+
+  let ts = [token::unknown g, span; ..ts]
+
+  lexer
+    |> lexer::with-diagnostic diagnostic
+    |> lexer::advance
+    |> lexer::lex ts
+}
+
+fn lexer::take-while f lexer {
+  match lexer::peek lexer {
+    none   -> "", lexer
+    some g -> {
+      match f g {
+        false -> "", lexer
+        true  -> {
+          let s, lexer = lexer
+            |> lexer::advance
+            |> lexer::take-while f
+
+          string::prepend g s, lexer
+        }
+      }
+    }
+  }
+}
+
+fn lexer::peek lexer -> list::first lexer.graphs
+
+fn lexer::advance lexer {
+  match lexer.graphs {
+    [] -> lexer
+    [g; ..graphs] -> {
+      lexer {
+        diagnostics: lexer.diagnostics
+        graphs:      graphs
+        file:        lexer.file
+        offset:      lexer.offset + string::len g
+        format:      lexer.format
+      }
+    }
+  }
+}
+
+fn lexer::with-diagnostic diagnostic lexer {
+  lexer {
+    diagnostics: [diagnostic; ..lexer.diagnostics]
+    graphs:      lexer.graphs
+    file:        lexer.file
+    offset:      lexer.offset
+    format:      lexer.format
+  }
+}
+
+fn lexer::with-format span lexer {
+  lexer {
+    diagnostics: lexer.diagnostics
+    graphs:      lexer.graphs
+    file:        lexer.file
+    offset:      lexer.offset
+    format:      [0, span; ..lexer.format]
+  }
+}
+
+fn lexer::with-formats formats lexer {
+  lexer {
+    diagnostics: lexer.diagnostics
+    graphs:      lexer.graphs
+    file:        lexer.file
+    offset:      lexer.offset
+    format:      formats
+  }
+}
+
+fn lexer::is-whitespace g {
+  match g {
+    " "  -> true
+    "\r" -> true
+    "\t" -> true
+    _    -> false
+  }
+}
+
+fn lexer::is-digit g {
+  match g {
+    "0" -> true
+    "1" -> true
+    "2" -> true
+    "3" -> true
+    "4" -> true
+    "5" -> true
+    "6" -> true
+    "7" -> true
+    "8" -> true
+    "9" -> true
+    _   -> false
+  }
+}
+
+fn lexer::is-ident-start g {
+  "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    |> string::graphemes
+    |> list::contains g
+}
+
+fn lexer::is-ident-continue g {
+  lexer::is-ident-start g or lexer::is-digit g or g == "_" or g == "-" or g == "'"
+}

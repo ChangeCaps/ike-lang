@@ -1,15 +1,51 @@
-import std::option
-import std::some
+import std::fs
+import std::math
 import std::none
+import std::option
+import std::result
+import std::some
+import std::string
 
 type file = {
   path: str
 }
 
+fn file::new path -> file { path: path }
+fn file::read file -> fs::read file.path
+
 type span = {
   file:  file
   start: int
   end:   int
+}
+
+fn span::info : span -> str -> span::info
+fn span::info span contents {
+  string::split "\n" contents
+    |> span::info' 0 1 span
+}
+
+fn span::info' start-offset line-count span lines {
+  match lines {
+    []              -> span::info { line: 0; column: 0 }
+    [line; ..lines] -> {
+      let end-offset = start-offset + string::len line + string::len "\n"
+
+      match span.start >= start-offset and span.start < end-offset {
+        true -> span::info {
+          line:   line-count
+          column: span.start - start-offset + 1
+        }
+
+        false -> span::info' end-offset (line-count + 1) span lines
+      }
+    }
+  }
+}
+
+type span::info = {
+  line:   int
+  column: int
 }
 
 type diagnostic::level = level::error
@@ -78,3 +114,95 @@ fn diagnostic::with-span span diagnostic {
     labels:  [label; ..diagnostic.labels]
   }
 }
+
+// TODO: everything below this point is ugly as all hell and should be purged
+fn diagnostic::format : diagnostic -> str
+fn diagnostic::format diagnostic {
+  let color, level = match diagnostic.level {
+    diagnostic::level::error   -> ansi::red,    "error"
+    diagnostic::level::warning -> ansi::yellow, "warning"
+    diagnostic::level::help    -> ansi::blue,   "note"
+  }
+
+  let indent = diagnostic::indent diagnostic
+
+  let labels, _ = diagnostic.labels
+    |> list::foldl ("", none) |acc, prev label| {
+      let s = diagnostic::label::format prev indent color label
+      string::append s acc, some label.span.file.path
+    }
+
+  "{color}{level}{ansi::reset}: {ansi::bold}{diagnostic.message}{ansi::reset}\n"
+    |> string::append labels
+}
+
+fn diagnostic::indent diagnostic {
+  diagnostic.labels
+    |> list::map |label| {    
+      let info = label.span.file.path
+        |> fs::read
+        |> result::assert
+        |> span::info label.span
+
+      string::len "{info.line}"
+    }
+    |> list::foldl 0 math::max
+}
+
+fn diagnostic::label::format prev indent color label {
+  let header-indent = " " |> string::repeat indent
+
+  let contents = label.span.file.path
+    |> fs::read
+    |> result::assert
+
+  let info = span::info label.span contents
+
+  let header = match prev == some label.span.file.path {
+    true  -> "{header-indent}{ansi::blue}{ansi::bold}...{ansi::reset}"
+    false -> {
+      let sep = match prev {
+        some _ -> ":::"
+        none   -> "-->"
+      }
+
+      let source = "{label.span.file.path}:{info.line}:{info.column}"
+      "{header-indent}{ansi::blue}{ansi::bold}{sep}{ansi::reset} {source}"
+    }
+  }
+
+  let line = contents
+    |> string::split "\n"
+    |> list::nth <| info.line - 1
+    |> option::assert
+
+  let bar = "{header-indent} {ansi::blue}{ansi::bold}|{ansi::reset}"
+
+  let number-indent = " " |> string::repeat <| indent - string::len "{info.line}"
+  let line-number = "{ansi::blue}{ansi::bold}{info.line}{number-indent} |"
+
+  let content = "{line-number}{ansi::reset} {line}"
+
+  let highlight-offset = " " |> string::repeat <| info.column - 1
+  
+  let highlight-len = label.span.end - label.span.start
+    |> math::min (string::len line + 1 - info.column)
+
+  let highlight = "^" |> string::repeat highlight-len
+
+  let message = match label.message {
+    some message -> message
+    none         -> ""
+  }
+
+  let label = "{bar} {highlight-offset}{color}{highlight} {message}{ansi::reset}"
+
+  "{header}\n{bar}\n{content}\n{label}\n{bar}\n"
+}
+
+fn ansi::reset  -> "\x1b[0m"
+fn ansi::bold   -> "\x1b[1m"
+
+fn ansi::red    -> "\x1b[31m"
+fn ansi::yellow -> "\x1b[33m"
+fn ansi::blue   -> "\x1b[34m"

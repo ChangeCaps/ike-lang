@@ -114,11 +114,11 @@ local function toString(value, no_quote_strings)
 
     return result
   elseif type(value) == "string" then
-    value = value:gsub("\n", "\\n"):gsub("\r", "\\r"):gsub("\t", "\\t")
-
     if no_quote_strings then
       return value
     end
+
+    value = value:gsub("\n", "\\n"):gsub("\r", "\\r"):gsub("\t", "\\t")
 
     return "\"" .. value .. "\""
   else
@@ -369,109 +369,35 @@ local M = {}
 
 M["body0"] = function() -- body ike::main
     local l0 -- local 'file'
-    local l1 -- local 'input'
-    local l2 -- local 'ts'
-    local l3 -- local 'diagnostics'
+    local l1 -- local 'ts'
+    local l2 -- local 'diagnostics'
     local block_result0 -- block result
     do -- block
-      l0 = { ["path"] = "test/parse/expr.ike" } -- pattern binding assign
+      l0 = (M["body1"]())("ike/parse/tokenize.ike") -- pattern binding assign
       block_result0 = nil
-      l1 = (M["body1"]())((M["body9"]())("test/parse/expr.ike")) -- pattern binding assign
+      local t1 = ((M["body2"]())(l0))((M["body95"]())((M["body101"]())(l0))) -- tuple pattern assign
+      l1 = t1[1] -- pattern binding assign
+      l2 = t1[2] -- pattern binding assign
       block_result0 = nil
-      local t1 = ((M["body10"]())(l0))(l1) -- tuple pattern assign
-      l2 = t1[1] -- pattern binding assign
-      l3 = t1[2] -- pattern binding assign
-      block_result0 = nil
-      block_result0 = ((M["body105"]())(M["body106"]()))(l2)
-      block_result0 = (M["body115"]())(toString("size ", true)..toString((M["body25"]())(l1), true)..toString("", true))
-      block_result0 = ((M["body116"]())(M["body117"]()))(l3)
+      block_result0 = (M["body97"]())((((M["body103"]())(""))(M["body21"]()))(((M["body104"]())(M["body105"]()))(l2)))
+      block_result0 = (M["body126"]())(l1)
     end
     return block_result0
 end
 
-M["body1"] = function() -- body std::result::assert
+M["body1"] = function() -- body ike::file::new
   return function(p0)
-    local l0 -- local 'r'
-    local l1 -- local 'v'
-    local l2 -- local 'e'
+    local l0 -- local 'path'
     l0 = p0 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      local v = l0 -- match target
-      local match_result1 -- match result
-      if v.tag == "ok" and true then -- match arm
-        l1 = v.value -- pattern binding assign
-        match_result1 = l1
-      elseif v.tag == "err" and true then -- match arm
-        l2 = v.value -- pattern binding assign
-        match_result1 = (M["body2"]())((M["body4"]())(l2))
-      end
-      block_result0 = match_result1
-    end
-    return block_result0
+    return { ["path"] = l0 }
   end
 end
 
-M["body2"] = function() -- body std::panic
-  return function(p0)
-    local l0 -- local 'message'
-    l0 = p0 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      block_result0 = (M["body3"]())("thread main panic: `")
-      block_result0 = (M["body3"]())((M["body4"]())(l0))
-      block_result0 = (M["body5"]())("`")
-      block_result0 = (M["body8"]())(1)
-    end
-    return block_result0
-  end
-end
-
-M["body3"] = function() -- extern std::io::print
-    return E["std::io::print"]()
-end
-
-M["body4"] = function() -- extern std::debug::format
-    return E["std::debug::format"]()
-end
-
-M["body5"] = function() -- body std::io::println
-  return function(p0)
-    local l0 -- local 's'
-    l0 = p0 -- pattern binding assign
-    return (M["body3"]())(((M["body6"]())("\n"))(l0))
-  end
-end
-
-M["body6"] = function() -- body std::string::append
-  return function(p0)
-  return function(p1)
-    local l0 -- local 'a'
-    local l1 -- local 'b'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    return ((M["body7"]())(l1))(l0)
-  end
-  end
-end
-
-M["body7"] = function() -- extern std::string::prepend
-    return E["std::string::prepend"]()
-end
-
-M["body8"] = function() -- extern std::os::exit
-    return E["std::os::exit"]()
-end
-
-M["body9"] = function() -- extern std::fs::read
-    return E["std::fs::read"]()
-end
-
-M["body10"] = function() -- body ike::lex::tokenize
+M["body2"] = function() -- body ike::parse::tokenize
   return function(p0)
   return function(p1)
     local l0 -- local 'file'
-    local l1 -- local 'input'
+    local l1 -- local 'contents'
     local l2 -- local 'lexer'
     local l3 -- local 'ts'
     local l4 -- local 'lexer'
@@ -479,85 +405,631 @@ M["body10"] = function() -- body ike::lex::tokenize
     l1 = p1 -- pattern binding assign
     local block_result0 -- block result
     do -- block
-      l2 = { ["diagnostics"] = { __list = true }, ["graphs"] = (M["body11"]())(l1), ["file"] = l0, ["offset"] = 0, ["delim"] = M["body12"]() } -- pattern binding assign
+      l2 = { ["diagnostics"] = { __list = true }, ["graphs"] = (M["body3"]())(l1), ["file"] = l0, ["offset"] = 0, ["format"] = { __list = true } } -- pattern binding assign
       block_result0 = nil
-      local t1 = ((M["body13"]())({ __list = true }))(l2) -- tuple pattern assign
+      local t1 = ((M["body4"]())({ __list = true }))(l2) -- tuple pattern assign
       l3 = t1[1] -- pattern binding assign
       l4 = t1[2] -- pattern binding assign
       block_result0 = nil
-      block_result0 = { __tuple = true, (M["body86"]())(l3), (M["body103"]())(l4["diagnostics"]) }
+      block_result0 = { __tuple = true, (M["body93"]())(l3), l4["diagnostics"] }
     end
     return block_result0
   end
   end
 end
 
-M["body11"] = function() -- extern std::string::graphemes
+M["body3"] = function() -- extern std::string::graphemes
     return E["std::string::graphemes"]()
 end
 
-M["body12"] = function() -- body none
-    return { tag = "none" }
-end
-
-M["body13"] = function() -- body ike::lex::lexer::lex
+M["body4"] = function() -- body ike::parse::lexer::lex
   return function(p0)
   return function(p1)
     local l0 -- local 'ts'
     local l1 -- local 'lexer'
-    local l2 -- local 'delim'
-    local l3 -- local 'span'
-    local l4 -- local 'diagnostic'
-    local l5 -- local 'lexer'
-    local l6 -- local 'gs'
-    local l7 -- local 'g'
+    local l2 -- local 'g'
+    local l3 -- local 'g'
+    local l4 -- local 'f'
     l0 = p0 -- pattern binding assign
     l1 = p1 -- pattern binding assign
     local block_result0 -- block result
     do -- block
-      local v = l1["graphs"] -- match target
+      local v = (M["body5"]())(l1) -- match target
       local match_result1 -- match result
-      if #v == 0 then -- match arm
+      if v.tag == "none" then -- match arm
+        match_result1 = M["body9"]()
+      elseif v.tag == "some" and true then -- match arm
+        l2 = v.value -- pattern binding assign
         local block_result2 -- block result
         do -- block
-          local v = l1["delim"] -- match target
+          local v = { __tuple = true, l2, (M["body5"]())((M["body12"]())(l1)) } -- match target
           local match_result3 -- match result
-          if v.tag == "none" then -- match arm
-            match_result3 = { __tuple = true, l0, l1 }
-          elseif v.tag == "some" and true and true then -- match arm
-            local t4 = v.value -- tuple pattern assign
-            l2 = t4[1] -- pattern binding assign
-            l3 = t4[2] -- pattern binding assign
-            local block_result5 -- block result
+          if ("\"" == v[1]) and true then -- match arm
+            local t4 = v -- tuple pattern assign
+            match_result3 = M["body14"]()
+          elseif ("{" == v[1]) and true then -- match arm
+            local t5 = v -- tuple pattern assign
+            match_result3 = M["body31"]()
+          elseif ("}" == v[1]) and true then -- match arm
+            local t6 = v -- tuple pattern assign
+            match_result3 = M["body35"]()
+          elseif ("0" == v[1]) and true then -- match arm
+            local t7 = v -- tuple pattern assign
+            match_result3 = M["body37"]()
+          elseif ("1" == v[1]) and true then -- match arm
+            local t8 = v -- tuple pattern assign
+            match_result3 = M["body37"]()
+          elseif ("2" == v[1]) and true then -- match arm
+            local t9 = v -- tuple pattern assign
+            match_result3 = M["body37"]()
+          elseif ("3" == v[1]) and true then -- match arm
+            local t10 = v -- tuple pattern assign
+            match_result3 = M["body37"]()
+          elseif ("4" == v[1]) and true then -- match arm
+            local t11 = v -- tuple pattern assign
+            match_result3 = M["body37"]()
+          elseif ("5" == v[1]) and true then -- match arm
+            local t12 = v -- tuple pattern assign
+            match_result3 = M["body37"]()
+          elseif ("6" == v[1]) and true then -- match arm
+            local t13 = v -- tuple pattern assign
+            match_result3 = M["body37"]()
+          elseif ("7" == v[1]) and true then -- match arm
+            local t14 = v -- tuple pattern assign
+            match_result3 = M["body37"]()
+          elseif ("8" == v[1]) and true then -- match arm
+            local t15 = v -- tuple pattern assign
+            match_result3 = M["body37"]()
+          elseif ("9" == v[1]) and true then -- match arm
+            local t16 = v -- tuple pattern assign
+            match_result3 = M["body37"]()
+          elseif ("/" == v[1]) and v[2].tag == "some" and ("/" == v[2].value) then -- match arm
+            local t17 = v -- tuple pattern assign
+            match_result3 = M["body41"]()
+          elseif ("." == v[1]) and v[2].tag == "some" and ("." == v[2].value) then -- match arm
+            local t18 = v -- tuple pattern assign
+            match_result3 = ((M["body44"]())(".."))(M["body45"]())
+          elseif ("-" == v[1]) and v[2].tag == "some" and (">" == v[2].value) then -- match arm
+            local t19 = v -- tuple pattern assign
+            match_result3 = ((M["body44"]())("->"))(M["body46"]())
+          elseif ("<" == v[1]) and v[2].tag == "some" and ("-" == v[2].value) then -- match arm
+            local t20 = v -- tuple pattern assign
+            match_result3 = ((M["body44"]())("<-"))(M["body47"]())
+          elseif (":" == v[1]) and v[2].tag == "some" and (":" == v[2].value) then -- match arm
+            local t21 = v -- tuple pattern assign
+            match_result3 = ((M["body44"]())("::"))(M["body48"]())
+          elseif ("=" == v[1]) and v[2].tag == "some" and ("=" == v[2].value) then -- match arm
+            local t22 = v -- tuple pattern assign
+            match_result3 = ((M["body44"]())("=="))(M["body49"]())
+          elseif ("!" == v[1]) and v[2].tag == "some" and ("=" == v[2].value) then -- match arm
+            local t23 = v -- tuple pattern assign
+            match_result3 = ((M["body44"]())("!="))(M["body50"]())
+          elseif ("<" == v[1]) and v[2].tag == "some" and ("=" == v[2].value) then -- match arm
+            local t24 = v -- tuple pattern assign
+            match_result3 = ((M["body44"]())("<="))(M["body51"]())
+          elseif (">" == v[1]) and v[2].tag == "some" and ("=" == v[2].value) then -- match arm
+            local t25 = v -- tuple pattern assign
+            match_result3 = ((M["body44"]())(">="))(M["body52"]())
+          elseif ("<" == v[1]) and v[2].tag == "some" and ("|" == v[2].value) then -- match arm
+            local t26 = v -- tuple pattern assign
+            match_result3 = ((M["body44"]())("<|"))(M["body53"]())
+          elseif ("|" == v[1]) and v[2].tag == "some" and (">" == v[2].value) then -- match arm
+            local t27 = v -- tuple pattern assign
+            match_result3 = ((M["body44"]())("|>"))(M["body54"]())
+          elseif ("(" == v[1]) and true then -- match arm
+            local t28 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body55"]())
+          elseif (")" == v[1]) and true then -- match arm
+            local t29 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body56"]())
+          elseif ("[" == v[1]) and true then -- match arm
+            local t30 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body57"]())
+          elseif ("]" == v[1]) and true then -- match arm
+            local t31 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body58"]())
+          elseif (";" == v[1]) and true then -- match arm
+            local t32 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body59"]())
+          elseif (":" == v[1]) and true then -- match arm
+            local t33 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body60"]())
+          elseif ("," == v[1]) and true then -- match arm
+            local t34 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body61"]())
+          elseif ("." == v[1]) and true then -- match arm
+            local t35 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body62"]())
+          elseif ("#" == v[1]) and true then -- match arm
+            local t36 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body63"]())
+          elseif ("_" == v[1]) and true then -- match arm
+            local t37 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body64"]())
+          elseif ("+" == v[1]) and true then -- match arm
+            local t38 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body65"]())
+          elseif ("-" == v[1]) and true then -- match arm
+            local t39 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body66"]())
+          elseif ("*" == v[1]) and true then -- match arm
+            local t40 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body67"]())
+          elseif ("/" == v[1]) and true then -- match arm
+            local t41 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body68"]())
+          elseif ("\\" == v[1]) and true then -- match arm
+            local t42 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body69"]())
+          elseif ("%" == v[1]) and true then -- match arm
+            local t43 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body70"]())
+          elseif ("&" == v[1]) and true then -- match arm
+            local t44 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body71"]())
+          elseif ("|" == v[1]) and true then -- match arm
+            local t45 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body72"]())
+          elseif ("?" == v[1]) and true then -- match arm
+            local t46 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body73"]())
+          elseif ("'" == v[1]) and true then -- match arm
+            local t47 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body74"]())
+          elseif ("=" == v[1]) and true then -- match arm
+            local t48 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body75"]())
+          elseif ("~" == v[1]) and true then -- match arm
+            local t49 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body76"]())
+          elseif ("<" == v[1]) and true then -- match arm
+            local t50 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body77"]())
+          elseif (">" == v[1]) and true then -- match arm
+            local t51 = v -- tuple pattern assign
+            match_result3 = ((M["body32"]())(l2))(M["body78"]())
+          elseif (" " == v[1]) and true then -- match arm
+            local t52 = v -- tuple pattern assign
+            match_result3 = M["body79"]()
+          elseif ("\t" == v[1]) and true then -- match arm
+            local t53 = v -- tuple pattern assign
+            match_result3 = M["body79"]()
+          elseif ("\r" == v[1]) and true then -- match arm
+            local t54 = v -- tuple pattern assign
+            match_result3 = M["body79"]()
+          elseif ("\n" == v[1]) and true then -- match arm
+            local t55 = v -- tuple pattern assign
+            match_result3 = M["body82"]()
+          elseif true and true then -- match arm
+            local t56 = v -- tuple pattern assign
+            l3 = t56[1] -- pattern binding assign
+            local block_result57 -- block result
             do -- block
-              l4 = (((M["body14"]())(l3))("here"))((M["body16"]())(toString("expected closing ", true)..toString(l2, true)..toString("", true))) -- pattern binding assign
-              block_result5 = nil
-              l5 = ((M["body19"]())(l4))(l1) -- pattern binding assign
-              block_result5 = nil
-              block_result5 = { __tuple = true, l0, l5 }
+              local v = (M["body84"]())(l3) -- match target
+              local match_result58 -- match result
+              if (true == v) then -- match arm
+                match_result58 = M["body88"]()
+              elseif (false == v) then -- match arm
+                match_result58 = (M["body91"]())(l3)
+              end
+              block_result57 = match_result58
             end
-            match_result3 = block_result5
+            match_result3 = block_result57
           end
           block_result2 = match_result3
         end
         match_result1 = block_result2
+      end
+      l4 = match_result1 -- pattern binding assign
+      block_result0 = nil
+      block_result0 = ((l4)(l0))(l1)
+    end
+    return block_result0
+  end
+  end
+end
+
+M["body5"] = function() -- body ike::parse::lexer::peek
+  return function(p0)
+    local l0 -- local 'lexer'
+    l0 = p0 -- pattern binding assign
+    return (M["body6"]())(l0["graphs"])
+  end
+end
+
+M["body6"] = function() -- body std::list::first
+  return function(p0)
+    local l0 -- local 'xs'
+    local l1 -- local 'x'
+    l0 = p0 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      local v = l0 -- match target
+      local match_result1 -- match result
+      if #v == 0 then -- match arm
+        match_result1 = M["body7"]()
       elseif #v > 0 and true and true then -- match arm
-        l7 = (v)[1] -- pattern binding assign
-        l6 = (v)[2] -- pattern binding assign
-        local block_result6 -- block result
+        l1 = (v)[1] -- pattern binding assign
+        match_result1 = (M["body8"]())(l1)
+      end
+      block_result0 = match_result1
+    end
+    return block_result0
+  end
+end
+
+M["body7"] = function() -- body none
+    return { tag = "none" }
+end
+
+M["body8"] = function() -- body some
+  return function(p0)
+    local l0 -- local 'some'
+    l0 = p0 -- pattern binding assign
+    return { tag = "some", value = l0 }
+  end
+end
+
+M["body9"] = function() -- body ike::parse::lexer::eof
+  return function(p0)
+  return function(p1)
+    local l0 -- local 'ts'
+    local l1 -- local 'lexer'
+    local l2 -- local 'span'
+    local l3 -- local 'ts'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      l2 = ((M["body10"]())(0))(l1) -- pattern binding assign
+      block_result0 = nil
+      l3 = { __list = true, { __tuple = true, M["body11"](), l2 }, l0 } -- pattern binding assign
+      block_result0 = nil
+      block_result0 = { __tuple = true, l3, l1 }
+    end
+    return block_result0
+  end
+  end
+end
+
+M["body10"] = function() -- body ike::parse::lexer::span
+  return function(p0)
+  return function(p1)
+    local l0 -- local 'len'
+    local l1 -- local 'lexer'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      block_result0 = { ["file"] = l1["file"], ["start"] = l1["offset"], ["end"] = (l1["offset"] + l0) }
+    end
+    return block_result0
+  end
+  end
+end
+
+M["body11"] = function() -- body token::end-of-file
+    return { tag = "token::end-of-file" }
+end
+
+M["body12"] = function() -- body ike::parse::lexer::advance
+  return function(p0)
+    local l0 -- local 'lexer'
+    local l1 -- local 'graphs'
+    local l2 -- local 'g'
+    l0 = p0 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      local v = l0["graphs"] -- match target
+      local match_result1 -- match result
+      if #v == 0 then -- match arm
+        match_result1 = l0
+      elseif #v > 0 and true and true then -- match arm
+        l2 = (v)[1] -- pattern binding assign
+        l1 = (v)[2] -- pattern binding assign
+        local block_result2 -- block result
         do -- block
-          block_result6 = (((M["body20"]())(l0))(l7))(((M["body36"]())(l6))(l1))
+          block_result2 = { ["diagnostics"] = l0["diagnostics"], ["graphs"] = l1, ["file"] = l0["file"], ["offset"] = (l0["offset"] + (M["body13"]())(l2)), ["format"] = l0["format"] }
         end
-        match_result1 = block_result6
+        match_result1 = block_result2
+      end
+      block_result0 = match_result1
+    end
+    return block_result0
+  end
+end
+
+M["body13"] = function() -- extern std::string::len
+    return E["std::string::len"]()
+end
+
+M["body14"] = function() -- body ike::parse::lexer::lex::{lambda}
+  return function(p0)
+  return function(p1)
+    local l0 -- local 'ts'
+    local l1 -- local 'lexer'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      block_result0 = (((((M["body15"]())(l1["offset"]))(true))(""))(l0))((M["body12"]())(l1))
+    end
+    return block_result0
+  end
+  end
+end
+
+M["body15"] = function() -- body ike::parse::lexer::string
+  return function(p0)
+  return function(p1)
+  return function(p2)
+  return function(p3)
+  return function(p4)
+    local l0 -- local 'start'
+    local l1 -- local 'is-quote'
+    local l2 -- local 's'
+    local l3 -- local 'ts'
+    local l4 -- local 'lexer'
+    local l5 -- local 'g'
+    local l6 -- local 'span'
+    local l7 -- local 'diagnostic'
+    local l8 -- local 'g'
+    local l9 -- local 's'
+    local l10 -- local 'span'
+    local l11 -- local 'diagnostic'
+    local l12 -- local 'ts'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    l2 = p2 -- pattern binding assign
+    l3 = p3 -- pattern binding assign
+    l4 = p4 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      local v = (M["body5"]())(l4) -- match target
+      local match_result1 -- match result
+      if v.tag == "some" and true then -- match arm
+        l5 = v.value -- pattern binding assign
+        local block_result2 -- block result
+        do -- block
+          local v = { __tuple = true, l5, (M["body5"]())((M["body12"]())(l4)) } -- match target
+          local match_result3 -- match result
+          if ("\"" == v[1]) and true then -- match arm
+            local t4 = v -- tuple pattern assign
+            local v = l1 -- match target
+            local match_result5 -- match result
+            if (true == v) then -- match arm
+              match_result5 = ((((((M["body16"]())(false))(l0))(l2))(M["body18"]()))(l3))(l4)
+            elseif (false == v) then -- match arm
+              match_result5 = ((((((M["body16"]())(false))(l0))(l2))(M["body19"]()))(l3))(l4)
+            end
+            match_result3 = match_result5
+          elseif ("{" == v[1]) and v[2].tag == "some" and ("{" == v[2].value) then -- match arm
+            local t6 = v -- tuple pattern assign
+            match_result3 = ((((((M["body20"]())(l0))(l1))(l2))("{"))(l3))(l4)
+          elseif ("}" == v[1]) and v[2].tag == "some" and ("}" == v[2].value) then -- match arm
+            local t7 = v -- tuple pattern assign
+            match_result3 = ((((((M["body20"]())(l0))(l1))(l2))("}"))(l3))(l4)
+          elseif ("\\" == v[1]) and v[2].tag == "some" and ("\"" == v[2].value) then -- match arm
+            local t8 = v -- tuple pattern assign
+            match_result3 = ((((((M["body20"]())(l0))(l1))(l2))("\""))(l3))(l4)
+          elseif ("\\" == v[1]) and v[2].tag == "some" and ("\\" == v[2].value) then -- match arm
+            local t9 = v -- tuple pattern assign
+            match_result3 = ((((((M["body20"]())(l0))(l1))(l2))("\\"))(l3))(l4)
+          elseif ("\\" == v[1]) and v[2].tag == "some" and ("n" == v[2].value) then -- match arm
+            local t10 = v -- tuple pattern assign
+            match_result3 = ((((((M["body20"]())(l0))(l1))(l2))("\n"))(l3))(l4)
+          elseif ("\\" == v[1]) and v[2].tag == "some" and ("r" == v[2].value) then -- match arm
+            local t11 = v -- tuple pattern assign
+            match_result3 = ((((((M["body20"]())(l0))(l1))(l2))("\r"))(l3))(l4)
+          elseif ("\\" == v[1]) and v[2].tag == "some" and ("t" == v[2].value) then -- match arm
+            local t12 = v -- tuple pattern assign
+            match_result3 = ((((((M["body20"]())(l0))(l1))(l2))("\t"))(l3))(l4)
+          elseif ("{" == v[1]) and true then -- match arm
+            local t13 = v -- tuple pattern assign
+            local v = l1 -- match target
+            local match_result14 -- match result
+            if (true == v) then -- match arm
+              match_result14 = ((((((M["body16"]())(true))(l0))(l2))(M["body23"]()))(l3))(l4)
+            elseif (false == v) then -- match arm
+              match_result14 = ((((((M["body16"]())(true))(l0))(l2))(M["body24"]()))(l3))(l4)
+            end
+            match_result3 = match_result14
+          elseif ("}" == v[1]) and true then -- match arm
+            local t15 = v -- tuple pattern assign
+            local block_result16 -- block result
+            do -- block
+              l6 = { ["file"] = l4["file"], ["start"] = l4["offset"], ["end"] = (l4["offset"] + (M["body13"]())("}")) } -- pattern binding assign
+              block_result16 = nil
+              l7 = (((M["body25"]())(l6))("found here"))((M["body26"]())("unexpected closing brace")) -- pattern binding assign
+              block_result16 = nil
+              block_result16 = (((((M["body15"]())(l0))(l1))(l2))(l3))(((M["body29"]())(l7))((M["body12"]())(l4)))
+            end
+            match_result3 = block_result16
+          elseif true and true then -- match arm
+            local t17 = v -- tuple pattern assign
+            l8 = t17[1] -- pattern binding assign
+            local block_result18 -- block result
+            do -- block
+              l9 = ((M["body21"]())(l8))(l2) -- pattern binding assign
+              block_result18 = nil
+              block_result18 = (((((M["body15"]())(l0))(l1))(l9))(l3))((M["body12"]())(l4))
+            end
+            match_result3 = block_result18
+          end
+          block_result2 = match_result3
+        end
+        match_result1 = block_result2
+      elseif v.tag == "none" then -- match arm
+        local block_result19 -- block result
+        do -- block
+          l10 = { ["file"] = l4["file"], ["start"] = l0, ["end"] = (l0 + (M["body13"]())("\"")) } -- pattern binding assign
+          block_result19 = nil
+          l11 = (((M["body25"]())(l10))("starting here"))((M["body26"]())("expected end of string")) -- pattern binding assign
+          block_result19 = nil
+          l12 = { __list = true, { __tuple = true, M["body30"](), l10 }, l3 } -- pattern binding assign
+          block_result19 = nil
+          block_result19 = ((M["body4"]())(l12))(l4)
+        end
+        match_result1 = block_result19
       end
       block_result0 = match_result1
     end
     return block_result0
   end
   end
+  end
+  end
+  end
 end
 
-M["body14"] = function() -- body ike::diagnostic::with-label
+M["body16"] = function() -- body ike::parse::lexer::end-string
+  return function(p0)
+  return function(p1)
+  return function(p2)
+  return function(p3)
+  return function(p4)
+  return function(p5)
+    local l0 -- local 'is-format'
+    local l1 -- local 'start'
+    local l2 -- local 's'
+    local l3 -- local 'f'
+    local l4 -- local 'ts'
+    local l5 -- local 'lexer'
+    local l6 -- local 'lexer'
+    local l7 -- local 'span'
+    local l8 -- local 'lexer'
+    local l9 -- local 'ts'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    l2 = p2 -- pattern binding assign
+    l3 = p3 -- pattern binding assign
+    l4 = p4 -- pattern binding assign
+    l5 = p5 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      l6 = (M["body12"]())(l5) -- pattern binding assign
+      block_result0 = nil
+      l7 = { ["file"] = l6["file"], ["start"] = l1, ["end"] = l6["offset"] } -- pattern binding assign
+      block_result0 = nil
+      local v = l0 -- match target
+      local match_result1 -- match result
+      if (true == v) then -- match arm
+        match_result1 = ((M["body17"]())(l7))(l6)
+      elseif (false == v) then -- match arm
+        match_result1 = l6
+      end
+      l8 = match_result1 -- pattern binding assign
+      block_result0 = nil
+      l9 = { __list = true, { __tuple = true, (l3)(l2), l7 }, l4 } -- pattern binding assign
+      block_result0 = nil
+      block_result0 = ((M["body4"]())(l9))(l8)
+    end
+    return block_result0
+  end
+  end
+  end
+  end
+  end
+  end
+end
+
+M["body17"] = function() -- body ike::parse::lexer::with-format
+  return function(p0)
+  return function(p1)
+    local l0 -- local 'span'
+    local l1 -- local 'lexer'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      block_result0 = { ["diagnostics"] = l1["diagnostics"], ["graphs"] = l1["graphs"], ["file"] = l1["file"], ["offset"] = l1["offset"], ["format"] = { __list = true, { __tuple = true, 0, l0 }, l1["format"] } }
+    end
+    return block_result0
+  end
+  end
+end
+
+M["body18"] = function() -- body token::string
+  return function(p0)
+    local l0 -- local 'string'
+    l0 = p0 -- pattern binding assign
+    return { tag = "token::string", value = l0 }
+  end
+end
+
+M["body19"] = function() -- body token::format-end
+  return function(p0)
+    local l0 -- local 'format-end'
+    l0 = p0 -- pattern binding assign
+    return { tag = "token::format-end", value = l0 }
+  end
+end
+
+M["body20"] = function() -- body ike::parse::lexer::string-escape
+  return function(p0)
+  return function(p1)
+  return function(p2)
+  return function(p3)
+  return function(p4)
+  return function(p5)
+    local l0 -- local 'start'
+    local l1 -- local 'is-quote'
+    local l2 -- local 's'
+    local l3 -- local 'g'
+    local l4 -- local 'ts'
+    local l5 -- local 'lexer'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    l2 = p2 -- pattern binding assign
+    l3 = p3 -- pattern binding assign
+    l4 = p4 -- pattern binding assign
+    l5 = p5 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      block_result0 = (((((M["body15"]())(l0))(l1))(((M["body21"]())(l3))(l2)))(l4))((M["body12"]())((M["body12"]())(l5)))
+    end
+    return block_result0
+  end
+  end
+  end
+  end
+  end
+  end
+end
+
+M["body21"] = function() -- body std::string::append
+  return function(p0)
+  return function(p1)
+    local l0 -- local 'a'
+    local l1 -- local 'b'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    return ((M["body22"]())(l1))(l0)
+  end
+  end
+end
+
+M["body22"] = function() -- extern std::string::prepend
+    return E["std::string::prepend"]()
+end
+
+M["body23"] = function() -- body token::format-start
+  return function(p0)
+    local l0 -- local 'format-start'
+    l0 = p0 -- pattern binding assign
+    return { tag = "token::format-start", value = l0 }
+  end
+end
+
+M["body24"] = function() -- body token::format-continue
+  return function(p0)
+    local l0 -- local 'format-continue'
+    l0 = p0 -- pattern binding assign
+    return { tag = "token::format-continue", value = l0 }
+  end
+end
+
+M["body25"] = function() -- body ike::diagnostic::with-label
   return function(p0)
   return function(p1)
   return function(p2)
@@ -570,7 +1042,7 @@ M["body14"] = function() -- body ike::diagnostic::with-label
     l2 = p2 -- pattern binding assign
     local block_result0 -- block result
     do -- block
-      l3 = { ["span"] = l0, ["message"] = (M["body15"]())(l1) } -- pattern binding assign
+      l3 = { ["span"] = l0, ["message"] = (M["body8"]())(l1) } -- pattern binding assign
       block_result0 = nil
       block_result0 = { ["level"] = l2["level"], ["message"] = l2["message"], ["labels"] = { __list = true, l3, l2["labels"] } }
     end
@@ -580,27 +1052,19 @@ M["body14"] = function() -- body ike::diagnostic::with-label
   end
 end
 
-M["body15"] = function() -- body some
-  return function(p0)
-    local l0 -- local 'some'
-    l0 = p0 -- pattern binding assign
-    return { tag = "some", value = l0 }
-  end
-end
-
-M["body16"] = function() -- body ike::diagnostic::error
+M["body26"] = function() -- body ike::diagnostic::error
   return function(p0)
     local l0 -- local 'message'
     l0 = p0 -- pattern binding assign
     local block_result0 -- block result
     do -- block
-      block_result0 = ((M["body17"]())(M["body18"]()))(l0)
+      block_result0 = ((M["body27"]())(M["body28"]()))(l0)
     end
     return block_result0
   end
 end
 
-M["body17"] = function() -- body ike::diagnostic
+M["body27"] = function() -- body ike::diagnostic
   return function(p0)
   return function(p1)
     local l0 -- local 'level'
@@ -616,11 +1080,11 @@ M["body17"] = function() -- body ike::diagnostic
   end
 end
 
-M["body18"] = function() -- body level::error
+M["body28"] = function() -- body level::error
     return { tag = "level::error" }
 end
 
-M["body19"] = function() -- body ike::lex::lexer::with-diagnostic
+M["body29"] = function() -- body ike::parse::lexer::with-diagnostic
   return function(p0)
   return function(p1)
     local l0 -- local 'diagnostic'
@@ -629,454 +1093,221 @@ M["body19"] = function() -- body ike::lex::lexer::with-diagnostic
     l1 = p1 -- pattern binding assign
     local block_result0 -- block result
     do -- block
-      block_result0 = { ["diagnostics"] = { __list = true, l0, l1["diagnostics"] }, ["graphs"] = l1["graphs"], ["file"] = l1["file"], ["offset"] = l1["offset"], ["delim"] = l1["delim"] }
+      block_result0 = { ["diagnostics"] = { __list = true, l0, l1["diagnostics"] }, ["graphs"] = l1["graphs"], ["file"] = l1["file"], ["offset"] = l1["offset"], ["format"] = l1["format"] }
     end
     return block_result0
   end
   end
 end
 
-M["body20"] = function() -- body ike::lex::lexer::graph
+M["body30"] = function() -- body token::error
+    return { tag = "token::error" }
+end
+
+M["body31"] = function() -- body ike::parse::lexer::open-brace
+  return function(p0)
+  return function(p1)
+    local l0 -- local 'ts'
+    local l1 -- local 'lexer'
+    local l2 -- local 'fs'
+    local l3 -- local 'opens'
+    local l4 -- local 'format-span'
+    local l5 -- local 'span'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      local v = l1["format"] -- match target
+      local match_result1 -- match result
+      if #v > 0 and true and true and true then -- match arm
+        local t2 = (v)[1] -- tuple pattern assign
+        l3 = t2[1] -- pattern binding assign
+        l4 = t2[2] -- pattern binding assign
+        l2 = (v)[2] -- pattern binding assign
+        local block_result3 -- block result
+        do -- block
+          l5 = ((M["body10"]())((M["body13"]())("{")))(l1) -- pattern binding assign
+          block_result3 = nil
+          block_result3 = ((((M["body32"]())("{"))(M["body33"]()))(l0))(((M["body34"]())({ __list = true, { __tuple = true, (l3 + 1), l4 }, l2 }))(l1))
+        end
+        match_result1 = block_result3
+      elseif #v == 0 then -- match arm
+        match_result1 = ((((M["body32"]())("{"))(M["body33"]()))(l0))(l1)
+      end
+      block_result0 = match_result1
+    end
+    return block_result0
+  end
+  end
+end
+
+M["body32"] = function() -- body ike::parse::lexer::one-symbol
   return function(p0)
   return function(p1)
   return function(p2)
-    local l0 -- local 'ts'
-    local l1 -- local 'g'
-    local l2 -- local 'lexer'
+  return function(p3)
+    local l0 -- local 's'
+    local l1 -- local 't'
+    local l2 -- local 'ts'
+    local l3 -- local 'lexer'
+    local l4 -- local 'span'
+    local l5 -- local 'ts'
     l0 = p0 -- pattern binding assign
     l1 = p1 -- pattern binding assign
     l2 = p2 -- pattern binding assign
+    l3 = p3 -- pattern binding assign
     local block_result0 -- block result
     do -- block
-      local v = l1 -- match target
+      l4 = ((M["body10"]())((M["body13"]())(l0)))(l3) -- pattern binding assign
+      block_result0 = nil
+      l5 = { __list = true, { __tuple = true, l1, l4 }, l2 } -- pattern binding assign
+      block_result0 = nil
+      block_result0 = ((M["body4"]())(l5))((M["body12"]())(l3))
+    end
+    return block_result0
+  end
+  end
+  end
+  end
+end
+
+M["body33"] = function() -- body token::open-brace
+    return { tag = "token::open-brace" }
+end
+
+M["body34"] = function() -- body ike::parse::lexer::with-formats
+  return function(p0)
+  return function(p1)
+    local l0 -- local 'formats'
+    local l1 -- local 'lexer'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      block_result0 = { ["diagnostics"] = l1["diagnostics"], ["graphs"] = l1["graphs"], ["file"] = l1["file"], ["offset"] = l1["offset"], ["format"] = l0 }
+    end
+    return block_result0
+  end
+  end
+end
+
+M["body35"] = function() -- body ike::parse::lexer::close-brace
+  return function(p0)
+  return function(p1)
+    local l0 -- local 'ts'
+    local l1 -- local 'lexer'
+    local l2 -- local 'fs'
+    local l3 -- local 'fs'
+    local l4 -- local 'opens'
+    local l5 -- local 'format-span'
+    local l6 -- local 'span'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      local v = l1["format"] -- match target
       local match_result1 -- match result
-      if ("\n" == v) then -- match arm
-        match_result1 = ((M["body21"]())(l0))(l1)
-      elseif (" " == v) then -- match arm
-        match_result1 = ((M["body26"]())(l0))(l1)
-      elseif ("\"" == v) then -- match arm
-        match_result1 = ((((M["body28"]())(l0))({ __list = true }))(""))((M["body25"]())(l1))
-      elseif (";" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body58"]())
-      elseif (":" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body59"]())
-      elseif ("," == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body60"]())
-      elseif ("." == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body61"]())
-      elseif ("#" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body62"]())
-      elseif ("_" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body63"]())
-      elseif ("+" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body64"]())
-      elseif ("-" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body65"]())
-      elseif ("*" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body66"]())
-      elseif ("/" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body67"]())
-      elseif ("\\" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body68"]())
-      elseif ("%" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body69"]())
-      elseif ("&" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body70"]())
-      elseif ("|" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body71"]())
-      elseif ("^" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body72"]())
-      elseif ("!" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body73"]())
-      elseif ("?" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body74"]())
-      elseif ("'" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body75"]())
-      elseif ("=" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body76"]())
-      elseif ("~" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body77"]())
-      elseif ("<" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body78"]())
-      elseif (">" == v) then -- match arm
-        match_result1 = (((M["body44"]())(l0))(l1))(M["body79"]())
-      elseif ("0" == v) then -- match arm
-        match_result1 = ((M["body80"]())(l0))(l1)
-      elseif ("1" == v) then -- match arm
-        match_result1 = ((M["body80"]())(l0))(l1)
-      elseif ("2" == v) then -- match arm
-        match_result1 = ((M["body80"]())(l0))(l1)
-      elseif ("3" == v) then -- match arm
-        match_result1 = ((M["body80"]())(l0))(l1)
-      elseif ("4" == v) then -- match arm
-        match_result1 = ((M["body80"]())(l0))(l1)
-      elseif ("5" == v) then -- match arm
-        match_result1 = ((M["body80"]())(l0))(l1)
-      elseif ("6" == v) then -- match arm
-        match_result1 = ((M["body80"]())(l0))(l1)
-      elseif ("7" == v) then -- match arm
-        match_result1 = ((M["body80"]())(l0))(l1)
-      elseif ("8" == v) then -- match arm
-        match_result1 = ((M["body80"]())(l0))(l1)
-      elseif ("9" == v) then -- match arm
-        match_result1 = ((M["body80"]())(l0))(l1)
-      elseif ("(" == v) then -- match arm
-        match_result1 = (((M["body85"]())(l0))(l1))(M["body89"]())
-      elseif ("[" == v) then -- match arm
-        match_result1 = (((M["body85"]())(l0))(l1))(M["body90"]())
-      elseif ("{" == v) then -- match arm
-        match_result1 = (((M["body85"]())(l0))(l1))(M["body40"]())
-      elseif (")" == v) then -- match arm
-        match_result1 = (((M["body91"]())(l0))(l1))(M["body89"]())
-      elseif ("]" == v) then -- match arm
-        match_result1 = (((M["body91"]())(l0))(l1))(M["body90"]())
-      elseif ("}" == v) then -- match arm
-        match_result1 = (((M["body91"]())(l0))(l1))(M["body40"]())
-      elseif true then -- match arm
+      if #v > 0 and (0 == (v)[1][1]) and true and true then -- match arm
+        local t2 = (v)[1] -- tuple pattern assign
+        l2 = (v)[2] -- pattern binding assign
+        local block_result3 -- block result
+        do -- block
+          block_result3 = (((((M["body15"]())(l1["offset"]))(false))(""))(l0))(((M["body34"]())(l2))((M["body12"]())(l1)))
+        end
+        match_result1 = block_result3
+      elseif #v > 0 and true and true and true then -- match arm
+        local t4 = (v)[1] -- tuple pattern assign
+        l4 = t4[1] -- pattern binding assign
+        l5 = t4[2] -- pattern binding assign
+        l3 = (v)[2] -- pattern binding assign
+        local block_result5 -- block result
+        do -- block
+          l6 = ((M["body10"]())((M["body13"]())("}")))(l1) -- pattern binding assign
+          block_result5 = nil
+          block_result5 = ((((M["body32"]())("}"))(M["body36"]()))(l0))(((M["body34"]())({ __list = true, { __tuple = true, (l4 - 1), l5 }, l3 }))(l1))
+        end
+        match_result1 = block_result5
+      elseif #v == 0 then -- match arm
+        match_result1 = ((((M["body32"]())("}"))(M["body36"]()))(l0))(l1)
+      end
+      block_result0 = match_result1
+    end
+    return block_result0
+  end
+  end
+end
+
+M["body36"] = function() -- body token::close-brace
+    return { tag = "token::close-brace" }
+end
+
+M["body37"] = function() -- body ike::parse::lexer::number
+  return function(p0)
+  return function(p1)
+    local l0 -- local 'ts'
+    local l1 -- local 'lexer'
+    local l2 -- local 'num'
+    local l3 -- local 'lexer''
+    local l4 -- local 'span'
+    local l5 -- local 'ts'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      local t1 = ((M["body38"]())(M["body39"]()))(l1) -- tuple pattern assign
+      l2 = t1[1] -- pattern binding assign
+      l3 = t1[2] -- pattern binding assign
+      block_result0 = nil
+      l4 = ((M["body10"]())((M["body13"]())(l2)))(l1) -- pattern binding assign
+      block_result0 = nil
+      l5 = { __list = true, { __tuple = true, (M["body40"]())(l2), l4 }, l0 } -- pattern binding assign
+      block_result0 = nil
+      block_result0 = ((M["body4"]())(l5))(l3)
+    end
+    return block_result0
+  end
+  end
+end
+
+M["body38"] = function() -- body ike::parse::lexer::take-while
+  return function(p0)
+  return function(p1)
+    local l0 -- local 'f'
+    local l1 -- local 'lexer'
+    local l2 -- local 'g'
+    local l3 -- local 's'
+    local l4 -- local 'lexer'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      local v = (M["body5"]())(l1) -- match target
+      local match_result1 -- match result
+      if v.tag == "none" then -- match arm
+        match_result1 = { __tuple = true, "", l1 }
+      elseif v.tag == "some" and true then -- match arm
+        l2 = v.value -- pattern binding assign
         local block_result2 -- block result
         do -- block
-          local v = (M["body95"]())(l1) -- match target
+          local v = (l0)(l2) -- match target
           local match_result3 -- match result
-          if (true == v) then -- match arm
-            match_result3 = ((M["body99"]())(l0))(l1)
-          elseif (false == v) then -- match arm
-            match_result3 = ((M["body102"]())(l0))(l1)
+          if (false == v) then -- match arm
+            match_result3 = { __tuple = true, "", l1 }
+          elseif (true == v) then -- match arm
+            local block_result4 -- block result
+            do -- block
+              local t5 = ((M["body38"]())(l0))((M["body12"]())(l1)) -- tuple pattern assign
+              l3 = t5[1] -- pattern binding assign
+              l4 = t5[2] -- pattern binding assign
+              block_result4 = nil
+              block_result4 = { __tuple = true, ((M["body22"]())(l2))(l3), l4 }
+            end
+            match_result3 = block_result4
           end
           block_result2 = match_result3
         end
         match_result1 = block_result2
       end
-      block_result0 = (match_result1)(l2)
-    end
-    return block_result0
-  end
-  end
-  end
-end
-
-M["body21"] = function() -- body ike::lex::lexer::newline
-  return function(p0)
-  return function(p1)
-    local l0 -- local 'ts'
-    local l1 -- local 'g'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      block_result0 = (((M["body22"]())(l0))(M["body24"]()))((M["body25"]())(l1))
-    end
-    return block_result0
-  end
-  end
-end
-
-M["body22"] = function() -- body ike::lex::lexer::lex-with
-  return function(p0)
-  return function(p1)
-  return function(p2)
-  return function(p3)
-    local l0 -- local 'ts'
-    local l1 -- local 'tok'
-    local l2 -- local 'len'
-    local l3 -- local 'lexer'
-    local l4 -- local 'span'
-    local l5 -- local 'lexer'
-    local l6 -- local 'ts'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    l2 = p2 -- pattern binding assign
-    l3 = p3 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      l4 = { ["file"] = l3["file"], ["start"] = l3["offset"], ["end"] = (l3["offset"] + l2) } -- pattern binding assign
-      block_result0 = nil
-      l5 = ((M["body23"]())(l2))(l3) -- pattern binding assign
-      block_result0 = nil
-      l6 = { __list = true, { __tuple = true, l1, l4 }, l0 } -- pattern binding assign
-      block_result0 = nil
-      block_result0 = ((M["body13"]())(l6))(l5)
-    end
-    return block_result0
-  end
-  end
-  end
-  end
-end
-
-M["body23"] = function() -- body ike::lex::lexer::with-offset
-  return function(p0)
-  return function(p1)
-    local l0 -- local 'offset'
-    local l1 -- local 'lexer'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      block_result0 = { ["diagnostics"] = l1["diagnostics"], ["graphs"] = l1["graphs"], ["file"] = l1["file"], ["offset"] = (l1["offset"] + l0), ["delim"] = l1["delim"] }
-    end
-    return block_result0
-  end
-  end
-end
-
-M["body24"] = function() -- body newline
-    return { tag = "newline" }
-end
-
-M["body25"] = function() -- extern std::string::len
-    return E["std::string::len"]()
-end
-
-M["body26"] = function() -- body ike::lex::lexer::whitespace
-  return function(p0)
-  return function(p1)
-    local l0 -- local 'ts'
-    local l1 -- local 'g'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      block_result0 = (((M["body22"]())(l0))(M["body27"]()))((M["body25"]())(l1))
-    end
-    return block_result0
-  end
-  end
-end
-
-M["body27"] = function() -- body whitespace
-    return { tag = "whitespace" }
-end
-
-M["body28"] = function() -- body ike::lex::lexer::string
-  return function(p0)
-  return function(p1)
-  return function(p2)
-  return function(p3)
-  return function(p4)
-    local l0 -- local 'ts'
-    local l1 -- local 'parts'
-    local l2 -- local 's'
-    local l3 -- local 'len'
-    local l4 -- local 'lexer'
-    local l5 -- local 'lexer'
-    local l6 -- local 'escape'
-    local l7 -- local 'g'
-    local l8 -- local 'span'
-    local l9 -- local 'diagnostic'
-    local l10 -- local 'lexer'
-    local l11 -- local 'ts'
-    local l12 -- local 'span'
-    local l13 -- local 'diagnostic'
-    local l14 -- local 'lexer'
-    local l15 -- local 'ts'
-    local l16 -- local 'lexer'
-    local l17 -- local 'delim-span'
-    local l18 -- local 'lexer''
-    local l19 -- local 'ts''
-    local l20 -- local 'lexer''
-    local l21 -- local 'lexer'
-    local l22 -- local 'g'
-    local l23 -- local 'span'
-    local l24 -- local 'diagnostic'
-    local l25 -- local 'lexer'
-    local l26 -- local 'ts'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    l2 = p2 -- pattern binding assign
-    l3 = p3 -- pattern binding assign
-    l4 = p4 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      local v = (M["body29"]())(l4) -- match target
-      local match_result1 -- match result
-      if v.tag == "some" and ("\"" == v.value) then -- match arm
-        local block_result2 -- block result
-        do -- block
-          block_result2 = ((((M["body22"]())(l0))((M["body31"]())((M["body32"]())({ __list = true, (M["body34"]())(l2), l1 }))))((l3 + (M["body25"]())("\""))))((M["body35"]())(l4))
-        end
-        match_result1 = block_result2
-      elseif v.tag == "some" and ("\\" == v.value) then -- match arm
-        local block_result3 -- block result
-        do -- block
-          l5 = (M["body35"]())(l4) -- pattern binding assign
-          block_result3 = nil
-          l6 = (((((M["body37"]())(l0))(l1))(l2))(l3))(l5) -- pattern binding assign
-          block_result3 = nil
-          local v = (M["body29"]())(l5) -- match target
-          local match_result4 -- match result
-          if v.tag == "some" and ("\\" == v.value) then -- match arm
-            match_result4 = (l6)("\\")
-          elseif v.tag == "some" and ("\"" == v.value) then -- match arm
-            match_result4 = (l6)("\"")
-          elseif v.tag == "some" and ("n" == v.value) then -- match arm
-            match_result4 = (l6)("\n")
-          elseif v.tag == "some" and ("t" == v.value) then -- match arm
-            match_result4 = (l6)("\t")
-          elseif v.tag == "some" and ("r" == v.value) then -- match arm
-            match_result4 = (l6)("\r")
-          elseif v.tag == "some" and true then -- match arm
-            l7 = v.value -- pattern binding assign
-            local block_result5 -- block result
-            do -- block
-              l8 = { ["file"] = l5["file"], ["start"] = (l5["offset"] + l3), ["end"] = (((l5["offset"] + l3) + (M["body25"]())("\\")) + (M["body25"]())(l7)) } -- pattern binding assign
-              block_result5 = nil
-              l9 = (((M["body14"]())(l8))("found here"))((M["body16"]())(toString("invalid escape character `", true)..toString(l7, true)..toString("`", true))) -- pattern binding assign
-              block_result5 = nil
-              l10 = ((M["body23"]())(((l3 + (M["body25"]())("\\")) + (M["body25"]())(l7))))(((M["body19"]())(l9))(l5)) -- pattern binding assign
-              block_result5 = nil
-              l11 = { __list = true, { __tuple = true, (M["body31"]())({ __list = true, (M["body34"]())(l2), { __list = true } }), l8 }, l0 } -- pattern binding assign
-              block_result5 = nil
-              block_result5 = { __tuple = true, l11, l10 }
-            end
-            match_result4 = block_result5
-          elseif v.tag == "none" then -- match arm
-            local block_result6 -- block result
-            do -- block
-              l12 = { ["file"] = l5["file"], ["start"] = l5["offset"], ["end"] = (l5["offset"] + l3) } -- pattern binding assign
-              block_result6 = nil
-              l13 = (((M["body14"]())(l12))("found here"))((M["body16"]())("expected escape character")) -- pattern binding assign
-              block_result6 = nil
-              l14 = ((M["body23"]())((l3 + (M["body25"]())("\\"))))(((M["body19"]())(l13))(l5)) -- pattern binding assign
-              block_result6 = nil
-              l15 = { __list = true, { __tuple = true, (M["body31"]())({ __list = true, (M["body34"]())(l2), { __list = true } }), l12 }, l0 } -- pattern binding assign
-              block_result6 = nil
-              block_result6 = { __tuple = true, l15, l14 }
-            end
-            match_result4 = block_result6
-          end
-          block_result3 = match_result4
-        end
-        match_result1 = block_result3
-      elseif v.tag == "some" and ("{" == v.value) then -- match arm
-        local block_result7 -- block result
-        do -- block
-          l16 = (M["body35"]())(l4) -- pattern binding assign
-          block_result7 = nil
-          local v = equal((M["body29"]())(l16), (M["body15"]())("{")) -- match target
-          local match_result8 -- match result
-          if (true == v) then -- match arm
-            local block_result9 -- block result
-            do -- block
-              block_result9 = (((((M["body28"]())(l0))(l1))(((M["body6"]())("{"))(l2)))((l3 + ((M["body25"]())("{") * 2))))((M["body35"]())(l16))
-            end
-            match_result8 = block_result9
-          elseif (false == v) then -- match arm
-            local block_result10 -- block result
-            do -- block
-              l17 = { ["file"] = l16["file"], ["start"] = (l16["offset"] + l3), ["end"] = ((l16["offset"] + l3) + (M["body25"]())("{")) } -- pattern binding assign
-              block_result10 = nil
-              l18 = ((M["body23"]())((l3 + (M["body25"]())("{"))))(((M["body38"]())((M["body39"]())({ __tuple = true, M["body40"](), l17 })))(l16)) -- pattern binding assign
-              block_result10 = nil
-              local t11 = ((M["body13"]())({ __list = true }))(l18) -- tuple pattern assign
-              l19 = t11[1] -- pattern binding assign
-              l20 = t11[2] -- pattern binding assign
-              block_result10 = nil
-              l21 = ((M["body41"]())(l20["diagnostics"]))(((M["body36"]())(l20["graphs"]))(l16)) -- pattern binding assign
-              block_result10 = nil
-              block_result10 = (((((M["body28"]())(l0))({ __list = true, (M["body43"]())(l19), { __list = true, (M["body34"]())(l2), l1 } }))(""))((l20["offset"] - l21["offset"])))(l21)
-            end
-            match_result8 = block_result10
-          end
-          block_result7 = match_result8
-        end
-        match_result1 = block_result7
-      elseif v.tag == "some" and true then -- match arm
-        l22 = v.value -- pattern binding assign
-        local block_result12 -- block result
-        do -- block
-          block_result12 = (((((M["body28"]())(l0))(l1))(((M["body6"]())(l22))(l2)))((l3 + (M["body25"]())(l22))))((M["body35"]())(l4))
-        end
-        match_result1 = block_result12
-      elseif v.tag == "none" then -- match arm
-        local block_result13 -- block result
-        do -- block
-          l23 = { ["file"] = l4["file"], ["start"] = l4["offset"], ["end"] = (l4["offset"] + l3) } -- pattern binding assign
-          block_result13 = nil
-          l24 = (((M["body14"]())(l23))("found here"))((M["body16"]())("expected end of string")) -- pattern binding assign
-          block_result13 = nil
-          l25 = ((M["body23"]())(l3))(((M["body19"]())(l24))(l4)) -- pattern binding assign
-          block_result13 = nil
-          l26 = { __list = true, { __tuple = true, (M["body31"]())({ __list = true, (M["body34"]())(l2), { __list = true } }), l23 }, l0 } -- pattern binding assign
-          block_result13 = nil
-          block_result13 = { __tuple = true, l26, l25 }
-        end
-        match_result1 = block_result13
-      end
-      block_result0 = match_result1
-    end
-    return block_result0
-  end
-  end
-  end
-  end
-  end
-end
-
-M["body29"] = function() -- body ike::lex::lexer::peek
-  return function(p0)
-    local l0 -- local 'lexer'
-    local l1 -- local 'g'
-    l0 = p0 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      local v = l0["graphs"] -- match target
-      local match_result1 -- match result
-      if #v > 0 and true and true then -- match arm
-        l1 = (v)[1] -- pattern binding assign
-        match_result1 = (M["body15"]())(l1)
-      elseif #v == 0 then -- match arm
-        match_result1 = M["body30"]()
-      end
-      block_result0 = match_result1
-    end
-    return block_result0
-  end
-end
-
-M["body30"] = function() -- body none
-    return { tag = "none" }
-end
-
-M["body31"] = function() -- body format
-  return function(p0)
-    local l0 -- local 'format'
-    l0 = p0 -- pattern binding assign
-    return { tag = "format", value = l0 }
-  end
-end
-
-M["body32"] = function() -- body std::list::reverse
-  return function(p0)
-    local l0 -- local 'xs'
-    l0 = p0 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      block_result0 = ((M["body33"]())(l0))({ __list = true })
-    end
-    return block_result0
-  end
-end
-
-M["body33"] = function() -- body std::list::reverse'
-  return function(p0)
-  return function(p1)
-    local l0 -- local 'xs'
-    local l1 -- local 'ys'
-    local l2 -- local 'xs'
-    local l3 -- local 'x'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      local v = l0 -- match target
-      local match_result1 -- match result
-      if #v == 0 then -- match arm
-        match_result1 = l1
-      elseif #v > 0 and true and true then -- match arm
-        l3 = (v)[1] -- pattern binding assign
-        l2 = (v)[2] -- pattern binding assign
-        match_result1 = ((M["body33"]())(l2))({ __list = true, l3, l1 })
-      end
       block_result0 = match_result1
     end
     return block_result0
@@ -1084,502 +1315,9 @@ M["body33"] = function() -- body std::list::reverse'
   end
 end
 
-M["body34"] = function() -- body string
+M["body39"] = function() -- body ike::parse::lexer::is-digit
   return function(p0)
-    local l0 -- local 'string'
-    l0 = p0 -- pattern binding assign
-    return { tag = "string", value = l0 }
-  end
-end
-
-M["body35"] = function() -- body ike::lex::lexer::skip
-  return function(p0)
-    local l0 -- local 'lexer'
-    local l1 -- local 'gs'
-    l0 = p0 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      local v = l0["graphs"] -- match target
-      local match_result1 -- match result
-      if #v > 0 and true and true then -- match arm
-        l1 = (v)[2] -- pattern binding assign
-        match_result1 = ((M["body36"]())(l1))(l0)
-      elseif #v == 0 then -- match arm
-        match_result1 = l0
-      end
-      block_result0 = match_result1
-    end
-    return block_result0
-  end
-end
-
-M["body36"] = function() -- body ike::lex::lexer::with-graphs
-  return function(p0)
-  return function(p1)
-    local l0 -- local 'graphs'
-    local l1 -- local 'lexer'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      block_result0 = { ["diagnostics"] = l1["diagnostics"], ["graphs"] = l0, ["file"] = l1["file"], ["offset"] = l1["offset"], ["delim"] = l1["delim"] }
-    end
-    return block_result0
-  end
-  end
-end
-
-M["body37"] = function() -- body ike::lex::lexer::string::{lambda}
-  return function(p0)
-  return function(p1)
-  return function(p2)
-  return function(p3)
-  return function(p4)
-  return function(p5)
-    local l0 -- local 'esc'
-    local l1 -- local 'lexer'
-    local l2 -- local 'len'
-    local l3 -- local 's'
-    local l4 -- local 'parts'
-    local l5 -- local 'ts'
-    l5 = p0 -- pattern binding assign
-    l4 = p1 -- pattern binding assign
-    l3 = p2 -- pattern binding assign
-    l2 = p3 -- pattern binding assign
-    l1 = p4 -- pattern binding assign
-    l0 = p5 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      block_result0 = (((((M["body28"]())(l5))(l4))(((M["body6"]())(l0))(l3)))(((l2 + (M["body25"]())("\\")) + (M["body25"]())(l0))))((M["body35"]())(l1))
-    end
-    return block_result0
-  end
-  end
-  end
-  end
-  end
-  end
-end
-
-M["body38"] = function() -- body ike::lex::lexer::with-delim
-  return function(p0)
-  return function(p1)
-    local l0 -- local 'delim'
-    local l1 -- local 'lexer'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      block_result0 = { ["diagnostics"] = l1["diagnostics"], ["graphs"] = l1["graphs"], ["file"] = l1["file"], ["offset"] = l1["offset"], ["delim"] = l0 }
-    end
-    return block_result0
-  end
-  end
-end
-
-M["body39"] = function() -- body some
-  return function(p0)
-    local l0 -- local 'some'
-    l0 = p0 -- pattern binding assign
-    return { tag = "some", value = l0 }
-  end
-end
-
-M["body40"] = function() -- body brace
-    return { tag = "brace" }
-end
-
-M["body41"] = function() -- body ike::lex::lexer::with-diagnostics
-  return function(p0)
-  return function(p1)
-    local l0 -- local 'diagnostics'
-    local l1 -- local 'lexer'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      block_result0 = { ["diagnostics"] = ((M["body42"]())(l0))(l1["diagnostics"]), ["graphs"] = l1["graphs"], ["file"] = l1["file"], ["offset"] = l1["offset"], ["delim"] = l1["delim"] }
-    end
-    return block_result0
-  end
-  end
-end
-
-M["body42"] = function() -- body std::list::append
-  return function(p0)
-  return function(p1)
-    local l0 -- local 'xs'
-    local l1 -- local 'ys'
-    local l2 -- local 'xs'
-    local l3 -- local 'x'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      local v = l0 -- match target
-      local match_result1 -- match result
-      if #v == 0 then -- match arm
-        match_result1 = l1
-      elseif #v > 0 and true and true then -- match arm
-        l3 = (v)[1] -- pattern binding assign
-        l2 = (v)[2] -- pattern binding assign
-        match_result1 = { __list = true, l3, ((M["body42"]())(l2))(l1) }
-      end
-      block_result0 = match_result1
-    end
-    return block_result0
-  end
-  end
-end
-
-M["body43"] = function() -- body tokens
-  return function(p0)
-    local l0 -- local 'tokens'
-    l0 = p0 -- pattern binding assign
-    return { tag = "tokens", value = l0 }
-  end
-end
-
-M["body44"] = function() -- body ike::lex::lexer::symbol
-  return function(p0)
-  return function(p1)
-  return function(p2)
-  return function(p3)
-    local l0 -- local 'ts'
-    local l1 -- local 'g'
-    local l2 -- local 'symbol'
-    local l3 -- local 'lexer'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    l2 = p2 -- pattern binding assign
-    l3 = p3 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      local v = { __tuple = true, l2, (M["body29"]())(l3) } -- match target
-      local match_result1 -- match result
-      if v[1].tag == "dot" and v[2].tag == "some" and ("." == v[2].value) then -- match arm
-        local t2 = v -- tuple pattern assign
-        match_result1 = ((((M["body45"]())(l0))(l1))("."))(M["body47"]())
-      elseif v[1].tag == "minus" and v[2].tag == "some" and (">" == v[2].value) then -- match arm
-        local t3 = v -- tuple pattern assign
-        match_result1 = ((((M["body45"]())(l0))(l1))(">"))(M["body48"]())
-      elseif v[1].tag == "lt" and v[2].tag == "some" and ("<" == v[2].value) then -- match arm
-        local t4 = v -- tuple pattern assign
-        match_result1 = ((((M["body45"]())(l0))(l1))("<"))(M["body49"]())
-      elseif v[1].tag == "colon" and v[2].tag == "some" and (":" == v[2].value) then -- match arm
-        local t5 = v -- tuple pattern assign
-        match_result1 = ((((M["body45"]())(l0))(l1))(":"))(M["body50"]())
-      elseif v[1].tag == "eq" and v[2].tag == "some" and ("=" == v[2].value) then -- match arm
-        local t6 = v -- tuple pattern assign
-        match_result1 = ((((M["body45"]())(l0))(l1))("="))(M["body51"]())
-      elseif v[1].tag == "bang" and v[2].tag == "some" and ("=" == v[2].value) then -- match arm
-        local t7 = v -- tuple pattern assign
-        match_result1 = ((((M["body45"]())(l0))(l1))("="))(M["body52"]())
-      elseif v[1].tag == "lt" and v[2].tag == "some" and ("=" == v[2].value) then -- match arm
-        local t8 = v -- tuple pattern assign
-        match_result1 = ((((M["body45"]())(l0))(l1))("="))(M["body53"]())
-      elseif v[1].tag == "gt" and v[2].tag == "some" and ("=" == v[2].value) then -- match arm
-        local t9 = v -- tuple pattern assign
-        match_result1 = ((((M["body45"]())(l0))(l1))("="))(M["body54"]())
-      elseif v[1].tag == "lt" and v[2].tag == "some" and ("|" == v[2].value) then -- match arm
-        local t10 = v -- tuple pattern assign
-        match_result1 = ((((M["body45"]())(l0))(l1))("|"))(M["body55"]())
-      elseif v[1].tag == "pipe" and v[2].tag == "some" and (">" == v[2].value) then -- match arm
-        local t11 = v -- tuple pattern assign
-        match_result1 = ((((M["body45"]())(l0))(l1))(">"))(M["body56"]())
-      elseif true then -- match arm
-        match_result1 = (((M["body57"]())(l0))(l1))(l2)
-      end
-      block_result0 = (match_result1)(l3)
-    end
-    return block_result0
-  end
-  end
-  end
-  end
-end
-
-M["body45"] = function() -- body ike::lex::lexer::two-graph-symbol
-  return function(p0)
-  return function(p1)
-  return function(p2)
-  return function(p3)
-  return function(p4)
-    local l0 -- local 'ts'
-    local l1 -- local 'g1'
-    local l2 -- local 'g2'
-    local l3 -- local 'symbol'
-    local l4 -- local 'lexer'
-    local l5 -- local 'span'
-    local l6 -- local 'lexer'
-    local l7 -- local 'ts'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    l2 = p2 -- pattern binding assign
-    l3 = p3 -- pattern binding assign
-    l4 = p4 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      l5 = { ["file"] = l4["file"], ["start"] = l4["offset"], ["end"] = ((l4["offset"] + (M["body25"]())(l1)) + (M["body25"]())(l2)) } -- pattern binding assign
-      block_result0 = nil
-      l6 = ((M["body23"]())(((M["body25"]())(l1) + (M["body25"]())(l2))))((M["body35"]())(l4)) -- pattern binding assign
-      block_result0 = nil
-      l7 = { __list = true, { __tuple = true, (M["body46"]())(l3), l5 }, l0 } -- pattern binding assign
-      block_result0 = nil
-      block_result0 = ((M["body13"]())(l7))(l6)
-    end
-    return block_result0
-  end
-  end
-  end
-  end
-  end
-end
-
-M["body46"] = function() -- body symbol
-  return function(p0)
-    local l0 -- local 'symbol'
-    l0 = p0 -- pattern binding assign
-    return { tag = "symbol", value = l0 }
-  end
-end
-
-M["body47"] = function() -- body dotdot
-    return { tag = "dotdot" }
-end
-
-M["body48"] = function() -- body rarrow
-    return { tag = "rarrow" }
-end
-
-M["body49"] = function() -- body larrow
-    return { tag = "larrow" }
-end
-
-M["body50"] = function() -- body coloncolon
-    return { tag = "coloncolon" }
-end
-
-M["body51"] = function() -- body eqeq
-    return { tag = "eqeq" }
-end
-
-M["body52"] = function() -- body noteq
-    return { tag = "noteq" }
-end
-
-M["body53"] = function() -- body lteq
-    return { tag = "lteq" }
-end
-
-M["body54"] = function() -- body gteq
-    return { tag = "gteq" }
-end
-
-M["body55"] = function() -- body ltpipe
-    return { tag = "ltpipe" }
-end
-
-M["body56"] = function() -- body pipegt
-    return { tag = "pipegt" }
-end
-
-M["body57"] = function() -- body ike::lex::lexer::one-graph-symbol
-  return function(p0)
-  return function(p1)
-  return function(p2)
-  return function(p3)
-    local l0 -- local 'ts'
-    local l1 -- local 'g'
-    local l2 -- local 'symbol'
-    local l3 -- local 'lexer'
-    local l4 -- local 'span'
-    local l5 -- local 'lexer'
-    local l6 -- local 'ts'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    l2 = p2 -- pattern binding assign
-    l3 = p3 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      l4 = { ["file"] = l3["file"], ["start"] = l3["offset"], ["end"] = (l3["offset"] + (M["body25"]())(l1)) } -- pattern binding assign
-      block_result0 = nil
-      l5 = ((M["body23"]())((M["body25"]())(l1)))(l3) -- pattern binding assign
-      block_result0 = nil
-      l6 = { __list = true, { __tuple = true, (M["body46"]())(l2), l4 }, l0 } -- pattern binding assign
-      block_result0 = nil
-      block_result0 = ((M["body13"]())(l6))(l5)
-    end
-    return block_result0
-  end
-  end
-  end
-  end
-end
-
-M["body58"] = function() -- body semi
-    return { tag = "semi" }
-end
-
-M["body59"] = function() -- body colon
-    return { tag = "colon" }
-end
-
-M["body60"] = function() -- body comma
-    return { tag = "comma" }
-end
-
-M["body61"] = function() -- body dot
-    return { tag = "dot" }
-end
-
-M["body62"] = function() -- body pound
-    return { tag = "pound" }
-end
-
-M["body63"] = function() -- body under
-    return { tag = "under" }
-end
-
-M["body64"] = function() -- body plus
-    return { tag = "plus" }
-end
-
-M["body65"] = function() -- body minus
-    return { tag = "minus" }
-end
-
-M["body66"] = function() -- body star
-    return { tag = "star" }
-end
-
-M["body67"] = function() -- body slash
-    return { tag = "slash" }
-end
-
-M["body68"] = function() -- body backslash
-    return { tag = "backslash" }
-end
-
-M["body69"] = function() -- body percent
-    return { tag = "percent" }
-end
-
-M["body70"] = function() -- body amp
-    return { tag = "amp" }
-end
-
-M["body71"] = function() -- body pipe
-    return { tag = "pipe" }
-end
-
-M["body72"] = function() -- body caret
-    return { tag = "caret" }
-end
-
-M["body73"] = function() -- body bang
-    return { tag = "bang" }
-end
-
-M["body74"] = function() -- body question
-    return { tag = "question" }
-end
-
-M["body75"] = function() -- body quote
-    return { tag = "quote" }
-end
-
-M["body76"] = function() -- body eq
-    return { tag = "eq" }
-end
-
-M["body77"] = function() -- body tilde
-    return { tag = "tilde" }
-end
-
-M["body78"] = function() -- body lt
-    return { tag = "lt" }
-end
-
-M["body79"] = function() -- body gt
-    return { tag = "gt" }
-end
-
-M["body80"] = function() -- body ike::lex::lexer::integer
-  return function(p0)
-  return function(p1)
-  return function(p2)
-    local l0 -- local 'ts'
-    local l1 -- local 's'
-    local l2 -- local 'lexer'
-    local l3 -- local 'is-digit'
-    local l4 -- local 'g'
-    local l5 -- local 's'
-    local l6 -- local 'lexer'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    l2 = p2 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      l3 = ((M["body81"]())(M["body82"]()))((M["body29"]())(l2)) -- pattern binding assign
-      block_result0 = nil
-      local v = l3 -- match target
-      local match_result1 -- match result
-      if (true == v) then -- match arm
-        local block_result2 -- block result
-        do -- block
-          l4 = (M["body83"]())((M["body29"]())(l2)) -- pattern binding assign
-          block_result2 = nil
-          l5 = ((M["body6"]())(l4))(l1) -- pattern binding assign
-          block_result2 = nil
-          l6 = (M["body35"]())(l2) -- pattern binding assign
-          block_result2 = nil
-          block_result2 = (((M["body80"]())(l0))(l5))(l6)
-        end
-        match_result1 = block_result2
-      elseif (false == v) then -- match arm
-        local block_result3 -- block result
-        do -- block
-          block_result3 = ((((M["body22"]())(l0))((M["body84"]())(l1)))((M["body25"]())(l1)))(l2)
-        end
-        match_result1 = block_result3
-      end
-      block_result0 = match_result1
-    end
-    return block_result0
-  end
-  end
-  end
-end
-
-M["body81"] = function() -- body std::option::is-some-and
-  return function(p0)
-  return function(p1)
-    local l0 -- local 'f'
-    local l1 -- local 'opt'
-    local l2 -- local 'a'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      local v = l1 -- match target
-      local match_result1 -- match result
-      if v.tag == "some" and true then -- match arm
-        l2 = v.value -- pattern binding assign
-        match_result1 = (l0)(l2)
-      elseif v.tag == "none" then -- match arm
-        match_result1 = false
-      end
-      block_result0 = match_result1
-    end
-    return block_result0
-  end
-  end
-end
-
-M["body82"] = function() -- body ike::lex::lexer::is-digit
-  return function(p0)
-    local l0 -- local 'c'
+    local l0 -- local 'g'
     l0 = p0 -- pattern binding assign
     local block_result0 -- block result
     do -- block
@@ -1614,72 +1352,80 @@ M["body82"] = function() -- body ike::lex::lexer::is-digit
   end
 end
 
-M["body83"] = function() -- body std::option::assert
-  return function(p0)
-    local l0 -- local 'opt'
-    local l1 -- local 'a'
-    l0 = p0 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      local v = l0 -- match target
-      local match_result1 -- match result
-      if v.tag == "some" and true then -- match arm
-        l1 = v.value -- pattern binding assign
-        match_result1 = l1
-      elseif v.tag == "none" then -- match arm
-        match_result1 = (M["body2"]())("option was none")
-      end
-      block_result0 = match_result1
-    end
-    return block_result0
-  end
-end
-
-M["body84"] = function() -- body integer
+M["body40"] = function() -- body token::integer
   return function(p0)
     local l0 -- local 'integer'
     l0 = p0 -- pattern binding assign
-    return { tag = "integer", value = l0 }
+    return { tag = "token::integer", value = l0 }
   end
 end
 
-M["body85"] = function() -- body ike::lex::lexer::start-group
+M["body41"] = function() -- body ike::parse::lexer::comment
+  return function(p0)
+  return function(p1)
+    local l0 -- local 'ts'
+    local l1 -- local 'lexer'
+    local l2 -- local 'comment'
+    local l3 -- local 'lexer''
+    local l4 -- local 'span'
+    local l5 -- local 'ts'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      local t1 = ((M["body38"]())(M["body42"]()))(l1) -- tuple pattern assign
+      l2 = t1[1] -- pattern binding assign
+      l3 = t1[2] -- pattern binding assign
+      block_result0 = nil
+      l4 = ((M["body10"]())((M["body13"]())(l2)))(l1) -- pattern binding assign
+      block_result0 = nil
+      l5 = { __list = true, { __tuple = true, (M["body43"]())(l2), l4 }, l0 } -- pattern binding assign
+      block_result0 = nil
+      block_result0 = ((M["body4"]())(l5))((M["body12"]())(l3))
+    end
+    return block_result0
+  end
+  end
+end
+
+M["body42"] = function() -- body ike::parse::lexer::comment::{lambda}
+  return function(p0)
+    local l0 -- local 'g'
+    l0 = p0 -- pattern binding assign
+    return (not equal(l0, "\n"))
+  end
+end
+
+M["body43"] = function() -- body token::comment
+  return function(p0)
+    local l0 -- local 'comment'
+    l0 = p0 -- pattern binding assign
+    return { tag = "token::comment", value = l0 }
+  end
+end
+
+M["body44"] = function() -- body ike::parse::lexer::two-symbol
   return function(p0)
   return function(p1)
   return function(p2)
   return function(p3)
-    local l0 -- local 'ts'
-    local l1 -- local 'g'
-    local l2 -- local 'delim'
+    local l0 -- local 's'
+    local l1 -- local 't'
+    local l2 -- local 'ts'
     local l3 -- local 'lexer'
-    local l4 -- local 'delim-span'
-    local l5 -- local 'ts''
-    local l6 -- local 'lexer''
-    local l7 -- local 'span'
-    local l8 -- local 'group'
-    local l9 -- local 'ts'
-    local l10 -- local 'lexer'
+    local l4 -- local 'span'
+    local l5 -- local 'ts'
     l0 = p0 -- pattern binding assign
     l1 = p1 -- pattern binding assign
     l2 = p2 -- pattern binding assign
     l3 = p3 -- pattern binding assign
     local block_result0 -- block result
     do -- block
-      l4 = { ["file"] = l3["file"], ["start"] = l3["offset"], ["end"] = (l3["offset"] + (M["body25"]())(l1)) } -- pattern binding assign
+      l4 = ((M["body10"]())((M["body13"]())(l0)))(l3) -- pattern binding assign
       block_result0 = nil
-      local t1 = ((M["body13"]())({ __list = true }))(((M["body38"]())((M["body39"]())({ __tuple = true, l2, l4 })))(((M["body23"]())((M["body25"]())(l1)))(l3))) -- tuple pattern assign
-      l5 = t1[1] -- pattern binding assign
-      l6 = t1[2] -- pattern binding assign
+      l5 = { __list = true, { __tuple = true, l1, l4 }, l2 } -- pattern binding assign
       block_result0 = nil
-      l7 = { ["file"] = l3["file"], ["start"] = l3["offset"], ["end"] = l6["offset"] } -- pattern binding assign
-      block_result0 = nil
-      l8 = { ["delimiter"] = l2, ["contents"] = (M["body86"]())(l5) } -- pattern binding assign
-      block_result0 = nil
-      l9 = { __list = true, { __tuple = true, (M["body88"]())(l8), l7 }, l0 } -- pattern binding assign
-      block_result0 = nil
-      l10 = ((M["body41"]())(l3["diagnostics"]))(((M["body38"]())(l3["delim"]))(l6)) -- pattern binding assign
-      block_result0 = nil
-      block_result0 = ((M["body13"]())(l9))(l10)
+      block_result0 = ((M["body4"]())(l5))((M["body12"]())((M["body12"]())(l3)))
     end
     return block_result0
   end
@@ -1688,171 +1434,244 @@ M["body85"] = function() -- body ike::lex::lexer::start-group
   end
 end
 
-M["body86"] = function() -- body std::list::reverse
-  return function(p0)
-    local l0 -- local 'xs'
-    l0 = p0 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      block_result0 = ((M["body87"]())(l0))({ __list = true })
-    end
-    return block_result0
-  end
+M["body45"] = function() -- body token::dotdot
+    return { tag = "token::dotdot" }
 end
 
-M["body87"] = function() -- body std::list::reverse'
+M["body46"] = function() -- body token::rarrow
+    return { tag = "token::rarrow" }
+end
+
+M["body47"] = function() -- body token::larrow
+    return { tag = "token::larrow" }
+end
+
+M["body48"] = function() -- body token::coloncolon
+    return { tag = "token::coloncolon" }
+end
+
+M["body49"] = function() -- body token::eqeq
+    return { tag = "token::eqeq" }
+end
+
+M["body50"] = function() -- body token::noteq
+    return { tag = "token::noteq" }
+end
+
+M["body51"] = function() -- body token::lteq
+    return { tag = "token::lteq" }
+end
+
+M["body52"] = function() -- body token::gteq
+    return { tag = "token::gteq" }
+end
+
+M["body53"] = function() -- body token::ltpipe
+    return { tag = "token::ltpipe" }
+end
+
+M["body54"] = function() -- body token::pipegt
+    return { tag = "token::pipegt" }
+end
+
+M["body55"] = function() -- body token::open-paren
+    return { tag = "token::open-paren" }
+end
+
+M["body56"] = function() -- body token::close-paren
+    return { tag = "token::close-paren" }
+end
+
+M["body57"] = function() -- body token::open-bracket
+    return { tag = "token::open-bracket" }
+end
+
+M["body58"] = function() -- body token::close-bracket
+    return { tag = "token::close-bracket" }
+end
+
+M["body59"] = function() -- body token::semi
+    return { tag = "token::semi" }
+end
+
+M["body60"] = function() -- body token::colon
+    return { tag = "token::colon" }
+end
+
+M["body61"] = function() -- body token::comma
+    return { tag = "token::comma" }
+end
+
+M["body62"] = function() -- body token::dot
+    return { tag = "token::dot" }
+end
+
+M["body63"] = function() -- body token::pound
+    return { tag = "token::pound" }
+end
+
+M["body64"] = function() -- body token::under
+    return { tag = "token::under" }
+end
+
+M["body65"] = function() -- body token::plus
+    return { tag = "token::plus" }
+end
+
+M["body66"] = function() -- body token::minus
+    return { tag = "token::minus" }
+end
+
+M["body67"] = function() -- body token::star
+    return { tag = "token::star" }
+end
+
+M["body68"] = function() -- body token::slash
+    return { tag = "token::slash" }
+end
+
+M["body69"] = function() -- body token::backslash
+    return { tag = "token::backslash" }
+end
+
+M["body70"] = function() -- body token::percent
+    return { tag = "token::percent" }
+end
+
+M["body71"] = function() -- body token::amp
+    return { tag = "token::amp" }
+end
+
+M["body72"] = function() -- body token::pipe
+    return { tag = "token::pipe" }
+end
+
+M["body73"] = function() -- body token::question
+    return { tag = "token::question" }
+end
+
+M["body74"] = function() -- body token::quote
+    return { tag = "token::quote" }
+end
+
+M["body75"] = function() -- body token::eq
+    return { tag = "token::eq" }
+end
+
+M["body76"] = function() -- body token::tilde
+    return { tag = "token::tilde" }
+end
+
+M["body77"] = function() -- body token::lt
+    return { tag = "token::lt" }
+end
+
+M["body78"] = function() -- body token::gt
+    return { tag = "token::gt" }
+end
+
+M["body79"] = function() -- body ike::parse::lexer::whitespace
   return function(p0)
   return function(p1)
-    local l0 -- local 'xs'
-    local l1 -- local 'ys'
-    local l2 -- local 'xs'
-    local l3 -- local 'x'
+    local l0 -- local 'ts'
+    local l1 -- local 'lexer'
+    local l2 -- local 'ws'
+    local l3 -- local 'lexer''
+    local l4 -- local 'span'
+    local l5 -- local 'ts'
     l0 = p0 -- pattern binding assign
     l1 = p1 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      local t1 = ((M["body38"]())(M["body80"]()))(l1) -- tuple pattern assign
+      l2 = t1[1] -- pattern binding assign
+      l3 = t1[2] -- pattern binding assign
+      block_result0 = nil
+      l4 = ((M["body10"]())((M["body13"]())(l2)))(l1) -- pattern binding assign
+      block_result0 = nil
+      l5 = { __list = true, { __tuple = true, M["body81"](), l4 }, l0 } -- pattern binding assign
+      block_result0 = nil
+      block_result0 = ((M["body4"]())(l5))(l3)
+    end
+    return block_result0
+  end
+  end
+end
+
+M["body80"] = function() -- body ike::parse::lexer::is-whitespace
+  return function(p0)
+    local l0 -- local 'g'
+    l0 = p0 -- pattern binding assign
     local block_result0 -- block result
     do -- block
       local v = l0 -- match target
       local match_result1 -- match result
-      if #v == 0 then -- match arm
-        match_result1 = l1
-      elseif #v > 0 and true and true then -- match arm
-        l3 = (v)[1] -- pattern binding assign
-        l2 = (v)[2] -- pattern binding assign
-        match_result1 = ((M["body87"]())(l2))({ __list = true, l3, l1 })
-      end
-      block_result0 = match_result1
-    end
-    return block_result0
-  end
-  end
-end
-
-M["body88"] = function() -- body group
-  return function(p0)
-    local l0 -- local 'group'
-    l0 = p0 -- pattern binding assign
-    return { tag = "group", value = l0 }
-  end
-end
-
-M["body89"] = function() -- body parentheses
-    return { tag = "parentheses" }
-end
-
-M["body90"] = function() -- body bracket
-    return { tag = "bracket" }
-end
-
-M["body91"] = function() -- body ike::lex::lexer::end-group
-  return function(p0)
-  return function(p1)
-  return function(p2)
-  return function(p3)
-    local l0 -- local 'ts'
-    local l1 -- local 'g'
-    local l2 -- local 'delim'
-    local l3 -- local 'lexer'
-    local l4 -- local 'span'
-    local l5 -- local 'diagnostic'
-    local l6 -- local 'lexer'
-    local l7 -- local 'ts'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    l2 = p2 -- pattern binding assign
-    l3 = p3 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      local v = ((M["body92"]())((M["body93"]())(l2)))(l3["delim"]) -- match target
-      local match_result1 -- match result
-      if (true == v) then -- match arm
-        match_result1 = { __tuple = true, l0, ((M["body23"]())((M["body25"]())(l1)))(l3) }
-      elseif (false == v) then -- match arm
-        local block_result2 -- block result
-        do -- block
-          l4 = { ["file"] = l3["file"], ["start"] = l3["offset"], ["end"] = (l3["offset"] + (M["body25"]())(l1)) } -- pattern binding assign
-          block_result2 = nil
-          l5 = (((M["body14"]())(l4))("found here"))((M["body16"]())(toString("unexpected closing ", true)..toString(l2, true)..toString("", true))) -- pattern binding assign
-          block_result2 = nil
-          l6 = ((M["body19"]())(l5))(((M["body23"]())((M["body25"]())(l1)))(l3)) -- pattern binding assign
-          block_result2 = nil
-          l7 = { __list = true, { __tuple = true, M["body94"](), l4 }, l0 } -- pattern binding assign
-          block_result2 = nil
-          block_result2 = ((M["body13"]())(l7))(l6)
-        end
-        match_result1 = block_result2
-      end
-      block_result0 = match_result1
-    end
-    return block_result0
-  end
-  end
-  end
-  end
-end
-
-M["body92"] = function() -- body std::option::is-some-and
-  return function(p0)
-  return function(p1)
-    local l0 -- local 'f'
-    local l1 -- local 'opt'
-    local l2 -- local 'a'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      local v = l1 -- match target
-      local match_result1 -- match result
-      if v.tag == "some" and true then -- match arm
-        l2 = v.value -- pattern binding assign
-        match_result1 = (l0)(l2)
-      elseif v.tag == "none" then -- match arm
+      if (" " == v) then -- match arm
+        match_result1 = true
+      elseif ("\r" == v) then -- match arm
+        match_result1 = true
+      elseif ("\t" == v) then -- match arm
+        match_result1 = true
+      elseif true then -- match arm
         match_result1 = false
       end
       block_result0 = match_result1
     end
     return block_result0
   end
-  end
 end
 
-M["body93"] = function() -- body ike::lex::lexer::end-group::{lambda}
+M["body81"] = function() -- body token::whitespace
+    return { tag = "token::whitespace" }
+end
+
+M["body82"] = function() -- body ike::parse::lexer::newline
   return function(p0)
   return function(p1)
-    local l0 -- local 'd'
-    local l1 -- local 'delim'
-    l1 = p0 -- pattern binding assign
-    local t0 = p1 -- tuple pattern assign
-    l0 = t0[1] -- pattern binding assign
-    return equal(l0, l1)
+    local l0 -- local 'ts'
+    local l1 -- local 'lexer'
+    local l2 -- local 'span'
+    local l3 -- local 'ts'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      l2 = ((M["body10"]())((M["body13"]())("\n")))(l1) -- pattern binding assign
+      block_result0 = nil
+      l3 = { __list = true, { __tuple = true, M["body83"](), l2 }, l0 } -- pattern binding assign
+      block_result0 = nil
+      block_result0 = ((M["body4"]())(l3))((M["body12"]())(l1))
+    end
+    return block_result0
   end
   end
 end
 
-M["body94"] = function() -- body error
-    return { tag = "error" }
+M["body83"] = function() -- body token::newline
+    return { tag = "token::newline" }
 end
 
-M["body95"] = function() -- body ike::lex::lexer::is-ident-start
+M["body84"] = function() -- body ike::parse::lexer::is-ident-start
   return function(p0)
-    local l0 -- local 'c'
+    local l0 -- local 'g'
     l0 = p0 -- pattern binding assign
     local block_result0 -- block result
     do -- block
-      block_result0 = ((M["body96"]())(l0))((M["body11"]())("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"))
+      block_result0 = ((M["body85"]())(l0))((M["body3"]())("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"))
     end
     return block_result0
   end
 end
 
-M["body96"] = function() -- body std::list::contains
+M["body85"] = function() -- body std::list::contains
   return function(p0)
     local l0 -- local 'x'
     l0 = p0 -- pattern binding assign
-    return (M["body97"]())((M["body98"]())(l0))
+    return (M["body86"]())((M["body87"]())(l0))
   end
 end
 
-M["body97"] = function() -- body std::list::any
+M["body86"] = function() -- body std::list::any
   return function(p0)
   return function(p1)
     local l0 -- local 'f'
@@ -1870,7 +1689,7 @@ M["body97"] = function() -- body std::list::any
       elseif #v > 0 and true and true then -- match arm
         l3 = (v)[1] -- pattern binding assign
         l2 = (v)[2] -- pattern binding assign
-        match_result1 = ((l0)(l3) or ((M["body97"]())(l0))(l2))
+        match_result1 = ((l0)(l3) or ((M["body86"]())(l0))(l2))
       end
       block_result0 = match_result1
     end
@@ -1879,7 +1698,7 @@ M["body97"] = function() -- body std::list::any
   end
 end
 
-M["body98"] = function() -- body std::list::contains::{lambda}
+M["body87"] = function() -- body std::list::contains::{lambda}
   return function(p0)
   return function(p1)
     local l0 -- local 'y'
@@ -1891,98 +1710,76 @@ M["body98"] = function() -- body std::list::contains::{lambda}
   end
 end
 
-M["body99"] = function() -- body ike::lex::lexer::ident
+M["body88"] = function() -- body ike::parse::lexer::ident
   return function(p0)
   return function(p1)
-  return function(p2)
     local l0 -- local 'ts'
-    local l1 -- local 's'
-    local l2 -- local 'lexer'
-    local l3 -- local 'is-continue'
-    local l4 -- local 'g'
-    local l5 -- local 's'
-    local l6 -- local 'lexer'
+    local l1 -- local 'lexer'
+    local l2 -- local 'ident'
+    local l3 -- local 'lexer''
+    local l4 -- local 'span'
+    local l5 -- local 'ts'
     l0 = p0 -- pattern binding assign
     l1 = p1 -- pattern binding assign
-    l2 = p2 -- pattern binding assign
     local block_result0 -- block result
     do -- block
-      l3 = ((M["body81"]())(M["body100"]()))((M["body29"]())(l2)) -- pattern binding assign
+      local t1 = ((M["body38"]())(M["body89"]()))(l1) -- tuple pattern assign
+      l2 = t1[1] -- pattern binding assign
+      l3 = t1[2] -- pattern binding assign
       block_result0 = nil
-      local v = l3 -- match target
-      local match_result1 -- match result
-      if (true == v) then -- match arm
-        local block_result2 -- block result
-        do -- block
-          l4 = (M["body83"]())((M["body29"]())(l2)) -- pattern binding assign
-          block_result2 = nil
-          l5 = ((M["body6"]())(l4))(l1) -- pattern binding assign
-          block_result2 = nil
-          l6 = (M["body35"]())(l2) -- pattern binding assign
-          block_result2 = nil
-          block_result2 = (((M["body99"]())(l0))(l5))(l6)
-        end
-        match_result1 = block_result2
-      elseif (false == v) then -- match arm
-        local block_result3 -- block result
-        do -- block
-          block_result3 = ((((M["body22"]())(l0))((M["body101"]())(l1)))((M["body25"]())(l1)))(l2)
-        end
-        match_result1 = block_result3
-      end
-      block_result0 = match_result1
+      l4 = ((M["body10"]())((M["body13"]())(l2)))(l1) -- pattern binding assign
+      block_result0 = nil
+      l5 = { __list = true, { __tuple = true, (M["body90"]())(l2), l4 }, l0 } -- pattern binding assign
+      block_result0 = nil
+      block_result0 = ((M["body4"]())(l5))(l3)
     end
     return block_result0
   end
   end
-  end
 end
 
-M["body100"] = function() -- body ike::lex::lexer::is-ident-continue
+M["body89"] = function() -- body ike::parse::lexer::is-ident-continue
   return function(p0)
-    local l0 -- local 'c'
+    local l0 -- local 'g'
     l0 = p0 -- pattern binding assign
     local block_result0 -- block result
     do -- block
-      block_result0 = ((M["body95"]())(l0) or ((M["body82"]())(l0) or (equal(l0, "_") or (equal(l0, "-") or equal(l0, "'")))))
+      block_result0 = ((M["body84"]())(l0) or ((M["body39"]())(l0) or (equal(l0, "_") or (equal(l0, "-") or equal(l0, "'")))))
     end
     return block_result0
   end
 end
 
-M["body101"] = function() -- body ident
+M["body90"] = function() -- body token::ident
   return function(p0)
     local l0 -- local 'ident'
     l0 = p0 -- pattern binding assign
-    return { tag = "ident", value = l0 }
+    return { tag = "token::ident", value = l0 }
   end
 end
 
-M["body102"] = function() -- body ike::lex::lexer::unexpected-graph
+M["body91"] = function() -- body ike::parse::lexer::unexpected-character
   return function(p0)
   return function(p1)
   return function(p2)
-    local l0 -- local 'ts'
-    local l1 -- local 'g'
+    local l0 -- local 'g'
+    local l1 -- local 'ts'
     local l2 -- local 'lexer'
     local l3 -- local 'span'
     local l4 -- local 'diagnostic'
-    local l5 -- local 'lexer'
-    local l6 -- local 'ts'
+    local l5 -- local 'ts'
     l0 = p0 -- pattern binding assign
     l1 = p1 -- pattern binding assign
     l2 = p2 -- pattern binding assign
     local block_result0 -- block result
     do -- block
-      l3 = { ["file"] = l2["file"], ["start"] = l2["offset"], ["end"] = (l2["offset"] + (M["body25"]())(l1)) } -- pattern binding assign
+      l3 = ((M["body10"]())((M["body13"]())(l0)))(l2) -- pattern binding assign
       block_result0 = nil
-      l4 = (((M["body14"]())(l3))("found here"))((M["body16"]())(toString("unexpected character `", true)..toString(l1, true)..toString("`", true))) -- pattern binding assign
+      l4 = (((M["body25"]())(l3))("found here"))((M["body26"]())(toString("unexpected character `", true)..toString(l0, true)..toString("`", true))) -- pattern binding assign
       block_result0 = nil
-      l5 = ((M["body23"]())((M["body25"]())(l1)))(((M["body19"]())(l4))(l2)) -- pattern binding assign
+      l5 = { __list = true, { __tuple = true, (M["body92"]())(l0), l3 }, l1 } -- pattern binding assign
       block_result0 = nil
-      l6 = { __list = true, { __tuple = true, M["body94"](), l3 }, l0 } -- pattern binding assign
-      block_result0 = nil
-      block_result0 = ((M["body13"]())(l6))(l5)
+      block_result0 = ((M["body4"]())(l5))((M["body12"]())(((M["body29"]())(l4))(l2)))
     end
     return block_result0
   end
@@ -1990,19 +1787,27 @@ M["body102"] = function() -- body ike::lex::lexer::unexpected-graph
   end
 end
 
-M["body103"] = function() -- body std::list::reverse
+M["body92"] = function() -- body token::unknown
+  return function(p0)
+    local l0 -- local 'unknown'
+    l0 = p0 -- pattern binding assign
+    return { tag = "token::unknown", value = l0 }
+  end
+end
+
+M["body93"] = function() -- body std::list::reverse
   return function(p0)
     local l0 -- local 'xs'
     l0 = p0 -- pattern binding assign
     local block_result0 -- block result
     do -- block
-      block_result0 = ((M["body104"]())(l0))({ __list = true })
+      block_result0 = ((M["body94"]())(l0))({ __list = true })
     end
     return block_result0
   end
 end
 
-M["body104"] = function() -- body std::list::reverse'
+M["body94"] = function() -- body std::list::reverse'
   return function(p0)
   return function(p1)
     local l0 -- local 'xs'
@@ -2020,7 +1825,7 @@ M["body104"] = function() -- body std::list::reverse'
       elseif #v > 0 and true and true then -- match arm
         l3 = (v)[1] -- pattern binding assign
         l2 = (v)[2] -- pattern binding assign
-        match_result1 = ((M["body104"]())(l2))({ __list = true, l3, l1 })
+        match_result1 = ((M["body94"]())(l2))({ __list = true, l3, l1 })
       end
       block_result0 = match_result1
     end
@@ -2029,7 +1834,108 @@ M["body104"] = function() -- body std::list::reverse'
   end
 end
 
-M["body105"] = function() -- body std::list::map
+M["body95"] = function() -- body std::result::assert
+  return function(p0)
+    local l0 -- local 'r'
+    local l1 -- local 'v'
+    local l2 -- local 'e'
+    l0 = p0 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      local v = l0 -- match target
+      local match_result1 -- match result
+      if v.tag == "ok" and true then -- match arm
+        l1 = v.value -- pattern binding assign
+        match_result1 = l1
+      elseif v.tag == "err" and true then -- match arm
+        l2 = v.value -- pattern binding assign
+        match_result1 = (M["body96"]())((M["body98"]())(l2))
+      end
+      block_result0 = match_result1
+    end
+    return block_result0
+  end
+end
+
+M["body96"] = function() -- body std::panic
+  return function(p0)
+    local l0 -- local 'message'
+    l0 = p0 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      block_result0 = (M["body97"]())("thread main panic: `")
+      block_result0 = (M["body97"]())((M["body98"]())(l0))
+      block_result0 = (M["body99"]())("`")
+      block_result0 = (M["body100"]())(1)
+    end
+    return block_result0
+  end
+end
+
+M["body97"] = function() -- extern std::io::print
+    return E["std::io::print"]()
+end
+
+M["body98"] = function() -- extern std::debug::format
+    return E["std::debug::format"]()
+end
+
+M["body99"] = function() -- body std::io::println
+  return function(p0)
+    local l0 -- local 's'
+    l0 = p0 -- pattern binding assign
+    return (M["body97"]())(((M["body21"]())("\n"))(l0))
+  end
+end
+
+M["body100"] = function() -- extern std::os::exit
+    return E["std::os::exit"]()
+end
+
+M["body101"] = function() -- body ike::file::read
+  return function(p0)
+    local l0 -- local 'file'
+    l0 = p0 -- pattern binding assign
+    return (M["body102"]())(l0["path"])
+  end
+end
+
+M["body102"] = function() -- extern std::fs::read
+    return E["std::fs::read"]()
+end
+
+M["body103"] = function() -- body std::list::foldl
+  return function(p0)
+  return function(p1)
+  return function(p2)
+    local l0 -- local 'acc'
+    local l1 -- local 'f'
+    local l2 -- local 'xs'
+    local l3 -- local 'xs'
+    local l4 -- local 'x'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    l2 = p2 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      local v = l2 -- match target
+      local match_result1 -- match result
+      if #v == 0 then -- match arm
+        match_result1 = l0
+      elseif #v > 0 and true and true then -- match arm
+        l4 = (v)[1] -- pattern binding assign
+        l3 = (v)[2] -- pattern binding assign
+        match_result1 = (((M["body103"]())(((l1)(l0))(l4)))(l1))(l3)
+      end
+      block_result0 = match_result1
+    end
+    return block_result0
+  end
+  end
+  end
+end
+
+M["body104"] = function() -- body std::list::map
   return function(p0)
   return function(p1)
     local l0 -- local 'f'
@@ -2047,7 +1953,7 @@ M["body105"] = function() -- body std::list::map
       elseif #v > 0 and true and true then -- match arm
         l3 = (v)[1] -- pattern binding assign
         l2 = (v)[2] -- pattern binding assign
-        match_result1 = { __list = true, (l0)(l3), ((M["body105"]())(l0))(l2) }
+        match_result1 = { __list = true, (l0)(l3), ((M["body104"]())(l0))(l2) }
       end
       block_result0 = match_result1
     end
@@ -2056,76 +1962,86 @@ M["body105"] = function() -- body std::list::map
   end
 end
 
-M["body106"] = function() -- body ike::main::{lambda}
+M["body105"] = function() -- body ike::diagnostic::format
   return function(p0)
-    local l0 -- local 't'
-    local l1 -- local 's'
-    local t0 = p0 -- tuple pattern assign
-    l0 = t0[1] -- pattern binding assign
-    l1 = t0[2] -- pattern binding assign
-    return (((M["body107"]())(l0))(l1))(0)
+    local l0 -- local 'diagnostic'
+    local l1 -- local 'color'
+    local l2 -- local 'level'
+    local l3 -- local 'indent'
+    local l4 -- local 'labels'
+    l0 = p0 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      local v = l0["level"] -- match target
+      local match_result1 -- match result
+      if v.tag == "level::error" then -- match arm
+        match_result1 = { __tuple = true, M["body106"](), "error" }
+      elseif v.tag == "level::warning" then -- match arm
+        match_result1 = { __tuple = true, M["body107"](), "warning" }
+      elseif v.tag == "level::help" then -- match arm
+        match_result1 = { __tuple = true, M["body108"](), "note" }
+      end
+      local t2 = match_result1 -- tuple pattern assign
+      l1 = t2[1] -- pattern binding assign
+      l2 = t2[2] -- pattern binding assign
+      block_result0 = nil
+      l3 = (M["body109"]())(l0) -- pattern binding assign
+      block_result0 = nil
+      local t3 = (((M["body117"]())({ __tuple = true, "", M["body7"]() }))(((M["body118"]())(l1))(l3)))(l0["labels"]) -- tuple pattern assign
+      l4 = t3[1] -- pattern binding assign
+      block_result0 = nil
+      block_result0 = ((M["body21"]())(l4))(toString("", true)..toString(l1, true)..toString("", true)..toString(l2, true)..toString("", true)..toString(M["body122"](), true)..toString(": ", true)..toString(M["body121"](), true)..toString("", true)..toString(l0["message"], true)..toString("", true)..toString(M["body122"](), true)..toString("\n", true))
+    end
+    return block_result0
   end
 end
 
-M["body107"] = function() -- body ike::debug-token
+M["body106"] = function() -- body ike::ansi::red
+    return "\x1b[31m"
+end
+
+M["body107"] = function() -- body ike::ansi::yellow
+    return "\x1b[33m"
+end
+
+M["body108"] = function() -- body ike::ansi::blue
+    return "\x1b[34m"
+end
+
+M["body109"] = function() -- body ike::diagnostic::indent
+  return function(p0)
+    local l0 -- local 'diagnostic'
+    l0 = p0 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      block_result0 = (((M["body110"]())(0))(M["body111"]()))(((M["body112"]())(M["body113"]()))(l0["labels"]))
+    end
+    return block_result0
+  end
+end
+
+M["body110"] = function() -- body std::list::foldl
   return function(p0)
   return function(p1)
   return function(p2)
-    local l0 -- local 'token'
-    local l1 -- local 'span'
-    local l2 -- local 'indent'
-    local l3 -- local 'group'
-    local l4 -- local 'parts'
-    local l5 -- local 'symbol'
-    local l6 -- local 'ident'
-    local l7 -- local 's'
+    local l0 -- local 'acc'
+    local l1 -- local 'f'
+    local l2 -- local 'xs'
+    local l3 -- local 'xs'
+    local l4 -- local 'x'
     l0 = p0 -- pattern binding assign
     l1 = p1 -- pattern binding assign
     l2 = p2 -- pattern binding assign
     local block_result0 -- block result
     do -- block
-      block_result0 = (M["body3"]())(((M["body108"]())(l2))(" "))
-      local v = l0 -- match target
+      local v = l2 -- match target
       local match_result1 -- match result
-      if v.tag == "group" and true then -- match arm
-        l3 = v.value -- pattern binding assign
-        local block_result2 -- block result
-        do -- block
-          block_result2 = (M["body5"]())(toString("group `", true)..toString(l3["delimiter"], true)..toString("` ", true)..toString(l1, true)..toString("", true))
-          block_result2 = ((M["body109"]())((M["body110"]())(l2)))(l3["contents"])
-          local block_result3 -- block result
-          do -- block
-          end
-          block_result2 = block_result3
-        end
-        match_result1 = block_result2
-      elseif v.tag == "format" and true then -- match arm
-        l4 = v.value -- pattern binding assign
-        local block_result4 -- block result
-        do -- block
-          block_result4 = (M["body5"]())(toString("format ", true)..toString(l1, true)..toString("", true))
-          block_result4 = ((M["body112"]())((M["body113"]())(l2)))(l4)
-          local block_result5 -- block result
-          do -- block
-          end
-          block_result4 = block_result5
-        end
-        match_result1 = block_result4
-      elseif v.tag == "symbol" and true then -- match arm
-        l5 = v.value -- pattern binding assign
-        match_result1 = (M["body5"]())(toString("symbol `", true)..toString(l5, true)..toString("` ", true)..toString(l1, true)..toString("", true))
-      elseif v.tag == "ident" and true then -- match arm
-        l6 = v.value -- pattern binding assign
-        match_result1 = (M["body5"]())(toString("ident `", true)..toString(l6, true)..toString("` ", true)..toString(l1, true)..toString("", true))
-      elseif v.tag == "integer" and true then -- match arm
-        l7 = v.value -- pattern binding assign
-        match_result1 = (M["body5"]())(toString("integer `", true)..toString(l7, true)..toString("` ", true)..toString(l1, true)..toString("", true))
-      elseif v.tag == "whitespace" then -- match arm
-        match_result1 = (M["body5"]())(toString("whitespace ", true)..toString(l1, true)..toString("", true))
-      elseif v.tag == "newline" then -- match arm
-        match_result1 = (M["body5"]())(toString("newline ", true)..toString(l1, true)..toString("", true))
-      elseif v.tag == "error" then -- match arm
-        match_result1 = (M["body5"]())(toString("error ", true)..toString(l1, true)..toString("", true))
+      if #v == 0 then -- match arm
+        match_result1 = l0
+      elseif #v > 0 and true and true then -- match arm
+        l4 = (v)[1] -- pattern binding assign
+        l3 = (v)[2] -- pattern binding assign
+        match_result1 = (((M["body110"]())(((l1)(l0))(l4)))(l1))(l3)
       end
       block_result0 = match_result1
     end
@@ -2135,135 +2051,25 @@ M["body107"] = function() -- body ike::debug-token
   end
 end
 
-M["body108"] = function() -- body std::string::repeat
+M["body111"] = function() -- body std::math::max
   return function(p0)
   return function(p1)
-    local l0 -- local 'n'
-    local l1 -- local 's'
+    local l0 -- local 'a'
+    local l1 -- local 'b'
     l0 = p0 -- pattern binding assign
     l1 = p1 -- pattern binding assign
     local block_result0 -- block result
     do -- block
-      local v = (l0 <= 0) -- match target
+      local v = (l0 < l1) -- match target
       local match_result1 -- match result
       if (true == v) then -- match arm
-        match_result1 = ""
+        match_result1 = l1
       elseif (false == v) then -- match arm
-        match_result1 = ((M["body6"]())(l1))(((M["body108"]())((l0 - 1)))(l1))
+        match_result1 = l0
       end
       block_result0 = match_result1
     end
     return block_result0
-  end
-  end
-end
-
-M["body109"] = function() -- body std::list::map
-  return function(p0)
-  return function(p1)
-    local l0 -- local 'f'
-    local l1 -- local 'xs'
-    local l2 -- local 'xs'
-    local l3 -- local 'x'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      local v = l1 -- match target
-      local match_result1 -- match result
-      if #v == 0 then -- match arm
-        match_result1 = { __list = true }
-      elseif #v > 0 and true and true then -- match arm
-        l3 = (v)[1] -- pattern binding assign
-        l2 = (v)[2] -- pattern binding assign
-        match_result1 = { __list = true, (l0)(l3), ((M["body109"]())(l0))(l2) }
-      end
-      block_result0 = match_result1
-    end
-    return block_result0
-  end
-  end
-end
-
-M["body110"] = function() -- body ike::debug-token::{lambda}
-  return function(p0)
-  return function(p1)
-    local l0 -- local 't'
-    local l1 -- local 's'
-    local l2 -- local 'indent'
-    l2 = p0 -- pattern binding assign
-    local t0 = p1 -- tuple pattern assign
-    l0 = t0[1] -- pattern binding assign
-    l1 = t0[2] -- pattern binding assign
-    return (((M["body111"]())(l0))(l1))((l2 + 2))
-  end
-  end
-end
-
-M["body111"] = function() -- body ike::debug-token
-  return function(p0)
-  return function(p1)
-  return function(p2)
-    local l0 -- local 'token'
-    local l1 -- local 'span'
-    local l2 -- local 'indent'
-    local l3 -- local 'group'
-    local l4 -- local 'parts'
-    local l5 -- local 'symbol'
-    local l6 -- local 'ident'
-    local l7 -- local 's'
-    l0 = p0 -- pattern binding assign
-    l1 = p1 -- pattern binding assign
-    l2 = p2 -- pattern binding assign
-    local block_result0 -- block result
-    do -- block
-      block_result0 = (M["body3"]())(((M["body108"]())(l2))(" "))
-      local v = l0 -- match target
-      local match_result1 -- match result
-      if v.tag == "group" and true then -- match arm
-        l3 = v.value -- pattern binding assign
-        local block_result2 -- block result
-        do -- block
-          block_result2 = (M["body5"]())(toString("group `", true)..toString(l3["delimiter"], true)..toString("` ", true)..toString(l1, true)..toString("", true))
-          block_result2 = ((M["body109"]())((M["body110"]())(l2)))(l3["contents"])
-          local block_result3 -- block result
-          do -- block
-          end
-          block_result2 = block_result3
-        end
-        match_result1 = block_result2
-      elseif v.tag == "format" and true then -- match arm
-        l4 = v.value -- pattern binding assign
-        local block_result4 -- block result
-        do -- block
-          block_result4 = (M["body5"]())(toString("format ", true)..toString(l1, true)..toString("", true))
-          block_result4 = ((M["body112"]())((M["body113"]())(l2)))(l4)
-          local block_result5 -- block result
-          do -- block
-          end
-          block_result4 = block_result5
-        end
-        match_result1 = block_result4
-      elseif v.tag == "symbol" and true then -- match arm
-        l5 = v.value -- pattern binding assign
-        match_result1 = (M["body5"]())(toString("symbol `", true)..toString(l5, true)..toString("` ", true)..toString(l1, true)..toString("", true))
-      elseif v.tag == "ident" and true then -- match arm
-        l6 = v.value -- pattern binding assign
-        match_result1 = (M["body5"]())(toString("ident `", true)..toString(l6, true)..toString("` ", true)..toString(l1, true)..toString("", true))
-      elseif v.tag == "integer" and true then -- match arm
-        l7 = v.value -- pattern binding assign
-        match_result1 = (M["body5"]())(toString("integer `", true)..toString(l7, true)..toString("` ", true)..toString(l1, true)..toString("", true))
-      elseif v.tag == "whitespace" then -- match arm
-        match_result1 = (M["body5"]())(toString("whitespace ", true)..toString(l1, true)..toString("", true))
-      elseif v.tag == "newline" then -- match arm
-        match_result1 = (M["body5"]())(toString("newline ", true)..toString(l1, true)..toString("", true))
-      elseif v.tag == "error" then -- match arm
-        match_result1 = (M["body5"]())(toString("error ", true)..toString(l1, true)..toString("", true))
-      end
-      block_result0 = match_result1
-    end
-    return block_result0
-  end
   end
   end
 end
@@ -2295,40 +2101,265 @@ M["body112"] = function() -- body std::list::map
   end
 end
 
-M["body113"] = function() -- body ike::debug-token::{lambda}
+M["body113"] = function() -- body ike::diagnostic::indent::{lambda}
   return function(p0)
-  return function(p1)
-    local l0 -- local 'p'
-    local l1 -- local 's'
-    local l2 -- local 'indent'
-    local l3 -- local 'ts'
-    l2 = p0 -- pattern binding assign
-    l0 = p1 -- pattern binding assign
+    local l0 -- local 'label'
+    local l1 -- local 'info'
+    l0 = p0 -- pattern binding assign
     local block_result0 -- block result
     do -- block
-      local v = l0 -- match target
+      l1 = ((M["body114"]())(l0["span"]))((M["body95"]())((M["body102"]())(l0["span"]["file"]["path"]))) -- pattern binding assign
+      block_result0 = nil
+      block_result0 = (M["body13"]())(toString("", true)..toString(l1["line"], true)..toString("", true))
+    end
+    return block_result0
+  end
+end
+
+M["body114"] = function() -- body ike::span::info
+  return function(p0)
+  return function(p1)
+    local l0 -- local 'span'
+    local l1 -- local 'contents'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      block_result0 = ((((M["body115"]())(0))(1))(l0))(((M["body116"]())("\n"))(l1))
+    end
+    return block_result0
+  end
+  end
+end
+
+M["body115"] = function() -- body ike::span::info'
+  return function(p0)
+  return function(p1)
+  return function(p2)
+  return function(p3)
+    local l0 -- local 'start-offset'
+    local l1 -- local 'line-count'
+    local l2 -- local 'span'
+    local l3 -- local 'lines'
+    local l4 -- local 'lines'
+    local l5 -- local 'line'
+    local l6 -- local 'end-offset'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    l2 = p2 -- pattern binding assign
+    l3 = p3 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      local v = l3 -- match target
       local match_result1 -- match result
-      if v.tag == "string" and true then -- match arm
-        l1 = v.value -- pattern binding assign
+      if #v == 0 then -- match arm
+        match_result1 = { ["line"] = 0, ["column"] = 0 }
+      elseif #v > 0 and true and true then -- match arm
+        l5 = (v)[1] -- pattern binding assign
+        l4 = (v)[2] -- pattern binding assign
         local block_result2 -- block result
         do -- block
-          block_result2 = (M["body3"]())(((M["body108"]())((l2 + 2)))(" "))
-          block_result2 = (M["body5"]())(toString("format-string '", true)..toString(l1, true)..toString("'", true))
+          l6 = ((l0 + (M["body13"]())(l5)) + (M["body13"]())("\n")) -- pattern binding assign
+          block_result2 = nil
+          local v = ((l2["start"] >= l0) and (l2["start"] < l6)) -- match target
+          local match_result3 -- match result
+          if (true == v) then -- match arm
+            match_result3 = { ["line"] = l1, ["column"] = ((l2["start"] - l0) + 1) }
+          elseif (false == v) then -- match arm
+            match_result3 = ((((M["body115"]())(l6))((l1 + 1)))(l2))(l4)
+          end
+          block_result2 = match_result3
         end
         match_result1 = block_result2
-      elseif v.tag == "tokens" and true then -- match arm
-        l3 = v.value -- pattern binding assign
-        local block_result3 -- block result
+      end
+      block_result0 = match_result1
+    end
+    return block_result0
+  end
+  end
+  end
+  end
+end
+
+M["body116"] = function() -- extern std::string::split
+    return E["std::string::split"]()
+end
+
+M["body117"] = function() -- body std::list::foldl
+  return function(p0)
+  return function(p1)
+  return function(p2)
+    local l0 -- local 'acc'
+    local l1 -- local 'f'
+    local l2 -- local 'xs'
+    local l3 -- local 'xs'
+    local l4 -- local 'x'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    l2 = p2 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      local v = l2 -- match target
+      local match_result1 -- match result
+      if #v == 0 then -- match arm
+        match_result1 = l0
+      elseif #v > 0 and true and true then -- match arm
+        l4 = (v)[1] -- pattern binding assign
+        l3 = (v)[2] -- pattern binding assign
+        match_result1 = (((M["body117"]())(((l1)(l0))(l4)))(l1))(l3)
+      end
+      block_result0 = match_result1
+    end
+    return block_result0
+  end
+  end
+  end
+end
+
+M["body118"] = function() -- body ike::diagnostic::format::{lambda}
+  return function(p0)
+  return function(p1)
+  return function(p2)
+  return function(p3)
+    local l0 -- local 'acc'
+    local l1 -- local 'prev'
+    local l2 -- local 'label'
+    local l3 -- local 'color'
+    local l4 -- local 'indent'
+    local l5 -- local 's'
+    l3 = p0 -- pattern binding assign
+    l4 = p1 -- pattern binding assign
+    local t0 = p2 -- tuple pattern assign
+    l0 = t0[1] -- pattern binding assign
+    l1 = t0[2] -- pattern binding assign
+    l2 = p3 -- pattern binding assign
+    local block_result1 -- block result
+    do -- block
+      l5 = ((((M["body119"]())(l1))(l4))(l3))(l2) -- pattern binding assign
+      block_result1 = nil
+      block_result1 = { __tuple = true, ((M["body21"]())(l5))(l0), (M["body8"]())(l2["span"]["file"]["path"]) }
+    end
+    return block_result1
+  end
+  end
+  end
+  end
+end
+
+M["body119"] = function() -- body ike::diagnostic::label::format
+  return function(p0)
+  return function(p1)
+  return function(p2)
+  return function(p3)
+    local l0 -- local 'prev'
+    local l1 -- local 'indent'
+    local l2 -- local 'color'
+    local l3 -- local 'label'
+    local l4 -- local 'header-indent'
+    local l5 -- local 'contents'
+    local l6 -- local 'info'
+    local l7 -- local 'sep'
+    local l8 -- local 'source'
+    local l9 -- local 'header'
+    local l10 -- local 'line'
+    local l11 -- local 'bar'
+    local l12 -- local 'number-indent'
+    local l13 -- local 'line-number'
+    local l14 -- local 'content'
+    local l15 -- local 'highlight-offset'
+    local l16 -- local 'highlight-len'
+    local l17 -- local 'highlight'
+    local l18 -- local 'message'
+    local l19 -- local 'message'
+    local l20 -- local 'label'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    l2 = p2 -- pattern binding assign
+    l3 = p3 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      l4 = ((M["body120"]())(l1))(" ") -- pattern binding assign
+      block_result0 = nil
+      l5 = (M["body95"]())((M["body102"]())(l3["span"]["file"]["path"])) -- pattern binding assign
+      block_result0 = nil
+      l6 = ((M["body114"]())(l3["span"]))(l5) -- pattern binding assign
+      block_result0 = nil
+      local v = equal(l0, (M["body8"]())(l3["span"]["file"]["path"])) -- match target
+      local match_result1 -- match result
+      if (true == v) then -- match arm
+        match_result1 = toString("", true)..toString(l4, true)..toString("", true)..toString(M["body108"](), true)..toString("", true)..toString(M["body121"](), true)..toString("...", true)..toString(M["body122"](), true)..toString("", true)
+      elseif (false == v) then -- match arm
+        local block_result2 -- block result
         do -- block
-          block_result3 = (M["body3"]())(((M["body108"]())((l2 + 2)))(" "))
-          block_result3 = (M["body5"]())("format-tokens")
-          block_result3 = ((M["body109"]())((M["body114"]())(l2)))(l3)
-          local block_result4 -- block result
-          do -- block
+          local v = l0 -- match target
+          local match_result3 -- match result
+          if v.tag == "some" and true then -- match arm
+            match_result3 = ":::"
+          elseif v.tag == "none" then -- match arm
+            match_result3 = "-->"
           end
-          block_result3 = block_result4
+          l7 = match_result3 -- pattern binding assign
+          block_result2 = nil
+          l8 = toString("", true)..toString(l3["span"]["file"]["path"], true)..toString(":", true)..toString(l6["line"], true)..toString(":", true)..toString(l6["column"], true)..toString("", true) -- pattern binding assign
+          block_result2 = nil
+          block_result2 = toString("", true)..toString(l4, true)..toString("", true)..toString(M["body108"](), true)..toString("", true)..toString(M["body121"](), true)..toString("", true)..toString(l7, true)..toString("", true)..toString(M["body122"](), true)..toString(" ", true)..toString(l8, true)..toString("", true)
         end
-        match_result1 = block_result3
+        match_result1 = block_result2
+      end
+      l9 = match_result1 -- pattern binding assign
+      block_result0 = nil
+      l10 = (M["body123"]())(((M["body124"]())((l6["line"] - 1)))(((M["body116"]())("\n"))(l5))) -- pattern binding assign
+      block_result0 = nil
+      l11 = toString("", true)..toString(l4, true)..toString(" ", true)..toString(M["body108"](), true)..toString("", true)..toString(M["body121"](), true)..toString("|", true)..toString(M["body122"](), true)..toString("", true) -- pattern binding assign
+      block_result0 = nil
+      l12 = ((M["body120"]())((l1 - (M["body13"]())(toString("", true)..toString(l6["line"], true)..toString("", true)))))(" ") -- pattern binding assign
+      block_result0 = nil
+      l13 = toString("", true)..toString(M["body108"](), true)..toString("", true)..toString(M["body121"](), true)..toString("", true)..toString(l6["line"], true)..toString("", true)..toString(l12, true)..toString(" |", true) -- pattern binding assign
+      block_result0 = nil
+      l14 = toString("", true)..toString(l13, true)..toString("", true)..toString(M["body122"](), true)..toString(" ", true)..toString(l10, true)..toString("", true) -- pattern binding assign
+      block_result0 = nil
+      l15 = ((M["body120"]())((l6["column"] - 1)))(" ") -- pattern binding assign
+      block_result0 = nil
+      l16 = ((M["body125"]())((((M["body13"]())(l10) + 1) - l6["column"])))((l3["span"]["end"] - l3["span"]["start"])) -- pattern binding assign
+      block_result0 = nil
+      l17 = ((M["body120"]())(l16))("^") -- pattern binding assign
+      block_result0 = nil
+      local v = l3["message"] -- match target
+      local match_result4 -- match result
+      if v.tag == "some" and true then -- match arm
+        l18 = v.value -- pattern binding assign
+        match_result4 = l18
+      elseif v.tag == "none" then -- match arm
+        match_result4 = ""
+      end
+      l19 = match_result4 -- pattern binding assign
+      block_result0 = nil
+      l20 = toString("", true)..toString(l11, true)..toString(" ", true)..toString(l15, true)..toString("", true)..toString(l2, true)..toString("", true)..toString(l17, true)..toString(" ", true)..toString(l19, true)..toString("", true)..toString(M["body122"](), true)..toString("", true) -- pattern binding assign
+      block_result0 = nil
+      block_result0 = toString("", true)..toString(l9, true)..toString("\n", true)..toString(l11, true)..toString("\n", true)..toString(l14, true)..toString("\n", true)..toString(l20, true)..toString("\n", true)..toString(l11, true)..toString("\n", true)
+    end
+    return block_result0
+  end
+  end
+  end
+  end
+end
+
+M["body120"] = function() -- body std::string::repeat
+  return function(p0)
+  return function(p1)
+    local l0 -- local 'n'
+    local l1 -- local 's'
+    l0 = p0 -- pattern binding assign
+    l1 = p1 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      local v = (l0 <= 0) -- match target
+      local match_result1 -- match result
+      if (true == v) then -- match arm
+        match_result1 = ""
+      elseif (false == v) then -- match arm
+        match_result1 = ((M["body21"]())(l1))(((M["body120"]())((l0 - 1)))(l1))
       end
       block_result0 = match_result1
     end
@@ -2337,33 +2368,39 @@ M["body113"] = function() -- body ike::debug-token::{lambda}
   end
 end
 
-M["body114"] = function() -- body ike::debug-token::{lambda}::{lambda}
-  return function(p0)
-  return function(p1)
-    local l0 -- local 't'
-    local l1 -- local 's'
-    local l2 -- local 'indent'
-    l2 = p0 -- pattern binding assign
-    local t0 = p1 -- tuple pattern assign
-    l0 = t0[1] -- pattern binding assign
-    l1 = t0[2] -- pattern binding assign
-    return (((M["body111"]())(l0))(l1))((l2 + 4))
-  end
-  end
+M["body121"] = function() -- body ike::ansi::bold
+    return "\x1b[1m"
 end
 
-M["body115"] = function() -- body std::debug::print
+M["body122"] = function() -- body ike::ansi::reset
+    return "\x1b[0m"
+end
+
+M["body123"] = function() -- body std::option::assert
   return function(p0)
-    local l0 -- local 'value'
+    local l0 -- local 'opt'
+    local l1 -- local 'a'
     l0 = p0 -- pattern binding assign
-    return (M["body5"]())((M["body4"]())(l0))
+    local block_result0 -- block result
+    do -- block
+      local v = l0 -- match target
+      local match_result1 -- match result
+      if v.tag == "some" and true then -- match arm
+        l1 = v.value -- pattern binding assign
+        match_result1 = l1
+      elseif v.tag == "none" then -- match arm
+        match_result1 = (M["body96"]())("option was none")
+      end
+      block_result0 = match_result1
+    end
+    return block_result0
   end
 end
 
-M["body116"] = function() -- body std::list::map
+M["body124"] = function() -- body std::list::nth
   return function(p0)
   return function(p1)
-    local l0 -- local 'f'
+    local l0 -- local 'n'
     local l1 -- local 'xs'
     local l2 -- local 'xs'
     local l3 -- local 'x'
@@ -2374,11 +2411,22 @@ M["body116"] = function() -- body std::list::map
       local v = l1 -- match target
       local match_result1 -- match result
       if #v == 0 then -- match arm
-        match_result1 = { __list = true }
+        match_result1 = M["body7"]()
       elseif #v > 0 and true and true then -- match arm
         l3 = (v)[1] -- pattern binding assign
         l2 = (v)[2] -- pattern binding assign
-        match_result1 = { __list = true, (l0)(l3), ((M["body116"]())(l0))(l2) }
+        local block_result2 -- block result
+        do -- block
+          local v = l0 -- match target
+          local match_result3 -- match result
+          if (0 == v) then -- match arm
+            match_result3 = (M["body8"]())(l3)
+          elseif true then -- match arm
+            match_result3 = ((M["body124"]())((l0 - 1)))(l2)
+          end
+          block_result2 = match_result3
+        end
+        match_result1 = block_result2
       end
       block_result0 = match_result1
     end
@@ -2387,15 +2435,38 @@ M["body116"] = function() -- body std::list::map
   end
 end
 
-M["body117"] = function() -- body std::debug::print
+M["body125"] = function() -- body std::math::min
   return function(p0)
-    local l0 -- local 'value'
+  return function(p1)
+    local l0 -- local 'a'
+    local l1 -- local 'b'
     l0 = p0 -- pattern binding assign
-    return (M["body5"]())((M["body118"]())(l0))
+    l1 = p1 -- pattern binding assign
+    local block_result0 -- block result
+    do -- block
+      local v = (l0 < l1) -- match target
+      local match_result1 -- match result
+      if (true == v) then -- match arm
+        match_result1 = l0
+      elseif (false == v) then -- match arm
+        match_result1 = l1
+      end
+      block_result0 = match_result1
+    end
+    return block_result0
+  end
   end
 end
 
-M["body118"] = function() -- extern std::debug::format
+M["body126"] = function() -- body std::debug::print
+  return function(p0)
+    local l0 -- local 'value'
+    l0 = p0 -- pattern binding assign
+    return (M["body99"]())((M["body127"]())(l0))
+  end
+end
+
+M["body127"] = function() -- extern std::debug::format
     return E["std::debug::format"]()
 end
 
