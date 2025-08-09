@@ -1,0 +1,604 @@
+import ike::ast
+
+import std::some
+import std::none
+import std::option
+
+fn expr::first allow-block token {
+  match token {
+    token::ident        -> true
+    token::string       -> true
+    token::format-start -> true
+    token::integer      -> true
+    token::true_        -> true
+    token::false_       -> true
+    token::let_         -> true
+    token::match_       -> true
+    token::try_         -> true
+    token::pipe         -> true
+    token::open-paren   -> true
+    token::open-brace   -> true and allow-block
+    token::open-bracket -> true
+
+    _ -> false
+  }
+}
+
+fn expr::term allow-block parser {
+  match peek parser {
+    token::ident        -> expr::path parser
+    token::string       -> expr::string parser
+    token::format-start -> expr::format allow-block parser
+    token::integer      -> expr::integer parser
+    token::true_        -> expr::boolean parser
+    token::false_       -> expr::boolean parser
+    token::pipe         -> expr::lambda allow-block parser
+    token::open-paren   -> expr::paren allow-block parser
+    token::open-bracket -> expr::list allow-block parser
+    token::open-brace   -> {
+      match allow-block {
+        true  -> expr::block parser
+        false -> {
+          let diagnostic = diagnostic::error "block expression not allowed here"
+            |> diagnostic::with-label (span parser) "here"
+            
+          parser
+            |> open (ast::error diagnostic)
+            |> close
+        }
+      }
+    }
+
+    token -> {
+      let diagnostic = diagnostic::error "expected expression"
+        |> diagnostic::with-label (span parser) "here"
+
+      parser
+        |> open (ast::error diagnostic)
+        |> close
+    }
+  }
+}
+
+fn expr::integer parser {
+  parser
+    |> open ast::expr::integer
+    |> advance
+    |> close
+}
+
+fn expr::boolean parser {
+  parser
+    |> open ast::expr::boolean
+    |> advance
+    |> close
+}
+
+fn expr::string parser {
+  parser
+    |> open ast::expr::string
+    |> advance
+    |> close
+}
+
+fn expr::paren allow-block parser {
+  parser
+    |> open ast::expr::paren
+    |> expect token::open-paren
+    |> expr allow-block
+    |> expect token::close-paren
+    |> close
+}
+
+fn expr::list allow-block parser {
+  parser
+    |> open ast::expr::list
+    |> expect token::open-bracket
+    |> eat-newlines
+    |> expr::list-rec allow-block
+    |> expect token::close-bracket
+    |> close
+}
+
+fn expr::list-rec allow-block parser {
+  match peek parser {
+    token::close-bracket -> parser
+
+    token::dotdot -> {
+      let parser = parser
+        |> expect token::dotdot
+
+      match peek parser {
+        token::close-bracket -> parser
+        _ -> expr allow-block parser
+      }
+    }
+
+    _ -> {
+      let parser = parser
+        |> expr allow-block
+
+      match peek parser {
+        token::newline -> {
+          parser
+            |> eat-newlines
+            |> expr::list-rec allow-block
+        }
+
+        token::semi -> {
+          parser
+            |> expect token::semi
+            |> eat-newlines
+            |> expr::list-rec allow-block
+        }
+
+        _ -> parser
+      }
+    }
+  }
+}
+
+fn expr::format allow-block parser {
+  parser
+    |> open ast::expr::format
+    |> expr::format-rec allow-block
+    |> close
+}
+
+fn expr::format-rec allow-block parser {
+  match peek parser {
+    token::format-start -> {
+      parser
+        |> open ast::expr::string
+        |> advance
+        |> close
+        |> expr allow-block
+        |> expr::format-rec allow-block
+    }
+
+    token::format-continue -> {
+      parser
+        |> open ast::expr::string
+        |> advance
+        |> close
+        |> expr allow-block
+        |> expr::format-rec allow-block
+    }
+
+    token::format-end -> {
+      parser
+        |> open ast::expr::string
+        |> advance
+        |> close
+    }
+
+    _ -> {
+      let diagnostic = diagnostic::error "expected format string"
+        |> diagnostic::with-label (span parser) "here"
+
+      parser
+        |> open (ast::error diagnostic)
+        |> close
+    }
+  }
+}
+
+fn expr::path parser {
+  let parser = parser
+    |> open ast::expr::path
+    |> item::path
+
+  match expr::is-record parser {
+    false -> close parser
+    true  -> {
+      parser
+        |> expect token::open-brace
+        |> eat-newlines
+        |> expr::record::fields
+        |> expect token::close-brace
+        |> close-with ast::expr::record
+    }
+  }
+}
+
+fn expr::record::fields parser {
+  match peek parser {
+    token::ident -> {
+      let parser = parser
+        |> open ast::expr::record::field
+        |> expect-ident
+        |> expect token::colon
+        |> expr true
+        |> close
+
+      match peek parser {
+        token::newline -> {
+          parser
+            |> eat-newlines
+            |> expr::record::fields
+        }
+
+        token::semi -> {
+          parser
+            |> expect token::semi
+            |> eat-newlines
+            |> expr::record::fields
+        }
+
+        _ -> parser
+      }
+    }
+
+    _ -> parser
+  }
+}
+
+fn expr::is-record parser {
+  let is-brace = peek parser == token::open-brace
+
+  let parser = parser
+    |> advance
+    |> eat-newlines
+
+  match peek parser {
+    token::ident -> is-brace and nth 1 parser == token::colon
+    _ -> false
+  }
+}
+
+fn expr::block parser {
+  let parser = parser
+    |> open ast::expr::block
+    |> expect token::open-brace
+
+  match peek parser {
+    token::newline -> {
+      parser
+        |> expr::block-rec 
+        |> expect token::close-brace
+        |> close
+    }
+
+    token::close-brace -> {
+      parser
+        |> expect token::close-brace
+        |> close
+    }
+
+    _ -> {
+      parser
+        |> expr true
+        |> expect token::close-brace
+        |> close
+    }
+  }
+}
+
+fn expr::block-rec parser {
+  let parser = parser
+    |> expect token::newline
+    |> eat-newlines
+
+  let next = peek parser
+
+  match next {
+    token::close-brace -> parser
+
+    _ -> {
+      match expr::first true next {
+        true -> {
+          parser
+            |> expr true
+            |> expr::block-rec
+        }
+
+        false -> {
+          match expr::block-recovery next {
+            true  -> parser
+            false -> {
+              let diagnostic = diagnostic::error "expected expression"
+                |> diagnostic::with-label (span parser) "here"
+
+              parser
+                |> open (ast::error diagnostic)
+                |> advance
+                |> close
+                |> expr::block-rec
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+fn expr::block-recovery token {
+  match token {
+    token::end-of-file -> true
+    _ -> item::first token
+  }
+}
+
+fn expr::lambda allow-block parser {
+  parser
+    |> open ast::expr::lambda
+    |> expr::lambda::params
+    |> expr::tuple allow-block
+    |> close
+}
+
+fn expr::lambda::params parser {
+  parser
+    |> open ast::expr::lambda::params
+    |> expect token::pipe
+    |> expr::lambda::params-rec
+    |> close
+}
+
+fn expr::lambda::params-rec parser {
+  match peek parser {
+    token::pipe -> {
+      parser
+        |> expect token::pipe
+    }
+
+    _ -> {
+      parser
+        |> pattern false
+        |> expr::lambda::params-rec
+    }
+  }
+}
+
+fn expr::field allow-block parser {
+  parser
+    |> expr::term allow-block
+    |> expr::field-rec
+}
+
+fn expr::field-rec parser {
+  match peek parser {
+    token::dot -> {
+      parser
+        |> open-before ast::expr::field
+        |> expect token::dot
+        |> expect-ident
+        |> close
+        |> expr::field-rec
+    }
+
+    _ -> parser
+  }
+}
+
+fn expr::call allow-block parser {
+  parser 
+    |> expr::field allow-block
+    |> expr::call-rec allow-block
+}
+
+fn expr::call-rec allow-block parser {
+  match expr::first allow-block (peek parser) {
+    false -> parser
+    true  -> {
+      parser
+        |> open-before ast::expr::call
+        |> expr::field allow-block
+        |> close
+        |> expr::call-rec allow-block
+    }
+  }
+}
+
+fn expr::try_ allow-block parser {
+  match peek parser {
+    token::try_ -> {
+      parser
+        |> open ast::expr::unary
+        |> expect token::try_
+        |> expr::try_ allow-block
+        |> close
+    }
+
+    _ -> expr::call allow-block parser
+  }
+}
+
+fn expr::mul-div-mod allow-block {
+  expr::binary [
+    token::star
+    token::slash
+    token::percent
+  ] expr::try_ allow-block
+}
+
+fn expr::add-sub allow-block {
+  expr::binary [
+    token::plus
+    token::minus
+  ] expr::mul-div-mod allow-block
+}
+
+fn expr::cmp allow-block {
+  expr::binary [
+    token::gt
+    token::lt
+    token::gteq
+    token::lteq
+  ] expr::add-sub allow-block
+}
+
+fn expr::eq-ne allow-block { 
+  expr::binary [
+    token::eqeq
+    token::noteq
+  ] expr::cmp allow-block
+}
+
+fn expr::and_ allow-block {
+  expr::binary [
+    token::and_
+  ] expr::eq-ne allow-block
+}
+
+fn expr::or_ allow-block {
+  expr::binary [
+    token::or_
+  ] expr::and_ allow-block
+}
+
+fn expr::binary ops prev allow-block parser {
+  parser
+    |> prev allow-block
+    |> expr::binary-rec ops prev allow-block
+}
+
+fn expr::binary-rec ops prev allow-block parser {
+  let op = peek parser
+
+  match ops |> list::any (|t| t == op) {
+    false -> parser
+    true  -> {
+      parser
+        |> open-before ast::expr::binary
+        |> expect op
+        |> prev allow-block
+        |> close
+        |> expr::binary-rec ops prev allow-block
+    }
+  }
+}
+
+fn expr::tuple allow-block parser {
+  let parser = parser
+    |> expr::or_ allow-block
+
+  match peek parser {
+    token::comma -> {
+      parser
+        |> open-before ast::expr::tuple
+        |> expr::tuple-rec allow-block
+        |> close
+    }
+
+    _ -> parser
+  }
+}
+
+fn expr::tuple-rec allow-block parser {
+  let parser = parser
+    |> expect token::comma
+    |> expr::or_ allow-block
+
+  match peek parser {
+    token::comma -> {
+      parser
+        |> expr::tuple-rec allow-block
+    }
+
+    _ -> parser
+  }
+}
+
+fn expr::is-pipe-left parser {
+  match parser |> eat-newlines |> peek {
+    token::ltpipe -> true
+    _ -> false
+  }
+}
+
+fn expr::is-pipe-right parser {
+  match parser |> eat-newlines |> peek {
+    token::pipegt -> true
+    _ -> false
+  }
+}
+
+fn expr::pipe-left allow-block parser {
+  parser 
+    |> expr::tuple allow-block
+    |> expr::pipe-left-rec allow-block
+}
+
+fn expr::pipe-left-rec allow-block parser {
+  match expr::is-pipe-left parser {
+    false -> parser
+    true  -> {
+      parser
+        |> open-before ast::expr::pipe-left
+        |> eat-newlines
+        |> expect token::ltpipe
+        |> expr::tuple allow-block
+        |> close
+        |> expr::pipe-left-rec allow-block
+    }
+  }
+}
+
+fn expr::pipe-right allow-block parser {
+  parser
+    |> expr::pipe-left allow-block
+    |> expr::pipe-right-rec allow-block
+}
+
+fn expr::pipe-right-rec allow-block parser { 
+  match expr::is-pipe-right parser {
+    false -> parser
+    true  -> {
+      parser
+        |> open-before ast::expr::pipe-left
+        |> eat-newlines
+        |> expect token::pipegt
+        |> expr::pipe-left allow-block
+        |> close
+        |> expr::pipe-right-rec allow-block
+    }
+  }
+}
+
+fn expr::let_ allow-block parser {
+  parser
+    |> open ast::expr::let_
+    |> expect token::let_
+    |> pattern false
+    |> expect token::eq
+    |> expr allow-block
+    |> close
+}
+
+fn expr::match_ parser {
+  parser
+    |> open ast::expr::match_
+    |> expect token::match_
+    |> expr false
+    |> expect token::open-brace
+    |> eat-newlines
+    |> expr::match_::arms
+    |> expect token::close-brace
+    |> close
+}
+
+fn expr::match_::arms parser {
+  match peek parser {
+    token::close-brace -> parser
+
+    _ -> {
+      parser
+        |> open ast::expr::match_::arm
+        |> pattern true
+        |> expect token::rarrow
+        |> expr true
+        |> eat-newlines
+        |> close
+        |> expr::match_::arms
+    }
+  }
+}
+
+fn expr allow-block parser {
+  match peek parser {
+    token::let_   -> expr::let_ allow-block parser
+    token::match_ -> expr::match_ parser
+    _ -> expr::pipe-right allow-block parser
+  }
+}

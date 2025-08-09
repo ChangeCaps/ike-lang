@@ -21,11 +21,40 @@ fn iter::chain second first {
 }
 
 fn iter::map : ('a -> 'b) -> iter 'a -> iter 'b
-fn iter::map f iter {
+fn iter::map f it {
   iter::new |_| {
-    match iter::next iter {
+    match iter::next it {
       some (x, it) -> some <| f x, iter::map f it
       none         -> none
+    }
+  }
+}
+
+fn iter::filter : ('a -> bool) -> iter 'a -> iter 'a
+fn iter::filter f it {
+  iter::new |_| {
+    match iter::next it {
+      some (x, it) -> {
+        match f x {
+          true  -> some <| x, iter::filter f it
+          false -> iter::filter f it |> iter::next
+        }
+      }
+
+      none -> none
+    }
+  }
+}
+
+fn iter::nth : int -> iter 'a -> option 'a
+fn iter::nth n it {
+  match iter::next it {
+    none         -> none
+    some (x, it) -> {
+      match n {
+        0 -> some x
+        _ -> iter::nth (n - 1) it
+      }
     }
   }
 }

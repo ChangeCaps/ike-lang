@@ -1,0 +1,185 @@
+import ike::ast
+
+import std::some
+import std::none
+import std::option
+
+fn type::first token {
+  match token {
+    token::int_         -> true
+    token::str_         -> true
+    token::bool_        -> true
+    token::under        -> true
+    token::quote        -> true
+    token::ident        -> true
+    token::open-paren   -> true
+    token::open-brace   -> true
+    token::open-bracket -> true
+    _ -> false
+  }
+}
+
+fn type -> type::function
+
+fn type::function parser {
+  let parser = parser
+    |> type::tuple
+
+  match peek parser {
+    token::rarrow -> {
+      parser
+        |> open-before ast::type::function
+        |> expect token::rarrow
+        |> type::function
+        |> close
+    }
+
+    _ -> parser
+  }
+}
+
+fn type::tuple parser {
+  let parser = parser
+    |> type::application
+
+  match peek parser {
+    token::comma -> {
+      parser
+        |> open-before ast::type::tuple
+        |> type::tuple-rec
+        |> close
+    }
+
+    _ -> parser
+  }
+}
+
+fn type::tuple-rec parser {
+  match peek parser {
+    token::comma -> {
+      parser
+        |> expect token::comma
+        |> type::application
+        |> type::tuple-rec
+    }
+
+    _ -> parser
+  }
+}
+
+fn type::application parser {
+  match peek parser {
+    token::ident -> {
+      parser
+        |> open ast::type::path
+        |> item::path
+        |> type::application-rec
+        |> close
+    }
+
+    _ -> type::term parser
+  }
+}
+
+fn type::application-rec parser {
+  match type::first (peek parser) {  
+    false -> parser
+    true  -> {
+      parser
+        |> type::term
+        |> type::application-rec
+    }
+  }
+}
+
+fn type::term parser {
+  match peek parser {
+    token::int_         -> type::integer parser
+    token::str_         -> type::string parser
+    token::bool_        -> type::boolean parser
+    token::under        -> type::inferred parser
+    token::quote        -> type::generic parser
+    token::ident        -> type::path parser
+    token::open-paren   -> type::paren parser
+    token::open-brace   -> type::unit parser
+    token::open-bracket -> type::list parser
+
+    token -> {
+      let diagnostic = diagnostic::error "expected type"
+        |> diagnostic::with-label (span parser) "here"
+
+      parser
+        |> open (ast::error diagnostic)
+        |> close
+    }
+  }
+}
+
+fn type::integer parser {
+  parser
+    |> open ast::type::integer
+    |> expect token::int_
+    |> close
+}
+
+fn type::string parser {
+  parser
+    |> open ast::type::string
+    |> expect token::str_
+    |> close
+}
+
+fn type::boolean parser {
+  parser
+    |> open ast::type::boolean
+    |> expect token::bool_
+    |> close
+}
+
+fn type::inferred parser {
+  parser
+    |> open ast::type::inferred
+    |> expect token::under
+    |> close
+}
+
+fn type::generic parser {
+  parser
+    |> open ast::type::generic
+    |> expect token::quote
+    |> expect-ident
+    |> close
+}
+
+fn type::path parser {
+  parser
+    |> open ast::type::path
+    |> item::path
+    |> close
+}
+
+fn type::paren parser {
+  parser
+    |> open ast::type::paren
+    |> expect token::open-paren
+    |> type
+    |> expect token::close-paren
+    |> close
+}
+
+fn type::unit parser {
+  parser
+    |> open ast::type::unit
+    |> expect token::open-brace
+    |> expect token::close-brace
+    |> close
+}
+
+fn type::list parser {
+  parser
+    |> open ast::type::list
+    |> expect token::open-bracket
+    |> type
+    |> expect token::close-bracket
+    |> close
+}

@@ -1,0 +1,175 @@
+import ike::ast
+
+import std::some
+import std::none
+import std::option
+
+fn pattern -> pattern::tuple
+
+fn pattern::tuple refutable parser {
+  let parser = parser
+    |> pattern::term refutable
+
+  match peek parser {
+    token::comma -> {
+      parser
+        |> open-before ast::pattern::tuple
+        |> pattern::tuple-rec refutable
+        |> close
+    }
+
+    _ -> parser
+  }
+}
+
+fn pattern::tuple-rec refutable parser {
+  let parser = parser
+    |> expect token::comma
+    |> pattern::term refutable
+
+  match peek parser {
+    token::comma -> pattern::tuple-rec refutable parser
+    _ -> parser 
+  }
+}
+
+fn pattern::term refutable parser {
+  match peek parser {
+    token::under        -> pattern::wildcard parser
+    token::ident        -> pattern::path refutable parser
+    token::true_        -> pattern::boolean parser
+    token::false_       -> pattern::boolean parser
+    token::integer      -> pattern::integer parser
+    token::string       -> pattern::string parser
+    token::open-paren   -> pattern::paren refutable parser
+    token::open-bracket -> pattern::list refutable parser
+
+    _ -> {
+      let diagnostic = diagnostic::error "expected pattern"
+        |> diagnostic::with-label (span parser) "here"
+
+      parser
+        |> open (ast::error diagnostic)
+        |> advance
+        |> close
+    }
+  }
+}
+
+fn pattern::first token {
+  match token {
+    token::under        -> true
+    token::ident        -> true
+    token::true_        -> true
+    token::false_       -> true
+    token::integer      -> true
+    token::string       -> true
+    token::open-paren   -> true
+    token::open-bracket -> true
+    _ -> false
+  }
+}
+
+fn pattern::wildcard parser {
+  parser
+    |> open ast::pattern::wildcard
+    |> expect token::under
+    |> close
+}
+
+fn pattern::path refutable parser {
+  let parser = parser
+    |> open ast::pattern::path
+    |> item::path
+
+  match pattern::first (peek parser) and refutable {
+    false -> close parser
+    true  -> {
+      parser
+        |> pattern refutable
+        |> close-with ast::pattern::variant
+    }
+  }
+}
+
+fn pattern::boolean parser {
+  parser
+    |> open ast::pattern::boolean
+    |> advance
+    |> close
+}
+
+fn pattern::integer parser {
+  parser
+    |> open ast::pattern::integer
+    |> advance
+    |> close
+}
+
+fn pattern::string parser {
+  parser
+    |> open ast::pattern::string
+    |> advance
+    |> close
+}
+
+fn pattern::list refutable parser {
+  parser
+    |> open ast::pattern::list
+    |> expect token::open-bracket
+    |> pattern::list-rec refutable
+    |> close
+}
+
+fn pattern::list-rec refutable parser {
+  match peek parser {
+    token::close-bracket -> {
+      parser
+        |> expect token::close-bracket
+    }
+
+    token::dotdot -> {
+      let parser = parser
+        |> expect token::dotdot
+
+      match peek parser {
+        token::close-bracket -> {
+          parser
+            |> expect token::close-bracket
+        }
+
+        _ -> {
+          parser
+            |> pattern refutable
+            |> expect token::close-bracket
+        }
+      }
+    }
+
+    _ -> {
+      let parser = pattern refutable parser
+
+      match peek parser {
+        token::semi -> {
+          parser
+            |> expect token::semi
+            |> pattern::list-rec refutable
+        }
+
+        _ -> {
+          parser
+            |> expect token::close-bracket
+        }
+      }
+    }
+  }
+}
+
+fn pattern::paren refutable parser {
+  parser
+    |> open ast::pattern::paren
+    |> expect token::open-paren
+    |> pattern refutable
+    |> expect token::close-paren
+    |> close
+}

@@ -8,12 +8,34 @@ fn list::first xs {
   }
 }
 
+fn list::last : ['a] -> option 'a
+fn list::last xs {
+  match xs {
+    []        -> none
+    [x]       -> some x
+    [_; ..xs] -> list::last xs
+  }
+}
+
 fn list::rest : ['a] -> option ['a]
 fn list::rest xs {
   match xs {
     []        -> none
     [_; ..xs] -> some xs
   }
+}
+
+fn list::pop : ['a] -> option ('a, ['a])
+fn list::pop xs {
+  match xs {
+    []        -> none
+    [x; ..xs] -> some <| x, xs
+  }
+}
+
+fn list::push : 'a -> ['a] -> ['a]
+fn list::push x xs {
+  [x; ..xs]
 }
 
 /// Compute the length of a list.
@@ -67,6 +89,10 @@ fn list::append xs ys {
     [x; ..xs]   -> [x; ..list::append xs ys]
   }
 }
+
+/// Prepend two lists together.
+fn list::prepend : ['a] -> ['a] -> ['a]
+fn list::prepend xs ys -> list::append ys xs
 
 /// Concatenate a list of lists.
 fn list::concat : [['a]] -> ['a]
@@ -146,6 +172,14 @@ fn list::filter-map f xs {
         some y  -> [y; ..list::filter-map f xs]
       }
     }
+  }
+}
+
+fn list::flatten : [['a]] -> ['a]
+fn list::flatten xss {
+  match xss {
+    [xs; ..xss] -> list::append (list::flatten xss) xs
+    []          -> []
   }
 }
 

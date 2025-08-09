@@ -1,5 +1,5 @@
-fn assert : bool -> str -> {}
-fn assert condition message {
+fn assert : str -> bool -> {}
+fn assert message condition {
   match condition {
     true  -> {}
     false -> panic message

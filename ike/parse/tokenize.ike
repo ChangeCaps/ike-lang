@@ -291,8 +291,22 @@ fn lexer::number ts lexer {
 fn lexer::ident ts lexer {
   let ident, lexer' = lexer |> lexer::take-while lexer::is-ident-continue
 
+  let token = match ident {
+    "and"   -> token::and_
+    "bool"  -> token::bool_
+    "false" -> token::false_
+    "let"   -> token::let_
+    "true"  -> token::true_
+    "try"   -> token::try_
+    "int"   -> token::int_
+    "or"    -> token::or_
+    "str"   -> token::str_
+    "match" -> token::match_
+    _       -> token::ident ident
+  }
+
   let span = lexer |> lexer::span <| string::len ident
-  let ts = [token::ident ident, span; ..ts]
+  let ts = [token, span; ..ts]
   lexer::lex ts lexer'
 }
 

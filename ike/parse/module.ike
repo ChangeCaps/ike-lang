@@ -1,0 +1,292 @@
+import ike::ast
+
+import std::some
+import std::none
+import std::option
+
+fn item::path parser {
+  parser
+    |> open ast::path
+    |> expect-ident
+    |> item::path-rec
+    |> close
+}
+
+fn item::path-rec parser {
+  match peek parser {
+    token::coloncolon -> {
+      parser
+        |> expect token::coloncolon
+        |> expect-ident
+        |> item::path-rec
+    }
+    _ -> parser
+  }
+}
+
+fn file parser {
+  match peek parser {
+    token::end-of-file -> parser
+
+    _ -> {
+      parser
+        |> eat-newlines
+        |> item
+        |> eat-newlines
+        |> file
+    }
+  }
+}
+
+fn item::first token {
+  match token {
+    token::ident "import" -> true
+    token::ident "type"   -> true
+    token::ident "alias"  -> true
+    token::ident "fn"     -> true
+    token::ident "extern" -> true
+    _ -> false
+  }
+}
+
+fn item parser {
+  match peek parser {
+    token::ident "import" -> item::import parser
+    token::ident "type"   -> item::type parser
+    token::ident "alias"  -> item::alias parser
+    token::ident "fn"     -> item::function parser
+    token::ident "extern" -> item::extern parser
+
+    _ -> {
+      let diagnostic = diagnostic::error "expected item"
+        |> diagnostic::with-label (span parser) "here"
+
+      parser
+        |> open (ast::error diagnostic)
+        |> advance
+        |> close
+    }
+  }
+}
+
+fn item::import parser {
+  parser
+    |> open ast::item::import
+    |> expect <| token::ident "import"
+    |> item::path
+    |> close
+}
+
+fn item::type parser {
+  parser
+    |> open ast::item::type
+    |> expect <| token::ident "type"
+    |> item::path
+    |> item::generics
+    |> expect token::eq
+    |> item::type::body
+    |> close
+}
+
+fn item::generics parser {
+  parser
+    |> open ast::item::generics
+    |> item::generics-rec
+    |> close
+}
+
+fn item::generics-rec parser {
+  match peek parser {
+    token::quote -> {
+      parser
+        |> open ast::item::generic
+        |> expect token::quote
+        |> expect-ident
+        |> close
+        |> item::generics-rec
+    }
+
+    _ -> parser
+  }
+}
+
+fn item::type::body parser {
+  match peek parser {
+    token::ident -> {
+      parser
+        |> open ast::item::type::union
+        |> item::type::union
+        |> close
+    }
+
+    token::open-brace -> {
+      parser
+        |> open ast::item::type::record
+        |> item::type::record
+        |> close
+    }
+
+    _ -> {
+      let diagnostic = diagnostic::error "expected union or record"
+        |> diagnostic::with-label (span parser) "here"
+
+      parser
+        |> open (ast::error diagnostic)
+        |> close
+    }
+  }
+}
+
+fn item::type::union parser {
+  let parser = parser
+    |> open ast::item::type::union::variant
+    |> item::path
+    |> item::type::union::body
+    |> close
+
+  match item::type::is-union parser {
+    false -> parser
+    true  -> {
+      parser
+        |> eat-newlines
+        |> expect token::pipe
+        |> item::type::union
+    }
+  }
+}
+
+fn item::type::union::body parser {
+  match peek parser {
+    token::newline -> parser
+    token::pipe    -> parser
+    _              -> type parser
+  }
+}
+
+fn item::type::is-union parser {
+  match parser |> eat-newlines |> peek {
+    token::pipe -> true
+    _ -> false
+  }
+}
+
+fn item::type::record parser {
+  parser
+    |> expect token::open-brace
+    |> eat-newlines
+    |> item::type::record::fields
+    |> expect token::close-brace
+}
+
+fn item::type::record::fields parser {
+  match peek parser {
+    token::ident -> {
+      let parser = parser
+        |> open ast::item::type::record::field
+        |> expect-ident
+        |> expect token::colon
+        |> type
+        |> close
+
+      match peek parser {
+        token::semi -> {
+          parser
+            |> expect token::semi
+            |> eat-newlines
+            |> item::type::record::fields
+        }
+
+        token::newline -> {
+          parser
+            |> eat-newlines
+            |> item::type::record::fields
+        }
+
+        _ -> parser
+      }
+    }
+
+    _ -> parser
+  }
+}
+
+fn item::alias parser {
+  parser
+    |> open ast::item::alias
+    |> expect <| token::ident "alias"
+    |> item::path
+    |> item::generics
+    |> expect token::eq
+    |> type
+    |> close
+}
+
+fn item::function parser {
+  let parser = parser
+    |> open ast::item::function
+    |> expect <| token::ident "fn"
+    |> item::path
+
+  match peek parser {
+    token::colon -> {
+      parser
+        |> expect token::colon
+        |> type
+        |> close-with ast::item::ascription
+    }
+
+    _ -> {
+      let parser = parser
+        |> open ast::item::function::params
+        |> item::function::params
+        |> close
+
+      match peek parser {
+        token::open-brace -> {
+          parser
+            |> expr true
+            |> close
+        }
+
+        token::rarrow -> {
+          parser
+            |> expect token::rarrow
+            |> expr false
+            |> close
+        }
+
+        _ -> {
+          let diagnostic = diagnostic::error "expected function body"
+            |> diagnostic::with-label (span parser) "here"
+
+          parser
+            |> open (ast::error diagnostic)
+            |> close
+        }
+      }
+    }
+  }
+}
+
+fn item::function::params parser {
+  match peek parser {
+    token::rarrow     -> parser
+    token::open-brace -> parser
+
+    _ -> {
+      parser
+        |> pattern false
+        |> item::function::params
+    }
+  }
+}
+
+fn item::extern parser {
+  parser
+    |> open ast::item::extern
+    |> expect <| token::ident "extern"
+    |> item::path
+    |> expect token::colon
+    |> type
+    |> close
+}

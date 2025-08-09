@@ -308,20 +308,11 @@ impl<'a> Lowerer<'a> {
         Ok(())
     }
 
-    pub fn finish(mut self) -> Result<ir::Program, LowerError> {
-        self.import_root_modules();
-        self.resolve_imports()?;
-        self.lower_newtypes()?;
-        self.lower_externs()?;
-
-        while let Some(bid) = self.functions.keys().next().copied() {
-            self.lower_function(bid)?;
-        }
-
+    fn lower_ascriptions(&mut self) -> Result<(), LowerError> {
         for (module, ascription) in mem::take(&mut self.ascriptions) {
             let mut generics = Vec::new();
             let mut type_lowerer = TypeLowerer {
-                lowerer: &mut self,
+                lowerer: self,
                 module,
                 generics: Generics::Extendable(&mut generics),
                 allow_inferred: false,
@@ -346,6 +337,20 @@ impl<'a> Lowerer<'a> {
             let ty = self.ir[bid].ty.clone();
 
             self.ir.tcx.unify(ty, expected, ascription.span);
+        }
+
+        Ok(())
+    }
+
+    pub fn finish(mut self) -> Result<ir::Program, LowerError> {
+        self.import_root_modules();
+        self.resolve_imports()?;
+        self.lower_newtypes()?;
+        self.lower_externs()?;
+        self.lower_ascriptions()?;
+
+        while let Some(bid) = self.functions.keys().next().copied() {
+            self.lower_function(bid)?;
         }
 
         self.ir.tcx.finish(self.emitter).map_err(|_| LowerError)?;

@@ -12,5 +12,14 @@ fn main {
     |> list::foldl "" string::append
     |> io::print
 
-  std::debug::print ts
+  let ast = parse::parser::new ts
+    |> parse::file
+    |> parse::finish
+
+  ast |> ast::format |> io::println
+
+  ast::errors ast
+    |> list::map diagnostic::format
+    |> list::foldl "" string::append
+    |> io::print
 }

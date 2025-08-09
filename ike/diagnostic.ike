@@ -25,6 +25,15 @@ fn span::info span contents {
     |> span::info' 0 1 span
 }
 
+fn span::join : span -> span -> span
+fn span::join a b {
+  span {
+    file:  a.file
+    start: math::min a.start b.start
+    end:   math::max a.end b.end
+  }
+}
+
 fn span::info' start-offset line-count span lines {
   match lines {
     []              -> span::info { line: 0; column: 0 }
@@ -174,7 +183,7 @@ fn diagnostic::label::format prev indent color label {
   let line = contents
     |> string::split "\n"
     |> list::nth <| info.line - 1
-    |> option::assert
+    |> option::some-or ""
 
   let bar = "{header-indent} {ansi::blue}{ansi::bold}|{ansi::reset}"
 
@@ -187,6 +196,7 @@ fn diagnostic::label::format prev indent color label {
   
   let highlight-len = label.span.end - label.span.start
     |> math::min (string::len line + 1 - info.column)
+    |> math::max 1
 
   let highlight = "^" |> string::repeat highlight-len
 

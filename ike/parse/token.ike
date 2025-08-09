@@ -30,6 +30,16 @@ type token = token::unknown str
            | token::end-of-file
 
            // keywords
+           | token::and_
+           | token::bool_
+           | token::false_
+           | token::let_
+           | token::true_
+           | token::try_
+           | token::int_
+           | token::or_
+           | token::str_
+           | token::match_
 
            // two-character symbols
            | token::dotdot

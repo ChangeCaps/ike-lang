@@ -1,0 +1,219 @@
+import ike::parse::token
+import ike::span
+import ike::diagnostic
+
+import std::list
+import std::string
+import std::none
+import std::some
+import std::option
+
+type kind = error diagnostic
+          | file
+          | path
+
+          // items
+          | item::import
+          | item::alias
+          | item::function
+          | item::function::params
+          | item::ascription
+          | item::extern
+          | item::type
+          | item::generics
+          | item::generic
+          | item::type::union
+          | item::type::union::variant
+          | item::type::record
+          | item::type::record::field
+
+          // types
+          | type::unit
+          | type::integer
+          | type::string
+          | type::boolean
+          | type::path
+          | type::list
+          | type::tuple
+          | type::function
+          | type::generic
+          | type::inferred
+          | type::paren
+
+          // patterns
+          | pattern::wildcard
+          | pattern::path
+          | pattern::variant
+          | pattern::tuple
+          | pattern::boolean
+          | pattern::integer
+          | pattern::string
+          | pattern::list
+          | pattern::paren
+          
+          // expressions
+          | expr::integer
+          | expr::boolean
+          | expr::string
+          | expr::format
+          | expr::path
+          | expr::let_
+          | expr::record
+          | expr::record::field
+          | expr::list
+          | expr::tuple
+          | expr::lambda
+          | expr::lambda::params
+          | expr::unary
+          | expr::binary
+          | expr::call
+          | expr::pipe-left
+          | expr::pipe-right
+          | expr::field
+          | expr::match_
+          | expr::match_::arm
+          | expr::paren
+          | expr::block
+
+fn kind::is-item kind {
+  match kind {
+    item::import     -> true
+    item::alias      -> true
+    item::function   -> true
+    item::ascription -> true
+    item::extern     -> true
+    item::type       -> true
+    _ -> false
+  }
+}
+
+fn kind::is-type kind {
+  match kind {
+    type::unit     -> true
+    type::integer  -> true
+    type::string   -> true
+    type::boolean  -> true
+    type::path     -> true
+    type::list     -> true
+    type::tuple    -> true
+    type::function -> true
+    type::generic  -> true
+    type::inferred -> true
+    type::paren    -> true
+    _ -> false
+  }
+}
+
+fn kind::is-pattern kind {
+  match kind {
+    pattern::wildcard -> true
+    pattern::path     -> true
+    pattern::variant  -> true
+    pattern::tuple    -> true
+    pattern::boolean  -> true
+    pattern::integer  -> true
+    pattern::string   -> true
+    pattern::list     -> true
+    pattern::paren    -> true
+    _ -> false
+  }
+}
+
+fn kind::is-expr kind {
+  match kind {
+    expr::integer    -> true
+    expr::boolean    -> true
+    expr::string     -> true
+    expr::format     -> true
+    expr::path       -> true
+    expr::let_       -> true
+    expr::record     -> true
+    expr::list       -> true
+    expr::tuple      -> true
+    expr::lambda     -> true
+    expr::unary      -> true
+    expr::binary     -> true
+    expr::call       -> true
+    expr::pipe-left  -> true
+    expr::pipe-right -> true
+    expr::field      -> true
+    expr::match_     -> true
+    expr::paren      -> true
+    expr::block      -> true
+    _ -> false
+  }
+}
+
+type tree = {
+  kind:     kind
+  children: [child]
+}
+
+type child = token token, span
+           | tree tree
+
+fn span : tree -> option span
+fn span ast {
+  ast.children
+    |> list::foldl none |acc child| {
+      let child-span = match child {
+        token (_, span) -> some span
+        tree ast        -> span ast
+      }
+
+      match acc, child-span {
+        some a, some b -> span::join a b |> some
+        some a, none   -> some a
+        none,   some b -> some b
+        none,   none   -> none
+      }
+    }
+}
+
+fn errors : tree -> [diagnostic]
+fn errors ast {
+  let kind = match ast.kind {
+    error e -> [e]
+    _       -> []
+  }
+
+  ast.children
+    |> list::map |child| {
+      match child {
+        token _  -> []
+        tree ast -> errors ast
+      }
+    }
+    |> list::flatten
+    |> list::prepend kind
+}
+
+fn format : tree -> str
+fn format ast {
+  format-rec ast 0
+}
+
+fn format-rec ast indent {
+  let indent' = string::repeat indent " "
+  let kind = match ast.kind {
+    error e -> "{indent'}error \"{e.message}\""
+    kind    -> "{indent'}{ast.kind}"
+  }
+
+  ast.children
+    |> list::filter |child| {
+      match child {
+        token (token::whitespace, _) -> false
+        token (token::comment,    _) -> false
+        _ -> true
+      }
+    }
+    |> list::foldl kind |acc child| {
+      let child = match child {
+        token (t, _) -> "{indent'}  {t}"
+        tree ast -> format-rec ast (indent + 2)
+      }
+
+      "{acc}\n{child}"
+    }
+}

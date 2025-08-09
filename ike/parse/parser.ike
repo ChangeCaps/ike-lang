@@ -1,0 +1,260 @@
+import ike::ast
+
+import std::list
+import std::option
+import std::some
+import std::none
+import std::iter
+
+type parser = {
+  tokens: tokens 
+  stack:  [ast::tree]
+}
+
+fn parser::new : tokens -> parser
+fn parser::new tokens {
+  let tree = ast::tree {
+    kind:     ast::file
+    children: []
+  }
+
+  parser {
+    tokens: tokens
+    stack:  [tree]
+  }
+}
+
+fn parser::pop-stack : parser -> ast::tree, parser
+fn parser::pop-stack parser {
+  let tree, stack = list::pop parser.stack
+    |> option::expect "parser::pop-stack stack empty"
+
+  let parser = parser {
+    tokens: parser.tokens
+    stack:  stack
+  }
+
+  tree, parser
+}
+
+fn parser::push-stack : ast::tree -> parser -> parser
+fn parser::push-stack tree parser {
+  parser {
+    tokens: parser.tokens
+    stack:  [tree; ..parser.stack]
+  }
+}
+
+fn parser::pop-child : parser -> ast::child, parser
+fn parser::pop-child parser {
+  let tree, parser = parser::pop-stack parser
+
+  let child, children = list::pop tree.children
+    |> option::expect "parser::pop-stack children empty"
+
+  let tree = ast::tree {
+    kind:     tree.kind
+    children: children
+  }
+
+  child, parser::push-stack tree parser
+}
+
+fn parser::push-child : ast::child -> parser -> parser
+fn parser::push-child child parser { 
+  let tree, stack = list::pop parser.stack
+    |> option::expect "parser::push-child stack empty"
+
+  let tree = ast::tree {
+    kind:     tree.kind
+    children: [child; ..tree.children]
+  }
+
+  parser {
+    tokens: parser.tokens
+    stack:  [tree; ..stack]
+  }
+}
+
+fn parser::should-skip : token -> bool
+fn parser::should-skip token {
+  match token {
+    token::comment    -> true
+    token::whitespace -> true
+    _                 -> false
+  }
+}
+
+fn open : ast::kind -> parser -> parser
+fn open kind parser {
+  let token, _ = list::first parser.tokens
+    |> option::expect "missing eof"
+
+  match parser::should-skip token {
+    true  -> parser |> advance-one |> open kind
+    false -> {
+      let tree = ast::tree {
+        kind:     kind
+        children: [] 
+      }
+
+      parser {
+        tokens: parser.tokens
+        stack:  [tree; ..parser.stack]
+      }
+    }
+  }
+}
+
+fn open-before : ast::kind -> parser -> parser
+fn open-before kind parser {
+  let child, parser = parser::pop-child parser
+
+  parser
+    |> open kind
+    |> parser::push-child child
+}
+
+fn finish : parser -> ast::tree
+fn finish parser {
+  let tree, _ = parser::pop-stack parser
+
+  ast::tree {
+    kind:     tree.kind
+    children: list::reverse tree.children
+  }
+}
+
+fn close : parser -> parser
+fn close parser {
+  let tree, parser = parser::pop-stack parser
+
+  let child = ast::tree ast::tree {
+    kind:     tree.kind
+    children: list::reverse tree.children
+  }
+
+  parser::push-child child parser
+}
+
+fn close-with : ast::kind -> parser -> parser
+fn close-with kind parser {
+  let tree, parser = parser::pop-stack parser
+
+  let child = ast::tree ast::tree {
+    kind:     kind
+    children: list::reverse tree.children
+  }
+
+  parser::push-child child parser
+}
+
+fn advance : parser -> parser
+fn advance parser {
+  let (token, span), tokens = list::pop parser.tokens
+    |> option::expect "missing eof token"
+
+  match parser::should-skip token {
+    true  -> parser |> advance-one |> advance
+    false -> parser |> advance-one
+  }
+}
+
+
+fn advance-one : parser -> parser
+fn advance-one parser {
+  let (token, span), tokens = list::pop parser.tokens
+    |> option::expect "missing eof token"
+
+  let child = ast::token <| token, span
+  let parser = parser::push-child child parser
+
+  match token {
+    token::end-of-file -> parser
+
+    _ -> {
+      parser {
+        tokens: tokens
+        stack:  parser.stack
+      }
+    }
+  }
+}
+
+fn peek : parser -> token
+fn peek -> nth 0
+
+fn nth : int -> parser -> token
+fn nth n parser {
+  let pair = list::iter parser.tokens
+    |> iter::filter |t, _| parser::should-skip t == false
+    |> iter::nth n
+
+  match pair {
+    some (token, _) -> token
+    none            -> token::end-of-file
+  }
+
+}
+
+fn span : parser -> span
+fn span parser {
+  let pair = list::iter parser.tokens
+    |> iter::filter |t, _| parser::should-skip t == false
+    |> iter::next
+
+  let _, span = match pair {
+    some (pair, _) -> pair
+    none           -> {
+      list::last parser.tokens |> option::expect "missing eof" 
+    }
+  }
+
+  span
+}
+
+fn eat : token -> parser -> option parser
+fn eat token parser {
+  match token == peek parser {
+    true  -> parser |> advance |> some
+    false -> none
+  }
+}
+
+fn eat-newlines : parser -> parser
+fn eat-newlines parser {
+  match eat token::newline parser {
+    some parser -> eat-newlines parser
+    none        -> parser
+  }
+}
+
+fn expect : token -> parser -> parser
+fn expect token parser {
+  match eat token parser {
+    some parser -> parser
+    none -> {
+      let diagnostic = diagnostic::error "expected `{token}`"
+        |> diagnostic::with-label (span parser) "here"
+
+      parser
+        |> open (ast::error diagnostic)
+        |> close
+    }
+  }
+}
+
+fn expect-ident : parser -> parser
+fn expect-ident parser {
+  match peek parser {
+    token::ident -> advance parser
+    _ -> {
+      let diagnostic = diagnostic::error "expected `identifier`"
+        |> diagnostic::with-label (span parser) "here"
+
+      parser
+        |> open (ast::error diagnostic)
+        |> close
+    }
+  }
+}
