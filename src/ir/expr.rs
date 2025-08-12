@@ -16,6 +16,7 @@ pub enum ExprKind<T> {
     ListCons(Box<Expr<T>>, Box<Expr<T>>),
     Tuple(Vec<Expr<T>>),
     Record(Vec<(String, Expr<T>)>),
+    With(Box<Expr<T>>, Vec<(String, Expr<T>)>),
     Try(Box<Expr<T>>),
     Call(Box<Expr<T>>, Box<Expr<T>>),
     Binary(BinOp, Box<Expr<T>>, Box<Expr<T>>),

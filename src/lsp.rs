@@ -528,6 +528,15 @@ impl LanguageServer {
                 }
             }
 
+            ast::ExprKind::With(target, items) => {
+                Self::add_ast_expr_semantics(target, semantics);
+
+                for (_, item, span) in items {
+                    Self::add_ast_expr_semantics(item, semantics);
+                    semantics.add(*span, PROPERTY, 0);
+                }
+            }
+
             ast::ExprKind::List(items, rest) => {
                 for item in items {
                     Self::add_ast_expr_semantics(item, semantics);
@@ -647,7 +656,8 @@ fn token_semantics(token: &parse::Token) -> Option<[u32; 2]> {
         | parse::Token::Let
         | parse::Token::Or
         | parse::Token::Match
-        | parse::Token::Try => [KEYWORD, 0],
+        | parse::Token::Try
+        | parse::Token::With => [KEYWORD, 0],
 
         parse::Token::False | parse::Token::True => [ENUM_MEMBER, STATIC],
         parse::Token::Bool | parse::Token::Int | parse::Token::Str => [TYPE, 0],

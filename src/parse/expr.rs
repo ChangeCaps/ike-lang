@@ -269,11 +269,48 @@ fn parse_field_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, 
     Ok(expr)
 }
 
+fn parse_with_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, Diagnostic> {
+    let expr = parse_field_expr(tokens, options)?;
+
+    if !tokens.is(&Token::With) {
+        return Ok(expr);
+    }
+
+    tokens.expect(&Token::With)?;
+    tokens.expect(&Token::LBrace)?;
+
+    consume_newlines(tokens);
+
+    let mut fields = Vec::new();
+
+    while !tokens.is(&Token::RBrace) {
+        let (name, span) = parse_ident(tokens)?;
+
+        tokens.expect(&Token::Colon)?;
+
+        let value = parse_expr_impl(tokens, options)?;
+
+        fields.push((name, value, span));
+
+        if !(tokens.is(&Token::Newline) || tokens.is(&Token::RBrace)) {
+            tokens.expect(&Token::Semi)?;
+        }
+
+        consume_newlines(tokens);
+    }
+
+    let end = tokens.expect(&Token::RBrace)?;
+
+    let span = expr.span.join(end);
+    let kind = ExprKind::With(Box::new(expr), fields);
+    Ok(kind.with_span(span))
+}
+
 fn parse_call_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, Diagnostic> {
-    let mut callee = parse_field_expr(tokens, options)?;
+    let mut callee = parse_with_expr(tokens, options)?;
 
     while is_term_expr(tokens, options) {
-        let input = parse_field_expr(tokens, options)?;
+        let input = parse_with_expr(tokens, options)?;
 
         let span = callee.span.join(input.span);
         let kind = ExprKind::Call(Box::new(callee), Box::new(input));

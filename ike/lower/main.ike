@@ -25,21 +25,12 @@ fn lcx {
   }
 }
 
-fn lcx::with-uir uir lcx {
-  lcx {
-    uir:         uir
-    diagnostics: lcx.diagnostics
-  }
-}
-
 fn lcx::with-diagnostic diagnostic lcx {
   lcx {
     uir:         lcx.uir
     diagnostics: [diagnostic; ..lcx.diagnostics]
   }
 }
-
-fn lcx::map-uir f lcx -> lcx::with-uir (f lcx.uir) lcx
 
 fn create-module : uir::module::id -> [str] -> lcx -> uir::module::id, lcx
 fn create-module id path lcx {
@@ -63,7 +54,7 @@ fn create-module id path lcx {
           let uir = uir
             |> uir::program::set-module id mod
 
-          new-id, lcx::with-uir uir lcx
+          new-id, lcx with { uir: uir }
         }
       }
     }
@@ -111,8 +102,9 @@ fn add-file::function mod ast lcx {
   let id, uir = lcx.uir
     |> uir::program::add-body body
 
-  let mod-id, lcx = lcx::with-uir uir lcx
-    |> create-module mod path
+  let mod-id, lcx = create-module mod
+      <| path::mods path
+      <| lcx
 
   let existing = lcx.uir
     |> uir::program::module mod-id
@@ -134,10 +126,10 @@ fn add-file::function mod ast lcx {
           <| path::name path
           <| id
 
-      let uir = lcx.uir
-        |> uir::program::set-module mod-id mod
-
-      lcx::with-uir uir lcx
+      lcx with {
+        uir: lcx.uir
+          |> uir::program::set-module mod-id mod
+      }
     }
   }
 }

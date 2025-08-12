@@ -1057,6 +1057,33 @@ impl ExprLowerer<'_, '_> {
                 ir::Expr { kind, span, ty }
             }
 
+            ast::ExprKind::With(target, items) => {
+                let target = self.lower_expr(*target)?;
+
+                let mut fields: Vec<(String, ir::Expr)> = Vec::new();
+
+                for (name, value, span) in items {
+                    if fields.iter().any(|(n, _)| *n == name) {
+                        let diagnostic = Diagnostic::error(format!(
+                            "duplicate field '{name}' in with expression"
+                        ))
+                        .with_label(span, "found here");
+
+                        self.lowerer.emitter.emit(diagnostic);
+                        return Err(LowerError);
+                    }
+
+                    let value = self.lower_expr(value)?;
+                    self.field(target.ty.clone(), &name, value.ty.clone(), span);
+                    fields.push((name, value));
+                }
+
+                let span = ast.span;
+                let ty = target.ty.clone();
+                let kind = ir::ExprKind::With(Box::new(target), fields);
+                ir::Expr { kind, span, ty }
+            }
+
             ast::ExprKind::List(items, rest) => {
                 let item_ty = ir::Type::infer(ast.span);
                 let list_ty = ir::Type::list(item_ty.clone(), ast.span);

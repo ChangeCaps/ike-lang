@@ -194,6 +194,18 @@ impl Specializer<'_> {
                 tir::ExprKind::Record(new_fields)
             }
 
+            uir::ExprKind::With(target, fields) => {
+                let target = self.specialize_expr(*target, generics)?;
+
+                let mut new_fields = Vec::new();
+                for (name, expr) in fields {
+                    let expr = self.specialize_expr(expr, generics)?;
+                    new_fields.push((name, expr));
+                }
+
+                tir::ExprKind::With(Box::new(target), new_fields)
+            }
+
             uir::ExprKind::Binary(op, lhs, rhs) => {
                 let left = self.specialize_expr(*lhs, generics)?;
                 let right = self.specialize_expr(*rhs, generics)?;

@@ -135,6 +135,21 @@ impl Codegen {
                 format!("{{ {} }}", fields.join(", "))
             }
 
+            ir::ExprKind::With(target, fields) => {
+                let temp = self.temp;
+                self.temp += 1;
+
+                let target = self.expr(target);
+                self.line(format!("local t{temp} = copy({target}) -- with target"));
+
+                for (name, expr) in fields {
+                    let value = self.expr(expr);
+                    self.line(format!("t{temp}[\"{name}\"] = {value} -- with field"));
+                }
+
+                format!("t{temp}")
+            }
+
             ir::ExprKind::Try(value) => {
                 let value = self.expr(value);
                 self.line(format!("result = {value} -- try"));

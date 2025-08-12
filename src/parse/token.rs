@@ -23,6 +23,7 @@ pub enum Token {
     Or,    // 'or'
     Str,   // 'str'
     Match, // 'match'
+    With,  // 'with'
 
     /* two-character symbols */
     DotDot,     // '..'
@@ -90,6 +91,7 @@ impl fmt::Display for Token {
             Token::Or => write!(f, "or"),
             Token::Str => write!(f, "str"),
             Token::Match => write!(f, "match"),
+            Token::With => write!(f, "with"),
 
             /* two-character symbols */
             Token::DotDot => write!(f, ".."),
@@ -152,6 +154,7 @@ impl FromStr for Token {
             "or" => Token::Or,
             "str" => Token::Str,
             "match" => Token::Match,
+            "with" => Token::With,
 
             /* two-character symbols */
             ".." => Token::DotDot,

@@ -164,7 +164,7 @@ local function copy(value)
   local new_value = {}
 
   for k, v in pairs(value) do
-    new_value[copy(k)] = copy(v)
+    new_value[k] = v
   end
 
   return new_value

@@ -35,7 +35,7 @@ fn module::put-module name id module {
   let modules = module.modules
     |> map::put name id
 
-  module::with-modules modules module
+  module with { modules: modules }
 }
 
 fn module::get-body name module -> map::get name module.bodies
@@ -43,55 +43,5 @@ fn module::put-body name id module {
   let bodies = module.bodies
     |> map::put name id
 
-  module::with-bodies bodies module
-}
-
-fn module::with-modules modules module {
-  module {
-    modules:  modules
-    types:    module.types
-    bodies:   module.bodies
-    variants: module.variants
-    imports:  module.imports
-  }
-}
-
-fn module::with-types types module {
-  module {
-    modules:  module.modules
-    types:    types
-    bodies:   module.bodies
-    variants: module.variants
-    imports:  module.imports
-  }
-}
-
-fn module::with-bodies bodies module {
-  module {
-    modules:  module.modules
-    types:    module.types
-    bodies:   bodies
-    variants: module.variants
-    imports:  module.imports
-  }
-}
-
-fn module::with-variants variants module {
-  module {
-    modules:  module.modules
-    types:    module.types
-    bodies:   module.bodies
-    variants: variants
-    imports:  module.imports
-  }
-}
-
-fn module::with-imports imports module {
-  module {
-    modules:  module.modules
-    types:    module.types
-    bodies:   module.bodies
-    variants: module.variants
-    imports:  imports
-  }
+  module with { bodies: bodies }
 }

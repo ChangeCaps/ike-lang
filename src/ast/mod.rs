@@ -28,6 +28,7 @@ pub enum ExprKind {
     Path(Path),
     Let(Pattern, Box<Expr>),
     Record(Path, Vec<(String, Expr, Span)>),
+    With(Box<Expr>, Vec<(String, Expr, Span)>),
     List(Vec<Expr>, Option<Box<Expr>>),
     Tuple(Vec<Expr>),
     Lambda(Vec<Pattern>, Box<Expr>),
