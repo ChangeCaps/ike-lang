@@ -7,6 +7,9 @@ import std::string
 import std::none
 import std::some
 import std::option
+import std::result
+import std::ok
+import std::err
 
 type kind = error diagnostic
           | file
@@ -75,6 +78,119 @@ type kind = error diagnostic
           | expr::paren
           | expr::block
 
+type tree = {
+  kind:     kind
+  children: [child]
+  span:     span
+}
+
+type child = token token, span
+           | tree tree
+
+fn child::span child {
+  match child {
+    token (_, span) -> span
+    tree ast        -> ast.span
+  }
+}
+
+fn tokens : tree -> [token]
+fn tokens ast {
+  ast.children
+    |> list::filter-map |child| {
+      match child {
+        token (t, _) -> some t
+        tree         -> none
+      }
+    }
+}
+
+fn trees : tree -> [tree]
+fn trees ast {
+  ast.children
+    |> list::filter-map |child| {
+      match child {
+        token    -> none
+        tree ast -> some ast
+      }
+    }
+}
+
+fn assert : kind -> tree -> {}
+fn assert kind ast { 
+  ast.kind == kind
+    |> std::assert "invalid ast, expected {kind}"
+}
+
+fn nth n ast {
+  ast.children
+    |> list::nth n
+    |> option::assert
+}
+
+fn nth-tree n ast {
+  ast
+    |> trees
+    |> list::nth n
+    |> option::assert
+}
+
+fn first-error : tree -> result {} diagnostic
+fn first-error ast {
+  match errors ast {
+    []      -> ok {}
+    [e; ..] -> err e
+  }
+}
+
+fn errors : tree -> [diagnostic]
+fn errors ast {
+  let kind = match ast.kind {
+    error e -> [e]
+    _       -> []
+  }
+
+  ast.children
+    |> list::map |child| {
+      match child {
+        token    -> []
+        tree ast -> errors ast
+      }
+    }
+    |> list::flatten
+    |> list::prepend kind
+}
+
+fn format : tree -> str
+fn format ast {
+  format-rec ast 0
+}
+
+fn format-rec ast indent {
+  let indent' = string::repeat indent " "
+  let kind = match ast.kind {
+    error e -> "{indent'}error \"{e.message}\""
+    kind    -> "{indent'}{ast.kind}"
+  }
+
+  ast.children
+    |> list::filter |child| {
+      match child {
+        token (token::whitespace, _) -> false
+        token (token::comment,    _) -> false
+        _ -> true
+      }
+    }
+    |> list::foldl kind |acc child| {
+      let child = match child {
+        token (t, _) -> "{indent'}  {t}"
+        tree ast -> format-rec ast (indent + 2)
+      }
+
+      "{acc}\n{child}"
+    }
+}
+
 fn kind::is-item kind {
   match kind {
     item::import     -> true
@@ -142,78 +258,4 @@ fn kind::is-expr kind {
     expr::block      -> true
     _ -> false
   }
-}
-
-type tree = {
-  kind:     kind
-  children: [child]
-}
-
-type child = token token, span
-           | tree tree
-
-fn span : tree -> option span
-fn span ast {
-  ast.children
-    |> list::foldl none |acc child| {
-      let child-span = match child {
-        token (_, span) -> some span
-        tree ast        -> span ast
-      }
-
-      match acc, child-span {
-        some a, some b -> span::join a b |> some
-        some a, none   -> some a
-        none,   some b -> some b
-        none,   none   -> none
-      }
-    }
-}
-
-fn errors : tree -> [diagnostic]
-fn errors ast {
-  let kind = match ast.kind {
-    error e -> [e]
-    _       -> []
-  }
-
-  ast.children
-    |> list::map |child| {
-      match child {
-        token _  -> []
-        tree ast -> errors ast
-      }
-    }
-    |> list::flatten
-    |> list::prepend kind
-}
-
-fn format : tree -> str
-fn format ast {
-  format-rec ast 0
-}
-
-fn format-rec ast indent {
-  let indent' = string::repeat indent " "
-  let kind = match ast.kind {
-    error e -> "{indent'}error \"{e.message}\""
-    kind    -> "{indent'}{ast.kind}"
-  }
-
-  ast.children
-    |> list::filter |child| {
-      match child {
-        token (token::whitespace, _) -> false
-        token (token::comment,    _) -> false
-        _ -> true
-      }
-    }
-    |> list::foldl kind |acc child| {
-      let child = match child {
-        token (t, _) -> "{indent'}  {t}"
-        tree ast -> format-rec ast (indent + 2)
-      }
-
-      "{acc}\n{child}"
-    }
 }

@@ -12,12 +12,18 @@ fn option::expect msg opt {
 }
 
 fn option::map : ('a -> 'b) -> option 'a -> option 'b
-fn option::map f opt {
+fn option::map f -> option::then |a| some (f a)
+
+fn option::then : ('a -> option 'b) -> option 'a -> option 'b
+fn option::then f opt {
   match opt {
-    some a -> some (f a)
+    some a -> f a 
     none   -> none
   }
 }
+
+fn option::apply : 'a -> option ('a -> 'b) -> option 'b
+fn option::apply a -> option::map |f| f a
 
 fn option::some-or : 'a -> option 'a -> 'a
 fn option::some-or a opt {
@@ -40,6 +46,14 @@ fn option::or-else f opt {
   match opt {
     some a -> some a
     none   -> (f {})
+  }
+}
+
+fn option::is-some : option 'a -> bool
+fn option::is-some opt {
+  match opt {
+    some a -> true
+    none   -> false
   }
 }
 

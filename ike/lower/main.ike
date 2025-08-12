@@ -1,0 +1,169 @@
+import std::some
+import std::none
+import std::list
+import std::option
+import std::assert
+import std::map
+import std::string
+
+import ike::ast
+import ike::ir
+import ike::ir::uir
+import ike::diagnostic
+import ike::parse::token
+
+type lcx = {
+  uir:         uir::program
+  diagnostics: [diagnostic]
+}
+
+fn lcx : lcx
+fn lcx {
+  lcx {
+    uir:         uir::program
+    diagnostics: []
+  }
+}
+
+fn lcx::with-uir uir lcx {
+  lcx {
+    uir:         uir
+    diagnostics: lcx.diagnostics
+  }
+}
+
+fn lcx::with-diagnostic diagnostic lcx {
+  lcx {
+    uir:         lcx.uir
+    diagnostics: [diagnostic; ..lcx.diagnostics]
+  }
+}
+
+fn lcx::map-uir f lcx -> lcx::with-uir (f lcx.uir) lcx
+
+fn create-module : uir::module::id -> [str] -> lcx -> uir::module::id, lcx
+fn create-module id path lcx {
+  match path {
+    []             -> id, lcx
+    [name; ..path] -> {
+      let mod = lcx.uir
+        |> uir::program::module id
+        |> uir::module::get-module name
+      
+      match mod {
+        some id -> create-module id path lcx
+        none    -> {
+          let new-id, uir = lcx.uir
+            |> uir::program::add-module uir::module 
+
+          let mod = uir
+            |> uir::program::module id
+            |> uir::module::put-module name new-id
+
+          let uir = uir
+            |> uir::program::set-module id mod
+
+          new-id, lcx::with-uir uir lcx
+        }
+      }
+    }
+  }
+}
+
+fn add-file : [str] -> ast::tree -> lcx -> lcx
+fn add-file path ast lcx {
+  let mod, lcx = create-module uir::module::root path lcx
+
+  add-file-rec mod (ast::trees ast) lcx
+}
+
+fn add-file-rec mod items lcx {
+  match items {
+    []              -> lcx
+    [item; ..items] -> {
+      let lcx = match item.kind {
+        ast::item::function -> add-file::function mod item lcx
+        ast::item::import   -> add-file::import mod item lcx
+        kind -> std::panic "invalid ast {kind}"
+      }
+
+      add-file-rec mod items lcx
+    }
+  }
+}
+
+fn add-file::import mod ast lcx {
+  lcx
+}
+
+fn add-file::function mod ast lcx {
+  let ast-path = ast::nth-tree 0 ast
+  let path = path ast-path
+
+  let body = ir::body {
+    path:   path
+    locals: map
+    inputs: []
+    expr:   uir::expr::dummy
+    type:   uir::type::dummy
+  }
+
+  let id, uir = lcx.uir
+    |> uir::program::add-body body
+
+  let mod-id, lcx = lcx::with-uir uir lcx
+    |> create-module mod path
+
+  let existing = lcx.uir
+    |> uir::program::module mod-id
+    |> uir::module::get-body
+      <| path::name path
+
+  match existing {
+    some -> {
+      let diagnostic = diagnostic::error "duplicate function `{path::format path}`"
+        |> diagnostic::with-label ast-path.span "here"
+
+      lcx::with-diagnostic diagnostic lcx
+    }
+
+    none -> {
+      let mod = lcx.uir
+        |> uir::program::module mod-id
+        |> uir::module::put-body
+          <| path::name path
+          <| id
+
+      let uir = lcx.uir
+        |> uir::program::set-module mod-id mod
+
+      lcx::with-uir uir lcx
+    }
+  }
+}
+
+fn path ast {
+  ast::assert ast::path ast
+
+  ast::tokens ast
+    |> list::filter-map |token| {
+      match token {
+        token::ident s -> some s
+        _              -> none
+      }
+    }
+}
+
+fn path::format path -> string::join "::" path
+fn path::name path -> list::last path |> option::assert
+fn path::mods path -> list::take (list::len path - 1) path
+
+fn lower : lcx -> uir::program, [diagnostic]
+fn lower lcx {
+  lcx
+    |> lower::import-root-modules
+}
+
+fn lower::import-root-modules lcx {
+  std::todo "{lcx}" 
+}

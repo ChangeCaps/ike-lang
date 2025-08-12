@@ -1,0 +1,22 @@
+import std::map
+
+type body 'type = {
+  path:   [str]
+  locals: map int (local 'type)
+  inputs: [pattern 'type]
+  expr:   expr 'type
+  type:   'type
+}
+
+type body::id 'type = {
+  index: int
+}
+
+type local 'type = {
+  name: str
+  type: 'type
+}
+
+type local::id 'type = {
+  index: int
+}

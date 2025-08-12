@@ -1,25 +1,6 @@
-import std::string
-import std::io
-import std::list
-
 fn main {
-  let file = file::new "test.ike"
-  let ts, diagnostics = parse::tokenize file 
-    <| (file |> file::read |> std::result::assert)
-
-  diagnostics
-    |> list::map diagnostic::format
-    |> list::foldl "" string::append
-    |> io::print
-
-  let ast = parse::parser::new ts
-    |> parse::file
-    |> parse::finish
-
-  ast |> ast::format |> io::println
-
-  ast::errors ast
-    |> list::map diagnostic::format
-    |> list::foldl "" string::append
-    |> io::print
+  std::set
+    |> std::set::put 0
+    |> std::set::remove 0
+    |> std::debug::print
 }

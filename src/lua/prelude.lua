@@ -14,6 +14,10 @@ local function isChannel(value)
   return type(value) == "table" and value.__channel
 end
 
+local function isMap(value)
+  return type(value) == "table" and value.__map
+end
+
 local function toList(value)
   local result = { __list = true }
 
@@ -57,6 +61,20 @@ local function equal(a, b)
   end
 end
 
+local function toKey(value)
+  if type(value) == "table" then
+    local key = ""
+
+    for k, v in pairs(value) do
+      key = key .. "," .. toKey(k) .. "=" .. toKey(v)
+    end
+
+    return key
+  else
+    return tostring(value)
+  end
+end
+
 local function toString(value, no_quote_strings)
   if isList(value) then
     local result = "["
@@ -95,6 +113,20 @@ local function toString(value, no_quote_strings)
     return result
   elseif isChannel(value) then
     return "channel"
+  elseif isMap(value) then
+    local result = "{ "
+
+    for k, v in pairs(value) do
+      if type(v) == "table" then
+        result = result .. toString(v[1]) .. ": " .. toString(v[2])
+
+        if next(value, k) then
+          result = result .. "; "
+        end
+      end
+    end
+
+    return result .. " }"
   elseif type(value) == "table" then
     if value.file ~= nil and value.start ~= nil and value["end"] ~= nil then
       return string.format("%s:%d..%d", value.file.path, value.start, value["end"])
@@ -103,7 +135,7 @@ local function toString(value, no_quote_strings)
     local result = "{ "
 
     for k, v in pairs(value) do
-      result = result .. k .. ": " .. toString(v)
+      result = result .. toString(k) .. ": " .. toString(v)
 
       if next(value, k) then
         result = result .. "; "
@@ -124,6 +156,18 @@ local function toString(value, no_quote_strings)
   else
     return tostring(value)
   end
+end
+
+local function copy(value)
+  if type(value) ~= "table" then return value end
+
+  local new_value = {}
+
+  for k, v in pairs(value) do
+    new_value[copy(k)] = copy(v)
+  end
+
+  return new_value
 end
 
 local E = {}
@@ -362,6 +406,54 @@ E["std::await"] = function()
     local _, result = coroutine.resume(task)
 
     return result
+  end
+end
+
+E["std::map"] = function()
+  return { __map = true, __len = 0 }
+end
+
+E["std::map::put"] = function()
+  return function(key)
+    return function(value)
+      return function(map)
+        map = copy(map)
+        map[toKey(key)] = { key, value }
+        map.__len = map.__len + 1
+        return map
+      end
+    end
+  end
+end
+
+E["std::map::get"] = function()
+  return function(key)
+    return function(map)
+      local value = map[toKey(key)]
+
+      if value == nil then
+        return { tag = "none" }
+      else
+        return { tag = "some", value = value[2] }
+      end
+    end
+  end
+end
+
+E["std::map::remove"] = function()
+  return function(key)
+    return function(map)
+      map = copy(map)
+      map[toKey(key)] = nil
+      map.__len = map.__len - 1
+      return map
+    end
+  end
+end
+
+E["std::map::len"] = function()
+  return function(map)
+    return map.__len
   end
 end
 

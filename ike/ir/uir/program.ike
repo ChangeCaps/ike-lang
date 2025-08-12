@@ -1,0 +1,119 @@
+import std::map
+import std::option
+import std::some
+import std::none
+
+import ike::ir
+import ike::span
+
+alias body = ir::body type
+alias local = ir::local type
+
+alias body::id = ir::body::id type
+alias local::id = ir::local::id type
+
+alias expr = ir::expr type
+alias pattern = ir::pattern type
+
+fn expr::dummy {
+  ir::expr {
+    kind: ir::expr::record []
+    span: span::dummy
+    type: type::dummy
+  }
+}
+
+type program = {
+  modules: map int module
+  bodies:  map int (ir::body type)
+  tcx:     tcx
+}
+
+fn program : program
+fn program {
+  program {
+    modules: map::put module::root.index module map
+    bodies:  map
+    tcx:     tcx
+  }
+}
+
+fn program::add-body : body -> program -> body::id, program
+fn program::add-body body program {
+  let index = map::len program.bodies
+
+  let program = program {
+    modules: program.modules
+    bodies:  map::put index body program.bodies
+    tcx:     program.tcx
+  }
+
+  ir::body::id { index: index }, program
+}
+
+fn program::set-body : body::id -> body -> program -> program
+fn program::set-body id body program {
+  program {
+    modules: program.modules
+    bodies:  map::put id.index body program.bodies
+    tcx:     program.tcx
+  }
+}
+
+fn program::body : body::id -> program -> body
+fn program::body id program {
+  program.bodies
+    |> map::get id.index
+    |> option::expect "malformed body::id"
+}
+
+fn program::add-module : module -> program -> module::id, program
+fn program::add-module module program {
+  let index = map::len program.modules
+
+  let program = program {
+    modules: map::put index module program.modules
+    bodies:  program.bodies
+    tcx:     program.tcx
+  }
+
+  module::id { index: index }, program
+}
+
+fn program::set-module : module::id -> module -> program -> program
+fn program::set-module id module program {
+  program {
+    modules: map::put id.index module program.modules
+    bodies:  program.bodies
+    tcx:     program.tcx
+  }
+}
+
+fn program::module : module::id -> program -> module
+fn program::module id program {
+  program.modules
+    |> map::get id.index
+    |> option::expect "malformed module::id"
+}
+
+fn program::get-module : module::id -> [str] -> program -> option module::id
+fn program::get-module id names program {
+  match names {
+    []              -> some id
+    [name; ..names] -> {
+      program
+        |> program::module id
+        |> module::get-module name
+        |> option::then |id| program::get-module id names program
+    }
+  }
+}
+
+fn map-tcx : (tcx -> tcx) -> program -> program
+fn map-tcx f program {
+  program {
+    modules: program.modules
+    bodies:  program.bodies
+    tcx:     f program.tcx
+  }
+}

@@ -1,0 +1,206 @@
+import ike::diagnostic
+
+import std::map
+import std::set
+import std::option
+
+type tcx = {
+  records: map int record
+  unions:  map int union
+  aliases: map int alias  
+  bounds:  map int bounds
+  subst:   map int type
+  cache:   set (type, type)
+  errors:  [diagnostic]
+}
+
+type bounds = {
+  number: bool
+  fields: map str type
+}
+
+type record = {
+  name:     str
+  generics: [str, var]
+  fields:   [str, type]
+}
+
+type union = {
+  name:     str
+  generics: [str, var]
+  variants: [str, option type]
+}
+
+type alias = {
+  name:     str
+  generics: [str, var]
+  type:     type
+}
+
+type record::id = { index: int }
+type union::id  = { index: int }
+type alias::id  = { index: int }
+
+fn tcx : tcx
+fn tcx {
+  tcx {
+    records: map
+    unions:  map
+    aliases: map
+    bounds:  map
+    subst:   map
+    cache:   set
+    errors:  []
+  }
+}
+
+fn tcx::add-record : record -> tcx -> record::id, tcx
+fn tcx::add-record record tcx {
+  let index = map::len tcx.records
+  let tcx = tcx {
+    records: map::put index record tcx.records
+    unions:  tcx.unions
+    aliases: tcx.aliases
+    bounds:  tcx.bounds
+    subst:   tcx.subst
+    cache:   tcx.cache
+    errors:  tcx.errors
+  }
+
+  record::id { index: index }, tcx
+}
+
+fn tcx::add-union : union -> tcx -> union::id, tcx
+fn tcx::add-union union tcx {
+  let index = map::len tcx.unions
+  let tcx = tcx {
+    records: tcx.records
+    unions:  map::put index union tcx.unions
+    aliases: tcx.aliases
+    bounds:  tcx.bounds
+    subst:   tcx.subst
+    cache:   tcx.cache
+    errors:  tcx.errors
+  }
+
+  union::id { index: index }, tcx
+}
+
+fn tcx::add-alias : alias -> tcx -> alias::id, tcx
+fn tcx::add-alias alias tcx {
+  let index = map::len tcx.aliases
+  let tcx = tcx {
+    records: tcx.records
+    unions:  tcx.unions
+    aliases: map::put index alias tcx.aliases
+    bounds:  tcx.bounds
+    subst:   tcx.subst
+    cache:   tcx.cache
+    errors:  tcx.errors
+  }
+
+  alias::id { index: index }, tcx
+}
+
+fn tcx::record : record::id -> tcx -> record
+fn tcx::record id tcx {
+  tcx.records
+    |> map::get id.index
+    |> option::expect "malformed record::id"
+}
+
+fn tcx::union : union::id -> tcx -> union
+fn tcx::union id tcx {
+  tcx.unions
+    |> map::get id.index
+    |> option::expect "malformed union::id"
+}
+
+fn tcx::alias : alias::id -> tcx -> alias
+fn tcx::alias id tcx {
+  tcx.aliases
+    |> map::get id.index
+    |> option::expect "malformed alias::id"
+}
+
+fn tcx::set-bounds : var -> bounds -> tcx -> tcx
+fn tcx::set-bounds var bounds tcx {
+  let bounds = tcx.bounds
+    |> map::put var.index bounds
+
+  tcx {
+    records: tcx.records
+    unions:  tcx.unions
+    aliases: tcx.aliases
+    bounds:  bounds
+    subst:   tcx.subst
+    cache:   tcx.cache
+    errors:  tcx.errors
+  }
+}
+
+fn tcx::bounds : var -> tcx -> bounds
+fn tcx::bounds var tcx {
+  tcx.bounds
+    |> map::get var.index
+    |> option::some-or bounds::default
+}
+
+fn tcx::add-subst : var -> type -> tcx -> tcx
+fn tcx::add-subst var type tcx {
+  let subst = tcx.subst
+    |> map::put var.index type
+
+  tcx {
+    records: tcx.records
+    unions:  tcx.unions
+    aliases: tcx.aliases
+    bounds:  tcx.bounds
+    subst:   subst
+    cache:   tcx.cache
+    errors:  tcx.errors
+  }
+}
+
+fn tcx::subst : var -> tcx -> option type
+fn tcx::subst var tcx -> map::get var.index tcx.subst
+
+fn tcx::cache : type -> type -> tcx -> tcx
+fn tcx::cache lhs rhs tcx {
+  let cache = tcx.cache
+    |> set::put (lhs, rhs)
+
+  tcx {
+    records: tcx.records
+    unions:  tcx.unions
+    aliases: tcx.aliases
+    bounds:  tcx.bounds
+    subst:   tcx.subst
+    cache:   cache
+    errors:  tcx.errors
+  }
+}
+
+fn tcx::cached : type -> type -> tcx -> bool
+fn tcx::cached lhs rhs tcx -> set::has (lhs, rhs) tcx.cache
+
+fn tcx::error : diagnostic -> tcx -> tcx
+fn tcx::error diagnostic tcx {
+  tcx {
+    records: tcx.records
+    unions:  tcx.unions
+    aliases: tcx.aliases
+    bounds:  tcx.bounds
+    subst:   tcx.subst
+    cache:   tcx.cache
+    errors:  [diagnostic; ..tcx.errors]
+  }
+}
+
+fn bounds::default : bounds
+fn bounds::default {
+  bounds {
+    number: false
+    fields: map
+  }
+}

@@ -85,6 +85,10 @@ impl TypeContext {
             }) => {
                 let newtype = &self[tid];
 
+                if let NewtypeKind::Alias(ref alias) = newtype.kind {
+                    return self.field(alias.clone(), name, ty, span);
+                }
+
                 let NewtypeKind::Record(record) = &newtype.kind else {
                     let diagnostic = Diagnostic::error(format!(
                         "type `{}` does not support fields",

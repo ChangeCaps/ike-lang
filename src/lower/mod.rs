@@ -982,7 +982,17 @@ impl ExprLowerer<'_, '_> {
 
                 let newtype = self.ir.tcx[tid].clone();
                 let ir::NewtypeKind::Record(record) = newtype.kind else {
-                    unreachable!();
+                    let found = match newtype.kind {
+                        ir::NewtypeKind::Record(_) => "record",
+                        ir::NewtypeKind::Union(_) => "union",
+                        ir::NewtypeKind::Alias(_) => "alias",
+                    };
+
+                    let diagnostic = Diagnostic::error(format!("expected record, found `{found}`"))
+                        .with_label(path.span, "found here");
+
+                    self.lowerer.emitter.emit(diagnostic);
+                    return Err(LowerError);
                 };
 
                 let mut generics = Vec::new();

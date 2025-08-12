@@ -1,0 +1,20 @@
+import std::option
+
+type pattern 'type = {
+  kind: pattern::kind 'type
+  span: span
+}
+
+type pattern::kind 'type = wildcard
+                         | binding (local::id 'type)
+                         | tuple [pattern 'type]
+                         | integer int
+                         | boolean bool
+                         | string str
+                         | variant pattern::variant 'type
+
+type pattern::variant 'type = {
+  type:    'type
+  variant: str 
+  body:    option (pattern 'type)
+}

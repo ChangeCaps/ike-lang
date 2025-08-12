@@ -26,5 +26,11 @@ fn string::repeat n s {
 }
 
 /// Join a list of strings into a single string.
-fn string::join : [str] -> str
-fn string::join xs -> list::foldl "" string::prepend xs
+fn string::join : str -> [str] -> str
+fn string::join sep xs {
+  match xs {
+    []        -> ""
+    [x]       -> x
+    [x; ..xs] -> "{x}{sep}{string::join sep xs}"
+  }
+}

@@ -12,11 +12,21 @@ type file = {
 
 fn file::new path -> file { path: path }
 fn file::read file -> fs::read file.path
+fn file::dummy -> file::new "<dummy>"
 
 type span = {
   file:  file
   start: int
   end:   int
+}
+
+fn span::dummy : span
+fn span::dummy {
+  span {
+    file:  file::dummy
+    start: 0
+    end:   0
+  }
 }
 
 fn span::info : span -> str -> span::info

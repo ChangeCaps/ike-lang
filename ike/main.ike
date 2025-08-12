@@ -3,7 +3,7 @@ import std::io
 import std::list
 
 fn main {
-  let file = file::new "ike/parse/tokenize.ike"
+  let file = file::new "test.ike"
   let ts, diagnostics = parse::tokenize file 
     <| (file |> file::read |> std::result::assert)
 
@@ -16,10 +16,10 @@ fn main {
     |> parse::file
     |> parse::finish
 
-  ast |> ast::format |> io::println
+  ast::format ast
+    |> std::io::println
 
-  ast::errors ast
-    |> list::map diagnostic::format
-    |> list::foldl "" string::append
-    |> io::print
+  let lcx = lower::lcx
+    |> lower::add-file ["test"] ast 
+    |> lower::lower
 }

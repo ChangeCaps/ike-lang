@@ -13,9 +13,12 @@ type parser = {
 
 fn parser::new : tokens -> parser
 fn parser::new tokens {
+  let _, span = list::first tokens |> option::assert
+
   let tree = ast::tree {
     kind:     ast::file
     children: []
+    span:     span
   }
 
   parser {
@@ -52,9 +55,16 @@ fn parser::pop-child parser {
   let child, children = list::pop tree.children
     |> option::expect "parser::pop-stack children empty"
 
+  let child-span = ast::child::span child
+
   let tree = ast::tree {
     kind:     tree.kind
     children: children
+    span:     span {
+      file:  tree.span.file
+      start: tree.span.start
+      end:   child-span.start
+    }
   }
 
   child, parser::push-stack tree parser
@@ -68,6 +78,7 @@ fn parser::push-child child parser {
   let tree = ast::tree {
     kind:     tree.kind
     children: [child; ..tree.children]
+    span:     span::join (ast::child::span child) tree.span
   }
 
   parser {
@@ -93,9 +104,16 @@ fn open kind parser {
   match parser::should-skip token {
     true  -> parser |> advance-one |> open kind
     false -> {
+      let span = span parser
+
       let tree = ast::tree {
         kind:     kind
         children: [] 
+        span:     span {
+          file:  span.file
+          start: span.start
+          end:   span.start
+        }
       }
 
       parser {
@@ -122,6 +140,7 @@ fn finish parser {
   ast::tree {
     kind:     tree.kind
     children: list::reverse tree.children
+    span:     tree.span
   }
 }
 
@@ -132,6 +151,7 @@ fn close parser {
   let child = ast::tree ast::tree {
     kind:     tree.kind
     children: list::reverse tree.children
+    span:     tree.span
   }
 
   parser::push-child child parser
@@ -144,6 +164,7 @@ fn close-with kind parser {
   let child = ast::tree ast::tree {
     kind:     kind
     children: list::reverse tree.children
+    span:     tree.span
   }
 
   parser::push-child child parser

@@ -320,10 +320,12 @@ fn expr::block-recovery token {
 }
 
 fn expr::lambda allow-block parser {
-  parser
+  let parser = parser
     |> open ast::expr::lambda
     |> expr::lambda::params
-    |> expr::tuple allow-block
+
+  parser
+    |> expr <| allow-block and peek parser == token::open-brace
     |> close
 }
 
@@ -546,7 +548,7 @@ fn expr::pipe-right-rec allow-block parser {
     false -> parser
     true  -> {
       parser
-        |> open-before ast::expr::pipe-left
+        |> open-before ast::expr::pipe-right
         |> eat-newlines
         |> expect token::pipegt
         |> expr::pipe-left allow-block

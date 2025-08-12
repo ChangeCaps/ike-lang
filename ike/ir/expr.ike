@@ -1,0 +1,45 @@
+import ike::span
+
+type expr 'type = {
+  kind: expr::kind 'type
+  span: span
+  type: 'type
+}
+
+type expr::kind 'type = integer int
+                      | boolean bool
+                      | string str
+                      | format [expr 'type]
+                      | local local::id 'type
+                      | body body::id 'type
+                      | let_ pattern 'type, expr 'type
+                      | variant int, option (expr 'type)
+                      | list-empty
+                      | list-cons expr 'type, expr 'type
+                      | tuple [expr 'type]
+                      | record [str, expr 'type]
+                      | try_ [expr 'type]
+                      | call expr 'type, expr 'type
+                      | binary expr::binop, expr 'type, expr 'type
+                      | match_ expr 'type, [expr::arm 'type]
+                      | field expr 'type, str
+                      | block [expr 'type]
+
+type expr::binop = add
+                 | sub
+                 | mul
+                 | div
+                 | mod
+                 | and_
+                 | or_
+                 | gt
+                 | lt
+                 | ge
+                 | le
+                 | eq
+                 | ne
+
+type expr::arm 'type = {
+  pattern: pattern 'type
+  expr:    expr 'type
+}

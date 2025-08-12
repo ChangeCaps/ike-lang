@@ -1,0 +1,32 @@
+import ike::span
+
+type type = {
+  kind: type::kind
+  span: span
+}
+
+type type::kind = var var
+                | app app
+
+type var = {
+  index:   int
+  generic: bool
+}
+
+type app = app::integer
+         | app::string
+         | app::boolean
+         | app::unit
+         | app::list type
+         | app::tuple [type]
+         | app::function type, type
+         | app::record record::id, [type]
+         | app::union  union::id, [type]
+         | app::alias  alias::id, [type]
+
+fn type::dummy {
+  type {
+    kind: type::app app::unit
+    span: span::dummy
+  }
+}
