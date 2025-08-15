@@ -40,6 +40,7 @@ type token = token::unknown str
            | token::or_
            | token::str_
            | token::match_
+           | token::with_
 
            // two-character symbols
            | token::dotdot

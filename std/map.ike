@@ -5,6 +5,15 @@ extern map::len : map 'k 'v -> int
 extern map::put : 'k -> 'v -> map 'k 'v -> map 'k 'v
 extern map::get : 'k -> map 'k 'v -> option 'v
 extern map::remove : 'k -> map 'k 'v -> map 'k 'v
+extern map::list : map 'k 'v -> ['k, 'v]
 
 fn map::has : 'k -> map 'k 'v -> bool
 fn map::has key map -> map::get key map |> option::is-some
+
+fn map::map : 'k -> ('v -> 'v) -> map 'k 'v -> map 'k 'v
+fn map::map key f map {
+  match map::get key map {
+    some v -> map::put key (f v) map
+    none   -> map
+  }
+}

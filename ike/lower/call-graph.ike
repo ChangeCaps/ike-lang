@@ -1,0 +1,8 @@
+import std::map
+import std::set
+
+import ike::ir::uir
+
+alias call-graph = map uir::body::id (set uir::body::id)
+
+fn call-graph -> map

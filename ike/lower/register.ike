@@ -1,0 +1,132 @@
+import ike::ir::uir
+import ike::ast
+
+fn create-module : uir::module::id -> [str] -> lcx -> uir::module::id, lcx
+fn create-module id path lcx {
+  match path {
+    []             -> id, lcx
+    [name; ..path] -> {
+      let mod = lcx.uir
+        |> uir::program::module id
+        |> uir::module::get-module name
+      
+      match mod {
+        some id -> create-module id path lcx
+        none    -> {
+          let new-id, uir = lcx.uir
+            |> uir::program::add-module uir::module 
+
+          let mod = uir
+            |> uir::program::module id
+            |> uir::module::put-module name new-id
+            
+          new-id, lcx with {
+            uir: uir::program::set-module id mod uir
+          }
+        }
+      }
+    }
+  }
+}
+
+fn add-file : [str] -> ast::tree -> lcx -> lcx
+fn add-file path ast lcx {
+  let mod, lcx = create-module uir::module::root path lcx
+
+  add-file-rec mod (ast::trees ast) lcx
+}
+
+fn add-file-rec mod items lcx {
+  match items {
+    []              -> lcx
+    [item; ..items] -> {
+      let lcx = match item.kind {
+        ast::item::import     -> add-file::import mod item lcx
+        ast::item::alias      -> add-file::alias mod item lcx
+        ast::item::function   -> add-file::function mod item lcx
+        ast::item::ascription -> add-file::ascription mod item lcx
+        ast::item::extern     -> add-file::extern mod item lcx
+        ast::item::type       -> add-file::type mod item lcx
+        kind -> std::panic "invalid ast {kind}"
+      }
+
+      add-file-rec mod items lcx
+    }
+  }
+}
+
+fn add-file::import mod-id ast lcx {
+  let ast-path = ast::nth-tree 1 ast
+
+  let path = path ast-path
+  let path-name = path::name path
+
+  let mod = uir::program::module mod-id lcx.uir
+    |> uir::module::put-import path-name path
+
+  lcx with {
+    uir: uir::program::set-module mod-id mod lcx.uir
+  }
+}
+
+fn add-file::function mod-id ast lcx {
+  let ast-path = ast::nth-tree 1 ast
+
+  let path = path ast-path
+  let path-name = path::name path
+  let path-mods = path::mods path
+
+  let body = ir::body {
+    path:   path
+    locals: map
+    inputs: []
+    expr:   uir::expr::dummy
+    type:   uir::type::dummy
+  }
+
+  let id, uir = lcx.uir
+    |> uir::program::add-body body
+
+  let body-mod-id, lcx = create-module mod-id path-mods lcx
+
+  let existing = lcx.uir
+    |> uir::program::module body-mod-id
+    |> uir::module::get-body path-name
+
+  match existing {
+    some -> {
+      let diagnostic = diagnostic::error "duplicate function `{path::format path}`"
+        |> diagnostic::with-label ast-path.span "here"
+
+      lcx::with-diagnostic diagnostic lcx
+    }
+
+    none -> {
+      let mod = lcx.uir
+        |> uir::program::module body-mod-id
+        |> uir::module::put-body path-name id
+
+      lcx with {
+        uir: uir::program::set-module body-mod-id mod lcx.uir
+      }
+    }
+  }
+}
+
+fn add-file::type mod-id ast lcx {
+  let ast-path = ast::nth-tree 1 ast
+
+  std::todo "add-file::type"
+}
+
+fn add-file::extern mod-id ast lcx {
+  std::todo "add-file::extern"
+}
+
+fn add-file::alias mod-id ast lcx {
+  std::todo "add-file::alias"
+}
+
+fn add-file::ascription mod-id lcx {
+  std::todo "add-file::ascription"
+}

@@ -32,16 +32,21 @@ fn module {
 
 fn module::get-module name module -> map::get name module.modules
 fn module::put-module name id module {
-  let modules = module.modules
-    |> map::put name id
-
-  module with { modules: modules }
+  module with {
+    modules: map::put name id module.modules
+  }
 }
 
 fn module::get-body name module -> map::get name module.bodies
 fn module::put-body name id module {
-  let bodies = module.bodies
-    |> map::put name id
+  module with {
+    bodies: map::put name id module.bodies
+  }
+}
 
-  module with { bodies: bodies }
+fn module::get-import name module -> map::get name module.imports
+fn module::put-import name path module {
+  module with {
+    imports: map::put name path module.imports
+  }
 }

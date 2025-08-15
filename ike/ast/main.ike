@@ -63,6 +63,8 @@ type kind = error diagnostic
           | expr::let_
           | expr::record
           | expr::record::field
+          | expr::with_
+          | expr::with_::field
           | expr::list
           | expr::tuple
           | expr::lambda
@@ -124,15 +126,29 @@ fn assert kind ast {
 
 fn nth n ast {
   ast.children
+    |> list::filter |c| {
+      match c {
+        token (token::whitespace, _) -> false
+        token (token::comment,    _) -> false
+        _ -> true
+      }
+    }
     |> list::nth n
     |> option::assert
 }
 
 fn nth-tree n ast {
-  ast
-    |> trees
-    |> list::nth n
-    |> option::assert
+  match nth n ast {
+    tree ast -> ast
+    token t  -> std::panic "nth-tree #{n} was not a tree, but `{t}`"
+  }
+}
+
+fn nth-token n ast {
+  match nth n ast {
+    token t  -> t
+    tree ast -> std::panic "nth-token #{n} was not a token, but `{ast.kind}`"
+  }
 }
 
 fn first-error : tree -> result {} diagnostic
@@ -244,6 +260,7 @@ fn kind::is-expr kind {
     expr::path       -> true
     expr::let_       -> true
     expr::record     -> true
+    expr::with_      -> true
     expr::list       -> true
     expr::tuple      -> true
     expr::lambda     -> true

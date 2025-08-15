@@ -1,3 +1,7 @@
+import std::list
+
+type foo = {}
+
 fn main {
   std::set
     |> std::set::put 0

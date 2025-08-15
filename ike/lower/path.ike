@@ -1,0 +1,22 @@
+import std::string
+import std::list
+import std::option
+
+import ike::ast
+import ike::parse::token
+
+fn path ast {
+  ast::assert ast::path ast
+
+  ast::tokens ast
+    |> list::filter-map |token| {
+      match token {
+        token::ident s -> some s
+        _              -> none
+      }
+    }
+}
+
+fn path::format path -> string::join "::" path
+fn path::name path -> list::last path |> option::assert
+fn path::mods path -> list::take (list::len path - 1) path

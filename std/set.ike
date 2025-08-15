@@ -14,3 +14,6 @@ fn set::has key set -> map::has key set
 
 fn set::remove : 'k -> set 'k -> set 'k
 fn set::remove key set -> map::remove key set
+
+fn set::list : set 'k -> ['k]
+fn set::list set -> map::list set |> list::map |k, _| k

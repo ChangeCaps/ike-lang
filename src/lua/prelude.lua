@@ -457,4 +457,18 @@ E["std::map::len"] = function()
   end
 end
 
+E["std::map::list"] = function()
+  return function(map)
+    local list = { __list = true }
+
+    for _, v in pairs(map) do
+      if type(v) == "table" then
+        list = { __list = true, v[1], v[2] }
+      end
+    end
+
+    return list
+  end
+end
+
 local M = {}

@@ -302,6 +302,7 @@ fn lexer::ident ts lexer {
     "or"    -> token::or_
     "str"   -> token::str_
     "match" -> token::match_
+    "with"  -> token::with_
     _       -> token::ident ident
   }
 

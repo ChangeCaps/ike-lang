@@ -373,9 +373,42 @@ fn expr::field-rec parser {
   }
 }
 
+fn expr::with_ allow-block parser {
+  let parser = parser
+    |> expr::field allow-block
+
+  match peek parser {
+    token::with_ -> {
+      parser
+        |> open-before ast::expr::with_
+        |> expect token::open-brace
+        |> eat-newlines
+        |> expr::with-rec
+        |> expect token::close-brace
+        |> close
+    }
+
+    _ -> parser
+  }
+}
+
+fn expr::with-rec parser {
+  match peek parser {
+    token::open-brace -> parser
+    _ -> {
+      parser
+        |> open ast::expr::with_::field
+        |> expect-ident
+        |> expect token::semi
+        |> expr true
+        |> close
+    }
+  }
+}
+
 fn expr::call allow-block parser {
   parser 
-    |> expr::field allow-block
+    |> expr::with_ allow-block
     |> expr::call-rec allow-block
 }
 
@@ -385,7 +418,7 @@ fn expr::call-rec allow-block parser {
     true  -> {
       parser
         |> open-before ast::expr::call
-        |> expr::field allow-block
+        |> expr::with_ allow-block
         |> close
         |> expr::call-rec allow-block
     }
