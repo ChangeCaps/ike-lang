@@ -4,6 +4,7 @@ import std::option
 
 import ike::ast
 import ike::parse::token
+import ike::span
 
 fn path ast {
   ast::assert ast::path ast
@@ -17,6 +18,27 @@ fn path ast {
     }
 }
 
-fn path::format path -> string::join "::" path
+fn path::format path -> string::join "::" path.path
 fn path::name path -> list::last path |> option::assert
 fn path::mods path -> list::take (list::len path - 1) path
+
+type path-info = {
+  name: str
+  mods: [str]
+  path: [str]
+  span: span
+}
+
+fn path::info : ast::tree -> path-info
+fn path::info ast {
+  let path = path ast
+  let name = path::name path
+  let mods = path::mods path
+
+  path-info {
+    name: name
+    mods: mods
+    path: path
+    span: ast.span
+  }
+}

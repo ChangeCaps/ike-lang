@@ -6,6 +6,20 @@ import std::option
 
 fn pattern -> pattern::tuple
 
+fn pattern::first token {
+  match token {
+    token::under        -> true
+    token::ident        -> true
+    token::true_        -> true
+    token::false_       -> true
+    token::integer      -> true
+    token::string       -> true
+    token::open-paren   -> true
+    token::open-bracket -> true
+    _ -> false
+  }
+}
+
 fn pattern::tuple refutable parser {
   let parser = parser
     |> pattern::term refutable
@@ -53,20 +67,6 @@ fn pattern::term refutable parser {
         |> advance
         |> close
     }
-  }
-}
-
-fn pattern::first token {
-  match token {
-    token::under        -> true
-    token::ident        -> true
-    token::true_        -> true
-    token::false_       -> true
-    token::integer      -> true
-    token::string       -> true
-    token::open-paren   -> true
-    token::open-bracket -> true
-    _ -> false
   }
 }
 

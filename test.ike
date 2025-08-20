@@ -1,10 +1,11 @@
 import std::list
 
-type foo = {}
-
 fn main {
   std::set
     |> std::set::put 0
     |> std::set::remove 0
     |> std::debug::print
 }
+
+type bar = a | b
+type foo 'a 'b = {}

@@ -144,10 +144,10 @@ fn nth-tree n ast {
   }
 }
 
-fn nth-token n ast {
+fn nth-ident n ast {
   match nth n ast {
-    token t  -> t
-    tree ast -> std::panic "nth-token #{n} was not a token, but `{ast.kind}`"
+    token (token::ident i, _) -> some i
+    _                         -> none
   }
 }
 

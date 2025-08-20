@@ -37,6 +37,13 @@ fn module::put-module name id module {
   }
 }
 
+fn module::get-type name module -> map::get name module.types
+fn module::put-type name id module {
+  module with {
+    types: map::put name id module.types
+  }
+}
+
 fn module::get-body name module -> map::get name module.bodies
 fn module::put-body name id module {
   module with {

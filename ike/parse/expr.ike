@@ -344,11 +344,38 @@ fn expr::lambda::params-rec parser {
         |> expect token::pipe
     }
 
-    _ -> {
-      parser
-        |> pattern false
-        |> expr::lambda::params-rec
+    token -> {
+      match pattern::first token {
+        true -> {
+          parser
+            |> pattern false
+            |> expr::lambda::params-rec
+        }
+
+        false -> {
+          match expr::lambda::params-recovery token {
+            true  -> parser
+            false -> { 
+              let diagnostic = diagnostic::error "expected parameter"
+                |> diagnostic::with-label (span parser) "here"
+
+              parser
+                |> open (ast::error diagnostic)
+                |> advance
+                |> close
+                |> expr::block-rec
+            }
+          }
+        }
+      }
     }
+  }
+}
+
+fn expr::lambda::params-recovery token {
+  match token {
+    token::end-of-file -> true
+    _ -> expr::first true token or item::first token
   }
 }
 

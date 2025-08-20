@@ -19,22 +19,27 @@ type bounds = {
   fields: map str type
 }
 
+alias generics = [str, var, span]
+
 type record = {
-  name:     str
-  generics: [str, var]
+  path:     [str]
+  generics: generics
   fields:   [str, type]
+  span:     span
 }
 
 type union = {
-  name:     str
-  generics: [str, var]
+  path:     [str]
+  generics: generics
   variants: [str, option type]
+  span:     span
 }
 
 type alias = {
-  name:     str
-  generics: [str, var]
+  path:     [str]
+  generics: generics
   type:     type
+  span:     span
 }
 
 type record::id = { index: int }
@@ -57,14 +62,8 @@ fn tcx {
 fn tcx::add-record : record -> tcx -> record::id, tcx
 fn tcx::add-record record tcx {
   let index = map::len tcx.records
-  let tcx = tcx {
+  let tcx = tcx with {
     records: map::put index record tcx.records
-    unions:  tcx.unions
-    aliases: tcx.aliases
-    bounds:  tcx.bounds
-    subst:   tcx.subst
-    cache:   tcx.cache
-    errors:  tcx.errors
   }
 
   record::id { index: index }, tcx
@@ -73,14 +72,8 @@ fn tcx::add-record record tcx {
 fn tcx::add-union : union -> tcx -> union::id, tcx
 fn tcx::add-union union tcx {
   let index = map::len tcx.unions
-  let tcx = tcx {
-    records: tcx.records
+  let tcx = tcx with {
     unions:  map::put index union tcx.unions
-    aliases: tcx.aliases
-    bounds:  tcx.bounds
-    subst:   tcx.subst
-    cache:   tcx.cache
-    errors:  tcx.errors
   }
 
   union::id { index: index }, tcx
@@ -89,14 +82,8 @@ fn tcx::add-union union tcx {
 fn tcx::add-alias : alias -> tcx -> alias::id, tcx
 fn tcx::add-alias alias tcx {
   let index = map::len tcx.aliases
-  let tcx = tcx {
-    records: tcx.records
-    unions:  tcx.unions
+  let tcx = tcx with {
     aliases: map::put index alias tcx.aliases
-    bounds:  tcx.bounds
-    subst:   tcx.subst
-    cache:   tcx.cache
-    errors:  tcx.errors
   }
 
   alias::id { index: index }, tcx
@@ -128,15 +115,7 @@ fn tcx::set-bounds var bounds tcx {
   let bounds = tcx.bounds
     |> map::put var.index bounds
 
-  tcx {
-    records: tcx.records
-    unions:  tcx.unions
-    aliases: tcx.aliases
-    bounds:  bounds
-    subst:   tcx.subst
-    cache:   tcx.cache
-    errors:  tcx.errors
-  }
+  tcx with { bounds: bounds }
 }
 
 fn tcx::bounds : var -> tcx -> bounds
@@ -151,15 +130,7 @@ fn tcx::add-subst var type tcx {
   let subst = tcx.subst
     |> map::put var.index type
 
-  tcx {
-    records: tcx.records
-    unions:  tcx.unions
-    aliases: tcx.aliases
-    bounds:  tcx.bounds
-    subst:   subst
-    cache:   tcx.cache
-    errors:  tcx.errors
-  }
+  tcx with { subst: subst }
 }
 
 fn tcx::subst : var -> tcx -> option type
@@ -170,15 +141,7 @@ fn tcx::cache lhs rhs tcx {
   let cache = tcx.cache
     |> set::put (lhs, rhs)
 
-  tcx {
-    records: tcx.records
-    unions:  tcx.unions
-    aliases: tcx.aliases
-    bounds:  tcx.bounds
-    subst:   tcx.subst
-    cache:   cache
-    errors:  tcx.errors
-  }
+  tcx with { cache: cache }
 }
 
 fn tcx::cached : type -> type -> tcx -> bool
@@ -186,15 +149,24 @@ fn tcx::cached lhs rhs tcx -> set::has (lhs, rhs) tcx.cache
 
 fn tcx::error : diagnostic -> tcx -> tcx
 fn tcx::error diagnostic tcx {
-  tcx {
-    records: tcx.records
-    unions:  tcx.unions
-    aliases: tcx.aliases
-    bounds:  tcx.bounds
-    subst:   tcx.subst
-    cache:   tcx.cache
-    errors:  [diagnostic; ..tcx.errors]
+  tcx with {
+    errors: [diagnostic; ..tcx.errors]
   }
+}
+
+fn tcx::fresh-var : bool -> tcx -> var, tcx
+fn tcx::fresh-var generic tcx {
+  let index = map::len tcx.bounds
+  let tcx = tcx with {
+    bounds: map::put index bounds::default tcx.bounds
+  }
+
+  let var = var {
+    index:   index
+    generic: generic
+  }
+
+  var, tcx
 }
 
 fn bounds::default : bounds

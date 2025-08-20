@@ -31,6 +31,29 @@ fn lcx::with-diagnostic diagnostic lcx {
   }
 }
 
+fn lcx::fresh-var generic lcx {
+  let var, tcx = uir::tcx::fresh-var generic lcx.uir.tcx
+  let lcx = lcx with {
+    uir: lcx.uir with {
+      tcx: tcx
+    }
+  }
+
+  var, lcx
+}
+
+fn lcx::get-body mod-id name lcx {
+  lcx.uir
+    |> uir::program::module mod-id
+    |> uir::module::get-body name
+}
+
+fn lcx::get-type mod-id name lcx {
+  lcx.uir
+    |> uir::program::module mod-id
+    |> uir::module::get-type name
+}
+
 fn lower : lcx -> uir::program, [diagnostic]
 fn lower lcx {
   lcx
