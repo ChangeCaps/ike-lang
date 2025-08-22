@@ -1,10 +1,11 @@
 import std::map
+import std::option
 
 type body 'type = {
   path:   [str]
   locals: map int (local 'type)
   inputs: [pattern 'type]
-  expr:   expr 'type
+  expr:   option (expr 'type)
   type:   'type
 }
 

@@ -42,6 +42,12 @@ fn lcx::fresh-var generic lcx {
   var, lcx
 }
 
+fn lcx::get-module mod-id name lcx {
+  lcx.uir
+    |> uir::program::module mod-id
+    |> uir::module::get-module name
+}
+
 fn lcx::get-body mod-id name lcx {
   lcx.uir
     |> uir::program::module mod-id

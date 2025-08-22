@@ -76,7 +76,7 @@ fn list::take : int -> ['a] -> ['a]
 fn list::take n xs {
   match xs, n {
     [], _        -> []
-    [x; ..xs], 1 -> []
+    [x; ..xs], 0 -> []
     [x; ..xs], _ -> [x; ..list::take (n - 1) xs]
   }
 }

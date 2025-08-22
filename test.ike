@@ -9,3 +9,5 @@ fn main {
 
 type bar = a | b
 type foo 'a 'b = {}
+
+alias nat = int

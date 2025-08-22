@@ -31,8 +31,13 @@ type record = {
 type union = {
   path:     [str]
   generics: generics
-  variants: [str, option type]
+  variants: [variant]
   span:     span
+}
+
+type variant = {
+  name: str
+  body: option type
 }
 
 type alias = {

@@ -5,7 +5,6 @@ type module = {
   types:    map str module::type
   bodies:   map str body::id
   variants: map str (union::id, int)
-  imports:  map str [str]
 }
 
 type module::id = {
@@ -26,7 +25,6 @@ fn module {
     types:    map
     bodies:   map
     variants: map
-    imports:  map
   }
 }
 

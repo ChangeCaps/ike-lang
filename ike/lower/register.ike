@@ -4,27 +4,17 @@ import ike::ir::uir
 import ike::ast
 
 fn create-module : uir::module::id -> [str] -> lcx -> uir::module::id, lcx
-fn create-module id path lcx {
+fn create-module mod-id path lcx {
   match path {
-    []             -> id, lcx
+    []             -> mod-id, lcx
     [name; ..path] -> {
-      let mod = lcx.uir
-        |> uir::program::module id
-        |> uir::module::get-module name
+      let mod = lcx::get-module mod-id name lcx
       
       match mod {
         some id -> create-module id path lcx
         none    -> {
-          let new-id, uir = lcx.uir
-            |> uir::program::add-module uir::module 
-
-          let mod = uir
-            |> uir::program::module id
-            |> uir::module::put-module name new-id
-            
-          new-id, lcx with {
-            uir: uir::program::set-module id mod uir
-          }
+          let id, lcx = lcx::add-module uir::module lcx
+          id, lcx::put-module mod-id name id lcx
         }
       }
     }
@@ -44,11 +34,11 @@ fn add-file-rec mod items lcx {
     [item; ..items] -> {
       let lcx = match item.kind {
         ast::item::import     -> add-file::import mod item lcx
-        ast::item::alias      -> add-file::alias mod item lcx
         ast::item::function   -> add-file::function mod item lcx
-        ast::item::ascription -> add-file::ascription mod item lcx
         ast::item::extern     -> add-file::extern mod item lcx
+        ast::item::ascription -> add-file::ascription mod item lcx
         ast::item::type       -> add-file::type mod item lcx
+        ast::item::alias      -> add-file::alias mod item lcx
         ast::error            -> lcx
         kind -> std::panic "invalid ast {kind}"
       }
@@ -58,59 +48,11 @@ fn add-file-rec mod items lcx {
   }
 }
 
-fn lcx::set-import mod-id path lcx {
-  let mod = uir::program::module mod-id lcx.uir
-    |> uir::module::put-import path.name path.path
-
-  lcx with {
-    uir: uir::program::set-module mod-id mod lcx.uir
-  }
-}
-
-fn lcx::add-body body lcx {
-  let id, uir = lcx.uir
-    |> uir::program::add-body body
-
-  id, lcx with { uir: uir }
-}
-
-fn lcx::put-body mod-id name id lcx {
-  let mod = lcx.uir
-    |> uir::program::module mod-id
-    |> uir::module::put-body name id
-
-  lcx with {
-    uir: uir::program::set-module mod-id mod lcx.uir
-  }
-}
-
-fn lcx::add-record record lcx {
-  let id, tcx = lcx.uir.tcx
-    |> uir::tcx::add-record record
-
-  id, lcx with {
-    uir: lcx.uir with {
-      tcx: tcx
-    }
-  }
-}
-
-fn lcx::put-record mod-id name id lcx {
-  let mod = lcx.uir
-    |> uir::program::module mod-id
-    |> uir::module::put-type name
-      <| uir::module::record id
-
-  lcx with {
-    uir: uir::program::set-module mod-id mod lcx.uir
-  }
-}
-
 fn add-file::import mod-id ast lcx {
   let path = ast::nth-tree 1 ast
     |> path::info
 
-  lcx::set-import mod-id path lcx
+  lcx
 }
 
 fn add-file::function mod-id ast lcx {
@@ -121,13 +63,40 @@ fn add-file::function mod-id ast lcx {
     path:   path.path
     locals: map
     inputs: []
-    expr:   uir::expr::dummy
+    expr:   none
     type:   uir::type::dummy
   }
 
-  let id, lcx = lcx::add-body body lcx
+  let id, lcx         = lcx::add-body body lcx
   let sub-mod-id, lcx = create-module mod-id path.mods lcx
-  let existing = lcx::get-body sub-mod-id path.name lcx
+  let existing        = lcx::get-body sub-mod-id path.name lcx
+
+  match existing {
+    none -> lcx::put-body sub-mod-id path.name id lcx
+    some -> {
+      let diagnostic = diagnostic::error "duplicate function `{path::format path}`"
+        |> diagnostic::with-label path.span "here"
+
+      lcx::with-diagnostic diagnostic lcx
+    }
+  }
+}
+
+fn add-file::extern mod-id ast lcx {
+  let path = ast::nth-tree 1 ast
+    |> path::info
+
+  let body = ir::body {
+    path:   path.path
+    locals: map
+    inputs: []
+    expr:   none
+    type:   uir::type::dummy
+  }
+
+  let id, lcx         = lcx::add-body body lcx
+  let sub-mod-id, lcx = create-module mod-id path.mods lcx
+  let existing        = lcx::get-body sub-mod-id path.name lcx
 
   match existing {
     none -> lcx::put-body sub-mod-id path.name id lcx
@@ -183,9 +152,9 @@ fn add-file::type::record mod-id path generics item lcx {
     span:     path.span
   }
 
-  let id, lcx = lcx::add-record record lcx
+  let id, lcx         = lcx::add-record record lcx
   let sub-mod-id, lcx = create-module mod-id path.mods lcx
-  let existing = lcx::get-type sub-mod-id path.name lcx
+  let existing        = lcx::get-type sub-mod-id path.name lcx
 
   match existing {
     none -> lcx::put-record sub-mod-id path.name id lcx
@@ -199,15 +168,56 @@ fn add-file::type::record mod-id path generics item lcx {
 }
 
 fn add-file::type::union mod-id path generics item lcx {
-  std::todo "add-file::type::union"
-}
+  let union = uir::union {
+    path:     path.path
+    generics: generics
+    variants: []
+    span:     path.span
+  }
 
-fn add-file::extern mod-id ast lcx {
-  std::todo "add-file::extern"
+  let id, lcx         = lcx::add-union union lcx
+  let sub-mod-id, lcx = create-module mod-id path.mods lcx
+  let existing        = lcx::get-type sub-mod-id path.name lcx
+
+  match existing {
+    none -> lcx::put-union sub-mod-id path.name id lcx
+    some -> {
+      let diagnostic = diagnostic::error "duplicate type `{path::format path}`"
+        |> diagnostic::with-label path.span "here"
+
+      lcx::with-diagnostic diagnostic lcx
+    }
+  }
 }
 
 fn add-file::alias mod-id ast lcx {
-  std::todo "add-file::alias"
+  let path = ast::nth-tree 1 ast
+    |> path::info
+
+  let generics, lcx = add-file::generics
+    <| ast::nth-tree 2 ast
+    <| lcx
+
+  let alias = uir::alias {
+    path:     path.path
+    generics: generics
+    type:     uir::type::dummy
+    span:     path.span
+  }
+
+  let id, lcx         = lcx::add-alias alias lcx
+  let sub-mod-id, lcx = create-module mod-id path.mods lcx
+  let existing        = lcx::get-type sub-mod-id path.name lcx
+
+  match existing {
+    none -> lcx::put-alias sub-mod-id path.name id lcx
+    some -> {
+      let diagnostic = diagnostic::error "duplicate type `{path::format path}`"
+        |> diagnostic::with-label path.span "here"
+
+      lcx::with-diagnostic diagnostic lcx
+    }
+  }
 }
 
 fn add-file::ascription mod-id lcx {
@@ -238,4 +248,100 @@ fn add-file::generics-rec generics lcx {
       }
     }
   }
+}
+
+fn lcx::add-module module lcx { 
+  let id, uir = lcx.uir
+    |> uir::program::add-module uir::module 
+
+  id, lcx with { uir: uir }
+}
+
+fn lcx::put-module mod-id name id lcx {
+  let mod = lcx.uir
+    |> uir::program::module mod-id
+    |> uir::module::put-module name id
+    
+  lcx::set-module mod-id mod lcx
+}
+
+fn lcx::set-module id mod lcx {
+  lcx with {
+    uir: uir::program::set-module id mod lcx.uir
+  }
+}
+
+fn lcx::add-body body lcx {
+  let id, uir = lcx.uir
+    |> uir::program::add-body body
+
+  id, lcx with { uir: uir }
+}
+
+fn lcx::put-body mod-id name id lcx {
+  let mod = lcx.uir
+    |> uir::program::module mod-id
+    |> uir::module::put-body name id
+
+  lcx::set-module mod-id mod lcx
+}
+
+fn lcx::add-record record lcx {
+  let id, tcx = lcx.uir.tcx
+    |> uir::tcx::add-record record
+
+  id, lcx with {
+    uir: lcx.uir with {
+      tcx: tcx
+    }
+  }
+}
+
+fn lcx::put-record mod-id name id lcx {
+  let mod = lcx.uir
+    |> uir::program::module mod-id
+    |> uir::module::put-type name
+      <| uir::module::record id
+
+  lcx::set-module mod-id mod lcx
+}
+
+fn lcx::add-union union lcx {
+  let id, tcx = lcx.uir.tcx
+    |> uir::tcx::add-union union
+
+  id, lcx with {
+    uir: lcx.uir with {
+      tcx: tcx
+    }
+  }
+}
+
+fn lcx::put-union mod-id name id lcx {
+  let mod = lcx.uir
+    |> uir::program::module mod-id
+    |> uir::module::put-type name
+      <| uir::module::union id
+
+  lcx::set-module mod-id mod lcx
+}
+
+fn lcx::add-alias alias lcx {
+  let id, tcx = lcx.uir.tcx
+    |> uir::tcx::add-alias alias
+
+  id, lcx with {
+    uir: lcx.uir with {
+      tcx: tcx
+    }
+  }
+}
+
+fn lcx::put-alias mod-id name id lcx {
+  let mod = lcx.uir
+    |> uir::program::module mod-id
+    |> uir::module::put-type name
+      <| uir::module::alias id
+
+  lcx::set-module mod-id mod lcx
 }
