@@ -52,6 +52,7 @@ type kind = error diagnostic
           | pattern::integer
           | pattern::string
           | pattern::list
+          | pattern::list::tail
           | pattern::paren
           
           // expressions
@@ -234,6 +235,7 @@ fn format-rec ast indent {
 }
 
 fn is-expr ast -> kind::is-expr ast.kind
+fn is-pattern ast -> kind::is-pattern ast.kind
 
 fn kind::is-item kind {
   match kind {

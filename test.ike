@@ -1,5 +1,9 @@
 fn main {
-  let f = foo 1 2
+  match [] {
+    bar::b _ -> {}
+  }
+
+  let f = foo 1 2, 2
   let y = "{f} {f}"
 
   let f = foo {
@@ -17,3 +21,5 @@ fn main {
 fn foo x y -> x + y
 
 type foo = { a: int; b: str }
+
+type bar = bar::a int | bar::b

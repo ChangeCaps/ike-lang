@@ -343,7 +343,7 @@ fn add-file::type::union::variant mod-id union-id n ast lcx {
   let variant = lcx::variant {
     module: sub-mod-id
     index:  n
-    name:   path.name
+    name:   path::format path
     cons:   body-id
     body:   ast
       |> ast::trees

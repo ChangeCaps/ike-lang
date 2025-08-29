@@ -118,30 +118,28 @@ fn pattern::list refutable parser {
     |> open ast::pattern::list
     |> expect token::open-bracket
     |> pattern::list-rec refutable
+    |> expect token::close-bracket
     |> close
 }
 
 fn pattern::list-rec refutable parser {
   match peek parser {
-    token::close-bracket -> {
-      parser
-        |> expect token::close-bracket
-    }
+    token::close-bracket -> parser
 
     token::dotdot -> {
       let parser = parser
+        |> open ast::pattern::list::tail
         |> expect token::dotdot
 
       match peek parser {
         token::close-bracket -> {
-          parser
-            |> expect token::close-bracket
+          close parser
         }
 
         _ -> {
           parser
             |> pattern refutable
-            |> expect token::close-bracket
+            |> close
         }
       }
     }
@@ -156,10 +154,7 @@ fn pattern::list-rec refutable parser {
             |> pattern::list-rec refutable
         }
 
-        _ -> {
-          parser
-            |> expect token::close-bracket
-        }
+        _ -> parser
       }
     }
   }

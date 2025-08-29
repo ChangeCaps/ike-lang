@@ -47,6 +47,14 @@ fn list::len xs {
   }
 }
 
+fn list::repeat : int -> 'a -> ['a]
+fn list::repeat n x {
+  match n > 0 {
+    false -> []
+    true  -> [x; ..list::repeat (n - 1) x]
+  }
+}
+
 /// Get the nth element of a list.
 fn list::nth : int -> ['a] -> option 'a
 fn list::nth n xs {

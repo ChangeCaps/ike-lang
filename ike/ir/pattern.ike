@@ -1,4 +1,5 @@
 import std::option
+import std::list
 
 type pattern 'type = {
   kind: pattern::kind 'type
@@ -8,10 +9,12 @@ type pattern 'type = {
 type pattern::kind 'type = wildcard
                          | binding local::id 'type
                          | tuple [pattern 'type]
-                         | integer int
+                         | integer str
                          | boolean bool
                          | string str
                          | variant pattern::variant 'type
+                         | list-empty
+                         | list-cons pattern 'type, pattern 'type
 
 type pattern::variant 'type = {
   type:  'type
@@ -21,12 +24,14 @@ type pattern::variant 'type = {
 
 fn pattern::is-refutable pattern {
   match pattern.kind {
-    pattern::wildcard -> false
-    pattern::binding  -> false
-    pattern::tuple    -> true
-    pattern::integer  -> true
-    pattern::boolean  -> true
-    pattern::string   -> true
-    pattern::variant  -> true
+    pattern::wildcard    -> false
+    pattern::binding     -> false
+    pattern::tuple items -> list::any pattern::is-refutable items
+    pattern::integer     -> true
+    pattern::boolean     -> true
+    pattern::string      -> true
+    pattern::variant     -> true
+    pattern::list-empty  -> true
+    pattern::list-cons   -> true
   }
 }

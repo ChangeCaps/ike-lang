@@ -9,93 +9,278 @@ fn elcx::lower-pattern ast type elcx {
       pattern, elcx
     }
 
-    ast::pattern::path -> {
-      let path = ast::nth-tree 0 ast
-        |> path::info
+    ast::pattern::path -> elcx::lower-pattern::path ast type elcx
+    ast::pattern::variant -> elcx::lower-pattern::variant ast type elcx
 
-      match resolve-variant elcx.module path elcx.lcx {
-        some (union-id, index) -> {
-          let union = uir::tcx::union union-id elcx.lcx.uir.tcx
-          let generics = union.generics
-            |> list::map |_, var, span| {
-              uir::type {
-                kind: uir::type::var var
-                span: span
-              }
+    ast::pattern::tuple -> {
+      let types, items, elcx = ast::trees ast
+        |> list::foldl ([], [], elcx) |types, items, elcx ast| {
+          let type, elcx = elcx::infer-type ast.span elcx
+          let item, elcx = elcx::lower-pattern ast type elcx
+
+          [type; ..types], [item; ..items], elcx
+        }
+
+      let types = list::reverse types
+      let items = list::reverse items
+
+      let tuple = uir::type::tuple types ast.span
+      let elcx = elcx::unify type tuple ast.span elcx
+
+      let pattern = ir::pattern {
+        kind: ir::pattern::tuple items
+        span: ast.span
+      }
+
+      pattern, elcx
+    }
+
+    ast::pattern::boolean -> {
+      let value = match ast::nth 0 ast {
+        ast::token (token::true_ , _)  -> true
+        ast::token (token::false_, _) -> false
+        _ -> std::panic "unreachable"
+      }
+
+      let elcx = elcx::unify
+        <| type
+        <| uir::type::boolean ast.span
+        <| ast.span
+        <| elcx
+
+      let pattern = ir::pattern {
+        kind: ir::pattern::boolean value
+        span: ast.span
+      }
+
+      pattern, elcx
+    }
+
+    ast::pattern::integer -> {
+      let value = ast::nth-integer 0 ast
+        |> option::assert
+
+      let elcx = elcx::unify
+        <| type
+        <| uir::type::integer ast.span
+        <| ast.span
+        <| elcx
+
+      let pattern = ir::pattern {
+        kind: ir::pattern::integer value
+        span: ast.span
+      }
+
+      pattern, elcx
+    }
+
+    ast::pattern::string -> {
+      let value = ast::nth-string 0 ast
+        |> option::assert
+
+      let elcx = elcx::unify
+        <| type
+        <| uir::type::string ast.span
+        <| ast.span
+        <| elcx
+
+      let pattern = ir::pattern {
+        kind: ir::pattern::string value
+        span: ast.span
+      }
+
+      pattern, elcx
+    }
+
+    ast::pattern::list -> {
+      let item-type, elcx = elcx::infer-type ast.span elcx
+      let list-type = uir::type::list item-type ast.span
+
+      let elcx = elcx::unify type list-type ast.span elcx
+
+      let tail, elcx = match ast::trees-of ast::pattern::list::tail ast {
+        [tail] -> {
+          match list::len tail.children {
+            2 -> {
+              let tail = ast::nth-tree 1 tail
+              elcx::lower-pattern tail list-type elcx
             }
 
-          let union-type = uir::type::union union-id generics path.span
-          let union-type, elcx = elcx::instantiate-type union-type elcx
-
-          let elcx = elcx::unify type union-type path.span elcx
-
-          let variant = union.variants
-            |> list::nth index
-            |> option::assert
-
-          let body = match variant.body {
-            none -> none
-            some -> {
-              some ir::pattern {
+            _ -> {
+              let wildcard = ir::pattern {
                 kind: ir::pattern::wildcard
-                span: path.span
+                span: tail.span
               }
+
+              wildcard, elcx
             }
           }
+        }
 
-          let variant = ir::pattern::variant {
-            type:  union-type
-            index: index
-            body:  body
+        _ -> {
+          let empty = ir::pattern {
+            kind: ir::pattern::list-empty
+            span: ast.span
           }
+
+          empty, elcx
+        }
+      }
+
+      ast::trees ast
+        |> list::filter ast::is-pattern
+        |> list::foldr (tail, elcx) |head tail, elcx| {
+          let head, elcx = elcx::lower-pattern head item-type elcx
 
           let pattern = ir::pattern {
-            kind: ir::pattern::variant variant
+            kind: ir::pattern::list-cons (head, tail)
+            span: ast.span
+          }
+
+          pattern, elcx
+        }
+    }
+
+    ast::pattern::paren -> {
+      let pattern = ast::nth-tree 1 ast
+      elcx::lower-pattern pattern type elcx
+    }
+
+    _ -> std::panic "{ast.kind} unreachable"
+  }
+}
+
+fn elcx::lower-pattern::path ast type elcx {
+  let path = ast::nth-tree 0 ast
+    |> path::info
+
+  match resolve-variant elcx.module path elcx.lcx {
+    some (union-id, index) -> {
+      let union = uir::tcx::union union-id elcx.lcx.uir.tcx
+      let generics = union.generics
+        |> list::map |_, var, span| {
+          uir::type {
+            kind: uir::type::var var
+            span: span
+          }
+        }
+
+      let union-type = uir::type::union union-id generics path.span
+      let union-type, elcx = elcx::instantiate-type union-type elcx
+
+      let elcx = elcx::unify type union-type path.span elcx
+
+      let variant = union.variants
+        |> list::nth index
+        |> option::assert
+
+      let body = match variant.body {
+        none -> none
+        some -> {
+          some ir::pattern {
+            kind: ir::pattern::wildcard
+            span: path.span
+          }
+        }
+      }
+
+      let variant = ir::pattern::variant {
+        type:  union-type
+        index: index
+        body:  body
+      }
+
+      let pattern = ir::pattern {
+        kind: ir::pattern::variant variant
+        span: path.span
+      }
+
+      pattern, elcx
+    }
+
+    none -> {
+      match list::len path.mods {
+        0 -> {
+          let local = ir::local {
+            name: path.name
+            type: type
+          }
+
+          let local-id, elcx = elcx::add-local local elcx
+          let elcx = elcx::push-scope local-id elcx
+
+          let pattern = ir::pattern {
+            kind: ir::pattern::binding local-id
             span: path.span
           }
 
           pattern, elcx
         }
 
-        none -> {
-          match list::len path.mods {
-            0 -> {
-              let local = ir::local {
-                name: path.name
-                type: type
-              }
+        _ -> {
+          let diagnostic = diagnostic::error "undefined variant `{path::format path}`"
+            |> diagnostic::with-label path.span "found here"
 
-              let local-id, elcx = elcx::add-local local elcx
-              let elcx = elcx::push-scope local-id elcx
-
-              let pattern = ir::pattern {
-                kind: ir::pattern::binding local-id
-                span: ast.span
-              }
-
-              pattern, elcx
-            }
-
-            _ -> {
-              let diagnostic = diagnostic::error "undefined variant `{path::format path}`"
-                |> diagnostic::with-label ast.span "found here"
-
-              let pattern = ir::pattern {
-                kind: ir::pattern::wildcard
-                span: ast.span
-              }
-
-              pattern, elcx::with-diagnostic diagnostic elcx
-            }
+          let pattern = ir::pattern {
+            kind: ir::pattern::wildcard
+            span: path.span
           }
+
+          pattern, elcx::with-diagnostic diagnostic elcx
+        }
+      }
+    }
+  }
+}
+
+fn elcx::lower-pattern::variant ast type elcx {
+  let path = ast::nth-tree 0 ast
+    |> path::info
+
+  match resolve-variant elcx.module path elcx.lcx {
+    some (union-id, index) -> {
+      let union = uir::tcx::union union-id elcx.lcx.uir.tcx
+      let variant = list::nth index union.variants
+        |> option::assert
+
+      let generics, subst, elcx = union.generics
+        |> list::foldr ([], map, elcx) |_, var, span generics, subst, elcx| {
+          let type, elcx = elcx::infer-type span elcx
+          [type; ..generics], map::put var type subst, elcx
+        }
+
+      let union-type = uir::type::union union-id generics path.span
+      let elcx = elcx::unify type union-type path.span elcx
+
+      match variant.body {
+        some body -> {
+          std::todo ""
+        }
+
+        none -> {
+          let diagnostic = diagnostic::error "variant `{path::format path}` does not have a body"
+            |> diagnostic::with-label path.span "required here"
+
+          let pattern = ir::pattern {
+            kind: ir::pattern::wildcard
+            span: path.span
+          }
+
+          pattern, elcx::with-diagnostic diagnostic elcx
         }
       }
     }
 
-    ast::pattern::variant -> {
-      std::todo ""
-    }
+    none -> {
+      let diagnostic = diagnostic::error "undefined variant `{path::format path}`"
+        |> diagnostic::with-label path.span "found here"
 
-    _ -> std::panic "{ast.kind} unreachable"
+      let pattern = ir::pattern {
+        kind: ir::pattern::wildcard
+        span: path.span
+      }
+
+      pattern, elcx::with-diagnostic diagnostic elcx
+    }
   }
 }
