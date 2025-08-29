@@ -1,0 +1,378 @@
+fn lower::types lcx {
+  lcx
+    |> lower::records
+    |> lower::unions
+    |> lower::aliases
+}
+
+fn lower::records lcx {
+  lcx.records
+    |> map::list
+    |> list::foldl lcx lower::record
+}
+
+fn lower::record lcx record-id, info {
+  let record = uir::tcx::record record-id lcx.uir.tcx
+
+  let tlcx = tlcx {
+    lcx:                lcx
+    mod:                info.module
+    generics:           record.generics
+    allow-new-generics: false
+    allow-inferred:     false
+  }
+
+  let fields, tlcx = info.fields
+    |> list::foldl ([], tlcx) |fields, tlcx ast| {
+      match ast::nth-ident 0 ast {
+        none      -> fields, tlcx
+        some name -> {
+          let type = ast::nth-tree 2 ast
+          let type, tlcx = lower-type type tlcx
+
+          [name, type; ..fields], tlcx
+        }
+      }
+    }
+
+  let record = record with {
+    fields: list::reverse fields
+  }
+
+  lcx::set-record record-id record tlcx.lcx
+}
+
+fn lower::unions lcx {
+  lcx.unions
+    |> map::list
+    |> list::foldl lcx lower::union
+}
+
+fn lower::union lcx union-id, info {
+  let union = uir::tcx::union union-id lcx.uir.tcx
+
+  let tlcx = tlcx {
+    lcx:                lcx
+    mod:                info.module
+    generics:           union.generics
+    allow-new-generics: false
+    allow-inferred:     false
+  }
+
+  let variants, tlcx = info.variants
+    |> list::foldl ([], tlcx) |variants, tlcx variant| {
+      let variant, tlcx = lower::variant union-id variant tlcx
+      [variant; ..variants], tlcx
+    }
+
+  let union = union with {
+    variants: list::reverse variants
+  }
+
+  lcx::set-union union-id union tlcx.lcx
+}
+
+fn lower::variant union-id variant tlcx {
+  let generics = tlcx.generics
+    |> list::map |_, var, span| {
+      uir::type {
+        kind: uir::type::var var
+        span: span
+      }
+    }
+
+  let body, cons, tlcx = match variant.body {
+    some type -> {
+      let type, tlcx = lower-type type tlcx
+
+      let local = ir::local {
+        name: variant.name
+        type: type
+      }
+
+      let locals = map::put 0 local map
+      let local-id = ir::local::id { index: 0 }
+
+      let out = uir::type::union union-id generics variant.span
+      let out, lcx = lcx::instantiate-type out tlcx.lcx
+      let tlcx = tlcx with { lcx: lcx }
+
+      let function = uir::type::function type out variant.span
+
+      let input = ir::pattern {
+        kind: ir::pattern::binding local-id
+        span: variant.span
+      }
+
+      let cons = ir::expr {
+        kind: ir::expr::local local-id
+        span: variant.span
+        type: type
+      }
+
+      let body = ir::body {
+        path:   [variant.name]
+        locals: locals
+        inputs: [input]
+        expr: some ir::expr {
+          kind: ir::expr::variant (variant.index, some cons)
+          span: variant.span
+          type: out
+        }
+        type: function
+      }
+
+      some type, body, tlcx
+    }
+
+    none -> {
+      let type = uir::type::union union-id generics variant.span
+
+      let body = ir::body {
+        path:   [variant.name]
+        locals: map
+        inputs: []
+        expr:   some ir::expr {
+          kind: ir::expr::variant (variant.index, none)
+          span: variant.span
+          type: type
+        }
+        type: type
+      }
+
+      none, body, tlcx
+    }
+  }
+
+  let lcx = lcx::set-body variant.cons cons tlcx.lcx
+
+  let variant = uir::variant {
+    name: variant.name
+    body: body
+  }
+
+  variant, tlcx with {
+    lcx: lcx
+  }
+}
+
+fn lower::aliases lcx {
+  lcx.aliases
+    |> map::list
+    |> list::foldl lcx lower::alias
+}
+
+fn lower::alias lcx alias-id, info {
+  let alias = uir::tcx::alias alias-id lcx.uir.tcx
+
+  let tlcx = tlcx {
+    lcx:                lcx
+    mod:                info.module
+    generics:           alias.generics
+    allow-new-generics: false
+    allow-inferred:     false
+  }
+
+  let type, tlcx = lower-type info.type tlcx
+
+  let alias = alias with {
+    type: type
+  }
+
+  lcx::set-alias alias-id alias tlcx.lcx
+}
+
+/// Type lowering context
+type tlcx = {
+  lcx:                lcx
+  mod:                uir::module::id
+  generics:           [str, uir::var, span]
+  allow-new-generics: bool
+  allow-inferred:     bool
+}
+
+fn lower-type : ast::tree -> tlcx -> uir::type, tlcx
+fn lower-type ast tlcx {
+  match ast.kind {
+    ast::type::integer -> uir::type::integer ast.span, tlcx
+    ast::type::string  -> uir::type::string ast.span, tlcx
+    ast::type::boolean -> uir::type::boolean ast.span, tlcx
+    ast::type::unit    -> uir::type::unit ast.span, tlcx
+
+    ast::type::path -> lower-type::path ast tlcx
+
+    ast::type::list -> {
+      let item = ast::nth-tree 1 ast
+      let item, tlcx = lower-type item tlcx
+      uir::type::list item ast.span, tlcx
+    }
+
+    ast::type::tuple -> {
+      let items, tlcx = ast::trees ast
+        |> list::foldl ([], tlcx) |items, tlcx item| {
+          let item, tlcx = lower-type item tlcx
+          [item; ..items], tlcx
+        }
+
+      uir::type::tuple items ast.span, tlcx
+    }
+
+    ast::type::function -> {
+      let in = ast::nth-tree 0 ast
+      let out = ast::nth-tree 2 ast
+
+      let in, tlcx = lower-type in tlcx
+      let out, tlcx = lower-type out tlcx
+
+      uir::type::function in out ast.span, tlcx
+    }
+
+    ast::type::generic -> lower-type::generic ast tlcx
+
+    ast::type::inferred -> {
+      let var, lcx = lcx::fresh-var true tlcx.lcx
+      let type = uir::type {
+        kind: uir::type::var var
+        span: ast.span
+      }
+
+      let tlcx = match tlcx.allow-inferred {
+        true  -> tlcx with { lcx: lcx }
+        false -> {
+          let diagnostic = diagnostic::error "inferred type not allowed"
+            |> diagnostic::with-label ast.span "here"
+
+          tlcx with {
+            lcx: lcx::with-diagnostic diagnostic lcx
+          }
+        }
+      }
+
+      type, tlcx
+    }
+
+    ast::error -> {
+      std::todo ""
+    }
+
+    _ -> std::panic "unreachable"
+  }
+}
+
+fn lower-type::path ast tlcx {
+  let path = ast::nth-tree 0 ast
+    |> path::info
+
+  match resolve-type tlcx.mod path tlcx.lcx {
+    some type -> {
+      let generics = ast::trees ast
+        |> list::skip 1
+
+      let generics, tlcx = generics
+        |> list::foldl ([], tlcx) |generics, tlcx ast| {
+          let generic, tlcx = lower-type ast tlcx
+          [generic; ..generics], tlcx
+        }
+
+      let generics = list::reverse generics
+
+      let expected-generics = type-generics type tlcx.lcx
+
+      let generic-count = list::len generics
+      let expected-count = list::len expected-generics
+
+      match generic-count == expected-count {
+        true  -> {
+          let type = match type {
+            uir::module::union id  -> uir::type::union id generics ast.span
+            uir::module::record id -> uir::type::record id generics ast.span
+            uir::module::alias id  -> uir::type::alias id generics ast.span
+          }
+
+          type, tlcx
+        }
+
+        false -> {
+          let diagnostic = diagnostic::error "invalid number of generics, expected `{expected-count}` found `{generic-count}`"
+            |> diagnostic::with-label path.span "found here"
+
+          let var, lcx = lcx::fresh-var false lcx
+          let type = uir::type {
+            kind: uir::type::var var
+            span: ast.span
+          }
+
+          type, tlcx with {
+            lcx: lcx::with-diagnostic diagnostic tlcx.lcx
+          }
+        }
+      }
+    }
+
+    none -> {
+      let diagnostic = diagnostic::error "invalid path `{path::format path}`"
+        |> diagnostic::with-label path.span "found here"
+
+      let var, lcx = lcx::fresh-var false lcx
+      let type = uir::type {
+        kind: uir::type::var var
+        span: ast.span
+      }
+
+      type, tlcx with {
+        lcx: lcx::with-diagnostic diagnostic tlcx.lcx
+      }
+    }
+  }
+}
+
+fn lower-type::generic ast tlcx {
+  let name = ast::nth-ident 1 ast
+    |> option::expect "lower-type" 
+
+  let found = tlcx.generics
+    |> list::find |n, _, _| n == name
+
+  match found {
+    some (_, var, span) -> {
+      let type = uir::type {
+        kind: uir::type::var var
+        span: span
+      }
+
+      type, tlcx
+    }
+
+    none -> {
+      match tlcx.allow-new-generics {
+        true  -> {
+          let var, lcx = lcx::fresh-var true tlcx.lcx
+          let type = uir::type {
+            kind: uir::type::var var
+            span: ast.span
+          }
+
+          type, tlcx with {
+            lcx:      lcx
+            generics: [name, var, ast.span; ..tlcx.generics]
+          }
+        }
+
+        false -> {
+          let diagnostic = diagnostic::error "invalid generic `{name}`"
+            |> diagnostic::with-label ast.span "found here"
+
+          let var, lcx = lcx::fresh-var false lcx
+          let type = uir::type {
+            kind: uir::type::var var
+            span: ast.span
+          }
+
+          type, tlcx with {
+            lcx: lcx::with-diagnostic diagnostic lcx
+          }
+        }
+      }
+    }
+  }
+}

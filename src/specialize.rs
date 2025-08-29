@@ -449,9 +449,9 @@ impl Specializer<'_> {
     ) {
         match ty {
             uir::Type::Var(var) => {
-                if let Some(existing) = generics.get(&var) {
-                    assert_eq!(*existing, expected);
-                }
+                //if let Some(existing) = generics.get(&var) {
+                //    assert_eq!(*existing, expected);
+                //}
 
                 generics.insert(var, expected);
             }

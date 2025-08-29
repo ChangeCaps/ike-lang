@@ -1,0 +1,101 @@
+fn lower::import-root-modules lcx {
+  let root = lcx::root-module lcx
+
+  root.modules
+    |> map::list
+    |> list::foldl lcx |lcx name, root-mod-id| {
+      lcx with {
+        uir: lcx.uir.modules
+          |> map::list
+          |> list::foldl lcx.uir |uir mod-id, module| {
+            let module = module
+              |> uir::module::put-module name root-mod-id
+
+            let mod-id = uir::module::id { index: mod-id }
+
+            uir::program::set-module mod-id module uir
+          }
+      }
+    }
+}
+
+fn lower::resolve-imports lcx {
+  let next-import = lcx.imports 
+    |> map::list
+    |> list::first
+
+  match next-import {
+    some ((mod-id, name), import) -> {
+      lcx
+        |> lower::resolve-import mod-id name import.span import.path
+        |> lower::resolve-imports
+    }
+
+    none -> lcx
+  }
+}
+
+fn lower::resolve-import mod-id name span mods lcx {
+  let lcx = lcx with {
+    imports: lcx.imports
+      |> map::remove (mod-id, name) 
+  }
+
+  let lcx = match map::get (mod-id, name) lcx.imports {
+    none        -> lcx
+    some import -> {
+      lower::resolve-import mod-id name span import.path lcx
+    }
+  }
+
+  match mods {
+    [mod; ..rest] -> {
+      match lcx::get-module mod-id mod lcx {
+        some mod-id -> {
+          lower::resolve-import mod-id name span rest lcx
+        }
+
+        none -> {
+          let diagnostic = diagnostic::error "invalid module `{mod}`"
+            |> diagnostic::with-label span "in import here"
+
+          lcx::with-diagnostic diagnostic lcx
+        }
+      }
+    }
+
+    [] -> {
+      let lcx, found-mod = match lcx::get-module mod-id name lcx {
+        some m -> lcx::put-module mod-id name m lcx, true
+        none   -> lcx, false
+      }
+
+      let lcx, found-body = match lcx::get-body mod-id name lcx {
+        some b -> lcx::put-body mod-id name b lcx, true
+        none   -> lcx, false
+      }
+
+      let lcx, found-type = match lcx::get-type mod-id name lcx {
+        some t -> lcx::put-type mod-id name t lcx, true
+        none   -> lcx, false
+      }
+
+      let lcx, found-variant = match lcx::get-variant mod-id name lcx {
+        some (u, i) -> lcx::put-variant mod-id name u i lcx, true
+        none        -> lcx, false
+      }
+
+      let found-any = found-mod or found-body or found-type or found-variant
+
+      match found-any {
+        true  -> lcx
+        false -> {
+          let diagnostic = diagnostic::error "item not found `{name}`"
+            |> diagnostic::with-label span "in import here"
+
+          lcx::with-diagnostic diagnostic lcx
+        }
+      }
+    }
+  }
+}

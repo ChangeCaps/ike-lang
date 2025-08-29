@@ -52,19 +52,29 @@ fn add-file::import mod-id ast lcx {
   let path = ast::nth-tree 1 ast
     |> path::info
 
-  lcx
+  let import = lcx::import {
+    path: path.mods
+    span: path.span
+  }
+
+  lcx with {
+    imports: lcx.imports
+      |> map::put (mod-id, path.name) import
+  }
 }
 
 fn add-file::function mod-id ast lcx {
   let path = ast::nth-tree 1 ast
     |> path::info
 
+  let type, lcx = lcx::infer-type path.span lcx
+
   let body = ir::body {
     path:   path.path
     locals: map
     inputs: []
     expr:   none
-    type:   uir::type::dummy
+    type:   type
   }
 
   let id, lcx         = lcx::add-body body lcx
@@ -72,7 +82,31 @@ fn add-file::function mod-id ast lcx {
   let existing        = lcx::get-body sub-mod-id path.name lcx
 
   match existing {
-    none -> lcx::put-body sub-mod-id path.name id lcx
+    none -> {
+      // check for `->` shorthand, if present the body is the 4th child
+      let body = match ast::nth 3 ast {
+        ast::token  -> ast::nth-tree 4 ast
+        ast::tree t -> t
+      }
+
+      let function = lcx::function {
+        module: mod-id
+        inputs: ast
+          |> ast::nth-tree 2
+          |> ast::assert ast::item::function::params
+          |> ast::trees
+
+        body: body
+      }
+
+      let lcx = lcx with {
+        functions: lcx.functions
+          |> map::put id function
+      }
+
+      lcx::put-body sub-mod-id path.name id lcx
+    }
+
     some -> {
       let diagnostic = diagnostic::error "duplicate function `{path::format path}`"
         |> diagnostic::with-label path.span "here"
@@ -157,7 +191,23 @@ fn add-file::type::record mod-id path generics item lcx {
   let existing        = lcx::get-type sub-mod-id path.name lcx
 
   match existing {
-    none -> lcx::put-record sub-mod-id path.name id lcx
+    none -> {
+      let fields = item
+        |> ast::trees-of ast::item::type::record::field
+
+      let record = lcx::record {
+        module: mod-id
+        fields: fields
+      }
+
+      let lcx = lcx with {
+        records: lcx.records
+          |> map::put id record
+      }
+
+      lcx::put-record sub-mod-id path.name id lcx
+    }
+
     some -> {
       let diagnostic = diagnostic::error "duplicate type `{path::format path}`"
         |> diagnostic::with-label path.span "here"
@@ -175,12 +225,35 @@ fn add-file::type::union mod-id path generics item lcx {
     span:     path.span
   }
 
-  let id, lcx         = lcx::add-union union lcx
+  let union-id, lcx   = lcx::add-union union lcx
   let sub-mod-id, lcx = create-module mod-id path.mods lcx
   let existing        = lcx::get-type sub-mod-id path.name lcx
 
   match existing {
-    none -> lcx::put-union sub-mod-id path.name id lcx
+    none -> {
+      let variants = item
+        |> ast::trees-of ast::item::type::union::variant
+
+      let variants, lcx = add-file::type::union::variants
+       <| sub-mod-id
+       <| union-id
+       <| 0
+       <| variants
+       <| lcx
+
+      let union = lcx::union {
+        module:   mod-id
+        variants: variants
+      }
+
+      let lcx = lcx with {
+        unions: lcx.unions
+          |> map::put union-id union
+      }
+
+      lcx::put-union sub-mod-id path.name union-id lcx
+    }
+
     some -> {
       let diagnostic = diagnostic::error "duplicate type `{path::format path}`"
         |> diagnostic::with-label path.span "here"
@@ -188,6 +261,97 @@ fn add-file::type::union mod-id path generics item lcx {
       lcx::with-diagnostic diagnostic lcx
     }
   }
+}
+
+fn add-file::type::union::variants mod-id union-id n variants lcx {
+  match variants {
+    [] -> [], lcx
+    [variant; ..rest] -> {
+      let variant, lcx = add-file::type::union::variant
+        <| mod-id
+        <| union-id
+        <| n
+        <| variant
+        <| lcx
+
+      let variants, lcx = add-file::type::union::variants
+        <| mod-id
+        <| union-id
+        <| n + 1
+        <| rest
+        <| lcx
+
+      [variant; ..variants], lcx
+    }
+  }
+}
+
+fn add-file::type::union::variant mod-id union-id n ast lcx {
+  let path = ast::nth-tree 0 ast
+    |> path::info
+
+  let sub-mod-id, lcx = create-module mod-id path.mods lcx
+
+  let existing = lcx::get-variant sub-mod-id path.name lcx
+
+  let lcx = match existing {
+    none -> {
+      lcx::put-variant
+        <| sub-mod-id
+        <| path.name
+        <| union-id
+        <| n
+        <| lcx
+    }
+
+    some -> {
+      let diagnostic = diagnostic::error "duplicate variant `{path::format path}`"
+        |> diagnostic:: with-label path.span "here"
+
+      lcx::with-diagnostic diagnostic lcx
+    }
+  }
+
+  let body = ir::body {
+    path:   path.path
+    locals: map
+    inputs: []
+    expr:   none
+    type:   uir::type::dummy
+  }
+
+  let body-id, lcx = lcx::add-body body lcx
+  let existing = lcx::get-body sub-mod-id path.name lcx
+
+  let lcx = match existing {
+    none -> {
+      lcx::put-body
+        <| sub-mod-id
+        <| path.name
+        <| body-id
+        <| lcx
+    }
+
+    some -> {
+      let diagnostic = diagnostic::error "duplicate function `{path::format path}`"
+        |> diagnostic:: with-label path.span "here"
+
+      lcx::with-diagnostic diagnostic lcx
+    }
+  }
+
+  let variant = lcx::variant {
+    module: sub-mod-id
+    index:  n
+    name:   path.name
+    cons:   body-id
+    body:   ast
+      |> ast::trees
+      |> list::nth 1
+    span:   path.span
+  }
+
+  variant, lcx
 }
 
 fn add-file::alias mod-id ast lcx {
@@ -210,7 +374,20 @@ fn add-file::alias mod-id ast lcx {
   let existing        = lcx::get-type sub-mod-id path.name lcx
 
   match existing {
-    none -> lcx::put-alias sub-mod-id path.name id lcx
+    none -> {
+      let alias = lcx::alias {
+        module: mod-id
+        type:   ast::nth-tree 4 ast
+      }
+
+      let lcx = lcx with {
+        aliases: lcx.aliases
+          |> map::put id alias
+      }
+
+      lcx::put-alias sub-mod-id path.name id lcx
+    }
+
     some -> {
       let diagnostic = diagnostic::error "duplicate type `{path::format path}`"
         |> diagnostic::with-label path.span "here"
@@ -220,8 +397,22 @@ fn add-file::alias mod-id ast lcx {
   }
 }
 
-fn add-file::ascription mod-id lcx {
-  std::todo "add-file::ascription"
+fn add-file::ascription mod-id ast lcx {
+  let path = ast::nth-tree 1 ast
+    |> path::info
+
+  let sub-mod-id, lcx = create-module mod-id path.mods lcx
+
+  let ascription = lcx::ascription {
+    module: sub-mod-id 
+    name:   path.name
+    type:   ast::nth-tree 3 ast
+    span:   path.span
+  }
+
+  lcx with {
+    ascriptions: [ascription; ..lcx.ascriptions]
+  }
 }
 
 fn add-file::generics ast lcx {
@@ -286,6 +477,14 @@ fn lcx::put-body mod-id name id lcx {
   lcx::set-module mod-id mod lcx
 }
 
+fn lcx::put-type mod-id name type lcx {
+  let mod = lcx.uir
+    |> uir::program::module mod-id
+    |> uir::module::put-type name type
+
+  lcx::set-module mod-id mod lcx
+}
+
 fn lcx::add-record record lcx {
   let id, tcx = lcx.uir.tcx
     |> uir::tcx::add-record record
@@ -322,6 +521,14 @@ fn lcx::put-union mod-id name id lcx {
     |> uir::program::module mod-id
     |> uir::module::put-type name
       <| uir::module::union id
+
+  lcx::set-module mod-id mod lcx
+}
+
+fn lcx::put-variant mod-id name id n lcx {
+  let mod = lcx.uir
+    |> uir::program::module mod-id
+    |> uir::module::put-variant name (id, n)
 
   lcx::set-module mod-id mod lcx
 }

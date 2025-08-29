@@ -83,10 +83,10 @@ fn list::take n xs {
 
 /// Append two lists together.
 fn list::append : ['a] -> ['a] -> ['a]
-fn list::append xs ys {
+fn list::append ys xs {
   match xs {
     []          -> ys
-    [x; ..xs]   -> [x; ..list::append xs ys]
+    [x; ..xs]   -> [x; ..list::append ys xs]
   }
 }
 
@@ -117,12 +117,12 @@ fn list::reverse' xs ys {
 }
 
 /// Zip two lists together.
-fn list::zip : ['a] -> ['b] -> ['a, 'b]
+fn list::zip : ['b] -> ['a] -> ['a, 'b]
 fn list::zip xs ys {
   match xs, ys {
     [], _                -> []
     _, []                -> []
-    [x; ..xs], [y; ..ys] -> [x, y; ..list::zip xs ys]
+    [x; ..xs], [y; ..ys] -> [y, x; ..list::zip xs ys]
   }
 }
 
@@ -183,6 +183,16 @@ fn list::flatten xss {
   }
 }
 
+fn list::enumerate : ['a] -> [int, 'a]
+fn list::enumerate -> list::enumerate' 0
+
+fn list::enumerate' n xs {
+  match xs {
+    [x; ..xs] -> [n, x; ..list::enumerate' (n + 1) xs]
+    []        -> []
+  }
+}
+
 /// Check all elements of a list against a predicate.
 fn list::all : ('a -> bool) -> ['a] -> bool
 fn list::all f xs {
@@ -238,6 +248,15 @@ fn list::foldl acc f xs {
   match xs {
     []        -> acc
     [x; ..xs] -> list::foldl (f acc x) f xs
+  }
+}
+
+/// Fold list from the right with an accumulator.
+fn list::foldr : 'a -> ('b -> 'a -> 'a) -> ['b] -> 'a
+fn list::foldr acc f xs {
+  match xs {
+    []        -> acc
+    [x; ..xs] -> f x (list::foldr acc f xs)
   }
 }
 

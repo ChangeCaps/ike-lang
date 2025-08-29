@@ -1,13 +1,19 @@
-import std::list
-
 fn main {
-  std::set
-    |> std::set::put 0
-    |> std::set::remove 0
-    |> std::debug::print
+  let f = foo 1 2
+  let y = "{f} {f}"
+
+  let f = foo {
+    a: 100
+    b: "hello world!"
+  }
+
+  let f = f with {
+    a: (200)
+  }
+
+  let a = [0; 1; 2; ..[0]]
 }
 
-type bar = a | b
-type foo 'a 'b = {}
+fn foo x y -> x + y
 
-alias nat = int
+type foo = { a: int; b: str }

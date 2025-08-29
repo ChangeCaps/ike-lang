@@ -94,6 +94,27 @@ fn tcx::add-alias alias tcx {
   alias::id { index: index }, tcx
 }
 
+fn tcx::set-record : record::id -> record -> tcx -> tcx
+fn tcx::set-record id record tcx {
+  tcx with {
+    records: map::put id.index record tcx.records
+  }
+}
+
+fn tcx::set-union : union::id -> union -> tcx -> tcx
+fn tcx::set-union id union tcx {
+  tcx with {
+    unions: map::put id.index union tcx.unions
+  }
+}
+
+fn tcx::set-alias : alias::id -> alias -> tcx -> tcx
+fn tcx::set-alias id alias tcx {
+  tcx with {
+    aliases: map::put id.index alias tcx.aliases
+  }
+}
+
 fn tcx::record : record::id -> tcx -> record
 fn tcx::record id tcx {
   tcx.records
@@ -152,8 +173,8 @@ fn tcx::cache lhs rhs tcx {
 fn tcx::cached : type -> type -> tcx -> bool
 fn tcx::cached lhs rhs tcx -> set::has (lhs, rhs) tcx.cache
 
-fn tcx::error : diagnostic -> tcx -> tcx
-fn tcx::error diagnostic tcx {
+fn tcx::with-error : diagnostic -> tcx -> tcx
+fn tcx::with-error diagnostic tcx {
   tcx with {
     errors: [diagnostic; ..tcx.errors]
   }
@@ -179,5 +200,95 @@ fn bounds::default {
   bounds {
     number: false
     fields: map
+  }
+}
+
+
+/// Create a new instance of a type.
+fn tcx::instantiate : type -> tcx -> type, tcx
+fn tcx::instantiate type tcx {
+  let type = tcx::substitute type tcx
+
+  let vars = tcx::enumerate-vars type tcx  
+    |> set::list
+
+  let new-vars, subst, tcx = vars
+    |> list::foldl ([], map, tcx) |new-vars, subst, tcx var, span| {
+      let new-var, tcx = tcx::fresh-var false tcx
+      let type = type {
+        kind: type::var new-var
+        span: span
+      }
+
+      [new-var; ..new-vars], map::put var type subst, tcx
+    }
+
+  let tcx = new-vars
+    |> list::foldl tcx |tcx var| {
+      let bounds = tcx::bounds var tcx
+
+      let new-bounds = bounds {
+        number: bounds.number
+        fields: bounds.fields
+          |> map::list
+          |> list::map |n, t| n, type::substitute subst t
+          |> map::from-list
+      }
+
+      tcx::set-bounds var new-bounds tcx
+    }
+
+  type::substitute subst type, tcx
+}
+
+fn tcx::substitute : type -> tcx -> type
+fn tcx::substitute type tcx {
+  match type.kind {
+    type::var var -> match map::get var.index tcx.subst {
+      some type -> tcx::substitute type tcx
+      none      -> type
+    }
+
+    type::app app -> match app {
+      app::integer -> type
+      app::string  -> type
+      app::boolean -> type
+      app::unit    -> type
+
+      app::list item -> {
+        let item = tcx::substitute type tcx
+        type::list item type.span
+      }
+
+      app::tuple items -> {
+        let items = items
+          |> list::map |t| tcx::substitute t tcx
+        type::tuple items type.span
+      }
+
+      app::function (in, out) -> {
+        let in = tcx::substitute in tcx
+        let out = tcx::substitute out tcx
+        type::function in out type.span
+      }
+
+      app::record (id, generics) -> {
+        let generics = generics
+          |> list::map |t| tcx::substitute t tcx
+        type::record id generics type.span
+      }
+
+      app::union (id, generics) -> {
+        let generics = generics
+          |> list::map |t| tcx::substitute t tcx
+        type::union id generics type.span
+      }
+
+      app::alias (id, generics) -> {
+        let generics = generics
+          |> list::map |t| tcx::substitute t tcx
+        type::alias id generics type.span
+      }
+    }
   }
 }

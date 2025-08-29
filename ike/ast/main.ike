@@ -66,6 +66,7 @@ type kind = error diagnostic
           | expr::with_
           | expr::with_::field
           | expr::list
+          | expr::list::tail
           | expr::tuple
           | expr::lambda
           | expr::lambda::params
@@ -118,10 +119,18 @@ fn trees ast {
     }
 }
 
-fn assert : kind -> tree -> {}
+fn trees-of kind ast {
+  ast
+    |> trees 
+    |> list::filter |ast| ast.kind == kind
+}
+
+fn assert : kind -> tree -> tree
 fn assert kind ast { 
   ast.kind == kind
     |> std::assert "invalid ast, expected {kind}"
+
+  ast
 }
 
 fn nth n ast {
@@ -148,6 +157,23 @@ fn nth-ident n ast {
   match nth n ast {
     token (token::ident i, _) -> some i
     _                         -> none
+  }
+}
+
+fn nth-integer n ast {
+  match nth n ast {
+    token (token::integer i, _) -> some i
+    _                           -> none
+  }
+}
+
+fn nth-string n ast {
+  match nth n ast {
+    token (token::string s         , _) -> some s
+    token (token::format-start    s, _) -> some s
+    token (token::format-continue s, _) -> some s
+    token (token::format-end      s, _) -> some s
+    _                          -> none
   }
 }
 
@@ -206,6 +232,8 @@ fn format-rec ast indent {
       "{acc}\n{child}"
     }
 }
+
+fn is-expr ast -> kind::is-expr ast.kind
 
 fn kind::is-item kind {
   match kind {

@@ -1,0 +1,101 @@
+fn elcx::lower-pattern ast type elcx {
+  match ast.kind {
+    ast::pattern::wildcard -> {
+      let pattern = ir::pattern {
+        kind: ir::pattern::wildcard
+        span: ast.span
+      }
+
+      pattern, elcx
+    }
+
+    ast::pattern::path -> {
+      let path = ast::nth-tree 0 ast
+        |> path::info
+
+      match resolve-variant elcx.module path elcx.lcx {
+        some (union-id, index) -> {
+          let union = uir::tcx::union union-id elcx.lcx.uir.tcx
+          let generics = union.generics
+            |> list::map |_, var, span| {
+              uir::type {
+                kind: uir::type::var var
+                span: span
+              }
+            }
+
+          let union-type = uir::type::union union-id generics path.span
+          let union-type, elcx = elcx::instantiate-type union-type elcx
+
+          let elcx = elcx::unify type union-type path.span elcx
+
+          let variant = union.variants
+            |> list::nth index
+            |> option::assert
+
+          let body = match variant.body {
+            none -> none
+            some -> {
+              some ir::pattern {
+                kind: ir::pattern::wildcard
+                span: path.span
+              }
+            }
+          }
+
+          let variant = ir::pattern::variant {
+            type:  union-type
+            index: index
+            body:  body
+          }
+
+          let pattern = ir::pattern {
+            kind: ir::pattern::variant variant
+            span: path.span
+          }
+
+          pattern, elcx
+        }
+
+        none -> {
+          match list::len path.mods {
+            0 -> {
+              let local = ir::local {
+                name: path.name
+                type: type
+              }
+
+              let local-id, elcx = elcx::add-local local elcx
+              let elcx = elcx::push-scope local-id elcx
+
+              let pattern = ir::pattern {
+                kind: ir::pattern::binding local-id
+                span: ast.span
+              }
+
+              pattern, elcx
+            }
+
+            _ -> {
+              let diagnostic = diagnostic::error "undefined variant `{path::format path}`"
+                |> diagnostic::with-label ast.span "found here"
+
+              let pattern = ir::pattern {
+                kind: ir::pattern::wildcard
+                span: ast.span
+              }
+
+              pattern, elcx::with-diagnostic diagnostic elcx
+            }
+          }
+        }
+      }
+    }
+
+    ast::pattern::variant -> {
+      std::todo ""
+    }
+
+    _ -> std::panic "{ast.kind} unreachable"
+  }
+}

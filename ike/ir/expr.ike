@@ -6,7 +6,7 @@ type expr 'type = {
   type: 'type
 }
 
-type expr::kind 'type = integer int
+type expr::kind 'type = integer str
                       | boolean bool
                       | string str
                       | format [expr 'type]
@@ -18,6 +18,7 @@ type expr::kind 'type = integer int
                       | list-cons expr 'type, expr 'type
                       | tuple [expr 'type]
                       | record [str, expr 'type]
+                      | with_ expr 'type, [str, expr 'type]
                       | try_ [expr 'type]
                       | call expr 'type, expr 'type
                       | binary expr::binop, expr 'type, expr 'type

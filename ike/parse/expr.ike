@@ -105,13 +105,11 @@ fn expr::list-rec allow-block parser {
     token::close-bracket -> parser
 
     token::dotdot -> {
-      let parser = parser
+      parser
+        |> open ast::expr::list::tail
         |> expect token::dotdot
-
-      match peek parser {
-        token::close-bracket -> parser
-        _ -> expr allow-block parser
-      }
+        |> expr allow-block
+        |> close
     }
 
     _ -> {
@@ -408,9 +406,10 @@ fn expr::with_ allow-block parser {
     token::with_ -> {
       parser
         |> open-before ast::expr::with_
+        |> expect token::with_
         |> expect token::open-brace
         |> eat-newlines
-        |> expr::with-rec
+        |> expr::with_::fields
         |> expect token::close-brace
         |> close
     }
@@ -419,17 +418,35 @@ fn expr::with_ allow-block parser {
   }
 }
 
-fn expr::with-rec parser {
+fn expr::with_::fields parser {
   match peek parser {
-    token::open-brace -> parser
-    _ -> {
-      parser
+    token::ident -> {
+      let parser = parser
         |> open ast::expr::with_::field
         |> expect-ident
-        |> expect token::semi
+        |> expect token::colon
         |> expr true
         |> close
+
+      match peek parser {
+        token::newline -> {
+          parser
+            |> eat-newlines
+            |> expr::with_::fields
+        }
+
+        token::semi -> {
+          parser
+            |> expect token::semi
+            |> eat-newlines
+            |> expr::with_::fields
+        }
+
+        _ -> parser
+      }
     }
+
+    _ -> parser
   }
 }
 

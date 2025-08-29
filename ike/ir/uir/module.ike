@@ -42,16 +42,16 @@ fn module::put-type name id module {
   }
 }
 
+fn module::get-variant name module -> map::get name module.variants
+fn module::put-variant name id module {
+  module with {
+    variants: map::put name id module.variants
+  }
+}
+
 fn module::get-body name module -> map::get name module.bodies
 fn module::put-body name id module {
   module with {
     bodies: map::put name id module.bodies
-  }
-}
-
-fn module::get-import name module -> map::get name module.imports
-fn module::put-import name path module {
-  module with {
-    imports: map::put name path module.imports
   }
 }

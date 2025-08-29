@@ -82,10 +82,8 @@ fn program::add-module module program {
 
 fn program::set-module : module::id -> module -> program -> program
 fn program::set-module id module program {
-  program {
+  program with {
     modules: map::put id.index module program.modules
-    bodies:  program.bodies
-    tcx:     program.tcx
   }
 }
 
@@ -106,14 +104,5 @@ fn program::get-module id names program {
         |> module::get-module name
         |> option::then |id| program::get-module id names program
     }
-  }
-}
-
-fn map-tcx : (tcx -> tcx) -> program -> program
-fn map-tcx f program {
-  program {
-    modules: program.modules
-    bodies:  program.bodies
-    tcx:     f program.tcx
   }
 }

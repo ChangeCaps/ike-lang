@@ -116,7 +116,7 @@ fn diagnostic::with-label span message diagnostic {
   diagnostic {
     level:   diagnostic.level
     message: diagnostic.message
-    labels:  [label; ..diagnostic.labels]
+    labels:  list::append [label] diagnostic.labels
   }
 }
 

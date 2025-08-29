@@ -1,0 +1,155 @@
+fn lower::bodies lcx {
+  let next-function = lcx.functions
+    |> map::list
+    |> list::first
+
+  match next-function {
+    some (body-id, _) -> {
+      lower::body body-id lcx
+        |> lower::bodies
+    }
+
+    none -> lcx
+  }
+}
+
+fn lower::body body-id lcx {
+  match map::get body-id lcx.functions {
+    none -> lcx
+
+    some info -> {
+      let lcx = lcx with {
+        functions: map::remove body-id lcx.functions
+      }
+
+      let body = lcx::body body-id lcx
+
+      let elcx = elcx {
+        lcx:     lcx
+        body-id: body-id
+        module:  info.module
+        scope:   []
+      }
+
+      let types, inputs, elcx = info.inputs
+        |> list::foldl ([], [], elcx) |types, inputs, elcx input| {
+          let type, elcx = elcx::infer-type input.span elcx
+          let input, elcx = elcx::lower-pattern input type elcx
+
+          let elcx = match ir::pattern::is-refutable input {
+            false -> elcx
+            true  -> {
+              let diagnostic = diagnostic::error "pattern must be irrefutable"
+                |> diagnostic::with-label input.span "in parameter here"
+
+              elcx::with-diagnostic diagnostic elcx
+            }
+          }
+
+          [type; ..types], [input; ..inputs], elcx
+        }
+
+      let expr, elcx = elcx::lower-expr info.body elcx
+
+      let type = types
+        |> list::foldl expr.type |out in| {
+          uir::type::function in out out.span
+        }
+
+      let elcx = elcx::unify body.type type expr.span elcx
+
+      let body = body with {
+        inputs: list::reverse inputs
+        expr: some expr
+      }
+
+      lcx::set-body body-id body elcx.lcx
+    }
+  }
+}
+
+/// Expression lowering context
+type elcx = {
+  lcx:     lcx
+  body-id: uir::body::id
+  module:  uir::module::id
+  scope:   [uir::local::id]
+}
+
+fn elcx::body elcx {
+  lcx::body elcx.body-id elcx.lcx
+}
+
+fn elcx::local local-id elcx {
+  let body = elcx::body elcx
+
+  map::get local-id.index body.locals
+    |> option::assert
+}
+
+fn elcx::set-body body elcx {
+  elcx with {
+    lcx: lcx::set-body elcx.body-id body elcx.lcx
+  }
+}
+
+fn elcx::require-number type span elcx {
+  elcx with {
+    lcx: elcx.lcx with {
+      uir: elcx.lcx.uir with {
+        tcx: uir::tcx::require-number type span elcx.lcx.uir.tcx
+      }
+    }
+  }
+}
+
+fn elcx::require-field type name field span elcx {
+  elcx with {
+    lcx: elcx.lcx with {
+      uir: elcx.lcx.uir with {
+        tcx: uir::tcx::require-field type name field span elcx.lcx.uir.tcx
+      }
+    }
+  }
+}
+
+fn elcx::unify lhs rhs span elcx {
+  elcx with {
+    lcx: lcx::unify lhs rhs span elcx.lcx
+  }
+}
+
+fn elcx::infer-type span elcx {
+  let type, lcx = lcx::infer-type span elcx.lcx
+  type, elcx with { lcx: lcx }
+}
+
+fn elcx::instantiate-type type elcx {
+  let type, lcx = lcx::instantiate-type type elcx.lcx
+  type, elcx with { lcx: lcx }
+}
+
+fn elcx::push-scope local-id elcx {
+  elcx with {
+    scope: [local-id; ..elcx.scope]
+  }
+}
+
+fn elcx::add-local local elcx {
+  let body = lcx::body elcx.body-id elcx.lcx
+  let index = map::len body.locals
+  let body = body with {
+    locals: body.locals
+      |> map::put index local
+  }
+
+  let id = ir::local::id { index: index }
+
+  id, elcx with {
+    lcx: lcx::set-body elcx.body-id body elcx.lcx
+  }
+}
+
+fn elcx::with-diagnostic diagnostic elcx {
+  elcx with { lcx: lcx::with-diagnostic diagnostic elcx.lcx }
+}

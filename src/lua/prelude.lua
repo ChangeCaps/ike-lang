@@ -48,7 +48,7 @@ local function fromList(value)
 end
 
 local function equal(a, b)
-  if type(a) == "table" then
+  if type(a) == "table" and type(b) == "table" then
     for k, v in pairs(a) do
       if not equal(v, b[k]) then
         return false
@@ -58,20 +58,6 @@ local function equal(a, b)
     return true
   else
     return a == b
-  end
-end
-
-local function toKey(value)
-  if type(value) == "table" then
-    local key = ""
-
-    for k, v in pairs(value) do
-      key = key .. "," .. toKey(k) .. "=" .. toKey(v)
-    end
-
-    return key
-  else
-    return tostring(value)
   end
 end
 
@@ -170,6 +156,20 @@ local function copy(value)
   return new_value
 end
 
+local function toKey(value)
+  if type(value) == "table" then
+    local key = ""
+
+    for k, v in pairs(value) do
+      key = key .. "," .. toKey(k) .. "=" .. toKey(v)
+    end
+
+    return key
+  else
+    return tostring(value)
+  end
+end
+
 local E = {}
 
 E["std::debug::format"] = function()
@@ -181,6 +181,7 @@ end
 E["std::io::print"] = function()
   return function(str)
     io.write(str)
+    io.flush()
   end
 end
 
@@ -463,7 +464,11 @@ E["std::map::list"] = function()
 
     for _, v in pairs(map) do
       if type(v) == "table" then
-        list = { __list = true, v[1], v[2] }
+        list = {
+          __list = true,
+          { __tuple = true, v[1], v[2] },
+          list,
+        }
       end
     end
 

@@ -53,11 +53,7 @@ pub fn codegen(f: &mut dyn Write, ir: &ir::Program, entry: ir::Bid) -> io::Resul
         writeln!(f, "end\n")?;
     }
 
-    writeln!(
-        f,
-        "coroutine.resume(coroutine.create(M[\"body{}\"]))",
-        entry.index(),
-    )?;
+    writeln!(f, "M[\"body{}\"]()", entry.index(),)?;
 
     Ok(())
 }

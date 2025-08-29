@@ -6,7 +6,7 @@ type pattern 'type = {
 }
 
 type pattern::kind 'type = wildcard
-                         | binding (local::id 'type)
+                         | binding local::id 'type
                          | tuple [pattern 'type]
                          | integer int
                          | boolean bool
@@ -14,7 +14,19 @@ type pattern::kind 'type = wildcard
                          | variant pattern::variant 'type
 
 type pattern::variant 'type = {
-  type:    'type
-  variant: str 
-  body:    option (pattern 'type)
+  type:  'type
+  index: int
+  body:  option (pattern 'type)
+}
+
+fn pattern::is-refutable pattern {
+  match pattern.kind {
+    pattern::wildcard -> false
+    pattern::binding  -> false
+    pattern::tuple    -> true
+    pattern::integer  -> true
+    pattern::boolean  -> true
+    pattern::string   -> true
+    pattern::variant  -> true
+  }
 }

@@ -1,7 +1,10 @@
 extern debug::format : 'a -> str
 
-fn debug::print : 'a -> {}
-fn debug::print value -> value |> debug::format |> io::println
+fn debug::print : 'a -> 'a
+fn debug::print value -> {
+  value |> debug::format |> io::println
+  value
+}
 
 fn todo : str -> 'a
 fn todo message -> panic message

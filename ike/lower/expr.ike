@@ -1,0 +1,583 @@
+fn elcx::capture-local name elcx {
+  elcx.scope
+    |> list::find |local-id| {
+      let local = elcx::local local-id elcx
+      local.name == name
+    }
+}
+
+fn elcx::error-expr span elcx {
+  let type, elcx = elcx::infer-type span elcx
+  let expr = ir::expr {
+    kind: ir::expr::block []
+    span: span
+    type: type
+  }
+
+  expr, elcx
+}
+
+fn elcx::lower-expr ast elcx {
+  match ast.kind {
+    ast::expr::integer -> {
+      let value = ast::nth-integer 0 ast
+        |> option::assert
+
+      let expr = ir::expr {
+        kind: ir::expr::integer value
+        span: ast.span
+        type: uir::type::integer ast.span
+      }
+
+      expr, elcx
+    }
+
+    ast::expr::boolean -> {
+      let value = match ast::nth 0 ast {
+        ast::token (token::true_ , _)  -> true
+        ast::token (token::false_, _) -> false
+        _ -> std::panic "unreachable"
+      }
+
+      let expr = ir::expr {
+        kind: ir::expr::boolean value
+        span: ast.span
+        type: uir::type::boolean ast.span
+      }
+
+      expr, elcx
+    }
+
+    ast::expr::string -> {
+      let value = ast::nth-string 0 ast
+        |> option::assert
+
+      let expr = ir::expr {
+        kind: ir::expr::string value
+        span: ast.span
+        type: uir::type::string ast.span
+      }
+
+      expr, elcx
+    }
+
+    ast::expr::format -> {
+      let parts, elcx = ast::trees ast
+        |> list::filter ast::is-expr
+        |> list::foldl ([], elcx) |parts, elcx ast| {
+          let part, elcx = elcx::lower-expr ast elcx
+          [part; ..parts], elcx
+        }
+
+      let expr = ir::expr {
+        kind: ir::expr::format <| list::reverse parts
+        span: ast.span
+        type: uir::type::string ast.span
+      }
+
+      expr, elcx
+    }
+
+    ast::expr::path -> elcx::lower-expr::path ast elcx
+
+    ast::expr::let_ -> {
+      let pattern = ast::nth-tree 1 ast
+      let value = ast::nth-tree 3 ast
+
+      let value, elcx = elcx::lower-expr value elcx
+      let pattern, elcx = elcx::lower-pattern pattern value.type elcx
+
+      let elcx = match ir::pattern::is-refutable pattern {
+        false -> elcx
+        true  -> {
+          let diagnostic = diagnostic::error "pattern in let expression must be irrefutable"
+            |> diagnostic::with-label pattern.span "found here"
+
+          elcx::with-diagnostic diagnostic elcx
+        }
+      }
+
+      let expr = ir::expr {
+        kind: ir::expr::let_ (pattern, value)
+        span: ast.span
+        type: uir::type::unit ast.span
+      }
+
+      expr, elcx
+    }
+
+    ast::expr::record -> elcx::lower-expr::record ast elcx
+    ast::expr::with_ -> elcx::lower-expr::with_ ast elcx
+    ast::expr::list -> elcx::lower-expr::list ast elcx
+
+    ast::expr::call -> {
+      let callee = ast::nth-tree 0 ast
+      let input = ast::nth-tree 1 ast
+
+      let callee, elcx = elcx::lower-expr callee elcx
+      let input, elcx = elcx::lower-expr input elcx
+
+      let output, elcx = elcx::infer-type ast.span elcx
+      let function = uir::type::function input.type output ast.span
+      let elcx = elcx::unify callee.type function ast.span elcx
+
+      let expr = ir::expr {
+        kind: ir::expr::call (callee, input)
+        span: ast.span
+        type: output
+      }
+
+      expr, elcx
+    }
+
+    ast::expr::binary -> elcx::lower-expr::binary ast elcx
+
+    ast::expr::paren -> {
+      let expr = ast::nth-tree 1 ast
+      elcx::lower-expr expr elcx
+    }
+
+    ast::expr::block -> {
+      let scope = elcx.scope
+
+      let exprs, elcx = ast::trees ast
+        |> list::filter ast::is-expr
+        |> list::foldl ([], elcx) |exprs, elcx ast| {
+          let expr, elcx = elcx::lower-expr ast elcx 
+          [expr; ..exprs], elcx
+        }
+      
+      let type = exprs
+        |> list::first
+        |> option::map |e| e.type
+        |> option::some-or <| uir::type::unit ast.span
+
+      let elcx = elcx with { scope: scope }
+
+      let span = exprs
+        |> list::first
+        |> option::map |e| e.span
+        |> option::some-or ast.span
+
+      let expr = ir::expr {
+        kind: ir::expr::block <| list::reverse exprs
+        span: span
+        type: type
+      }
+
+      expr, elcx
+    }
+
+    _ -> std::panic "{ast.kind} unimplemented"
+  }
+}
+
+fn elcx::lower-expr::path ast elcx {
+  let path = ast::nth-tree 0 ast
+    |> path::info
+
+  let local = match list::len path.mods {
+    0 -> elcx::capture-local path.name elcx
+    _ -> none
+  }
+
+  match local {
+    some local-id -> {
+      let local = elcx::local local-id elcx
+
+      let expr = ir::expr {
+        kind: ir::expr::local local-id
+        span: path.span
+        type: local.type
+      }
+
+      expr, elcx
+    }
+
+    none -> match resolve-body elcx.module path elcx.lcx {
+      some body-id -> {
+        // get the set of functions calling us
+        let our-callers = elcx.lcx.call-graph
+          |> map::get elcx.body-id
+          |> option::some-or set
+
+        // get and update the set of callers to `body-id` with the currently
+        // lowered body
+        let callers = elcx.lcx.call-graph
+          |> map::get body-id
+          |> option::some-or set
+
+        let lcx = match set::has body-id our-callers {
+          false -> {
+            let callers = callers
+              |> set::put elcx.body-id
+              |> set::union our-callers
+
+            elcx.lcx with {
+              call-graph: elcx.lcx.call-graph
+                |> map::put body-id callers
+            }
+          }
+
+          true  -> {
+            set::difference our-callers callers
+              |> set::list
+              |> list::foldl elcx.lcx |lcx body| {
+                let callers = lcx.call-graph
+                  |> map::get body
+                  |> option::some-or set
+                  |> set::union our-callers
+                  |> set::put elcx.body-id
+
+                lcx with {
+                  call-graph: lcx.call-graph
+                    |> map::put body callers
+                }
+              }   
+          }
+        }
+
+        // lower the body in question
+        let lcx = lower::body body-id lcx
+        let body = lcx::body body-id lcx
+
+        let is-recursive = lcx.call-graph
+          |> map::get elcx.body-id
+          |> option::is-some-and <| set::has body-id
+
+        let type, lcx = match is-recursive {
+          true  -> uir::tcx::substitute body.type lcx.uir.tcx, lcx
+          false -> lcx::instantiate-type body.type lcx
+        }
+
+        let expr = ir::expr {
+          kind: ir::expr::body body-id
+          span: ast.span
+          type: type
+        }
+
+        expr, elcx with { lcx: lcx }
+      }
+
+      none -> {
+        let diagnostic = diagnostic::error "unresolved path `{path::format path}`"
+          |> diagnostic::with-label path.span "found here"
+
+        elcx
+          |> elcx::with-diagnostic diagnostic
+          |> elcx::error-expr path.span
+      }
+    }
+  }
+}
+
+fn elcx::lower-expr::record ast elcx {
+  let path = ast::nth-tree 0 ast
+    |> path::info
+
+  match resolve-type elcx.module path elcx.lcx {
+    some (uir::module::record record-id) -> {
+      let record = uir::tcx::record record-id elcx.lcx.uir.tcx
+
+      // generate generics, and substitution table
+      let generics, subst, elcx = record.generics
+        |> list::foldr ([], map, elcx) |_, var, span generics, subst, elcx| {
+          let type, elcx = elcx::infer-type span elcx
+          [type; ..generics], map::put var type subst, elcx
+        }
+
+      // lower fields
+      let fields, elcx = ast
+        |> ast::trees-of ast::expr::record::field
+        |> list::foldr ([], elcx)
+          <| elcx::lower-expr::record::field path record subst
+
+      // check for missing fields
+      let elcx = record.fields
+        |> list::foldl elcx |elcx name, type| {
+          match fields |> (list::any |n, _| n == name) {
+            true  -> elcx
+            false -> {
+              let diagnostic = diagnostic::error "missing field `{name}`"
+                |> diagnostic::with-label path.span "in record here"
+                |> diagnostic::with-label type.span "defined here"
+
+              elcx::with-diagnostic diagnostic elcx
+            }
+          }
+        }
+
+      let expr = ir::expr {
+        kind: ir::expr::record <| list::reverse fields
+        span: path.span
+        type: uir::type::record record-id generics path.span
+      }
+
+      expr, elcx
+    }
+
+    _ -> {
+      let diagnostic = diagnostic::error "record `{path::format path}` not found"
+        |> diagnostic::with-label path.span "found here"
+
+      elcx
+        |> elcx::with-diagnostic diagnostic
+        |> elcx::error-expr ast.span
+    }
+  }
+}
+
+fn elcx::lower-expr::record::field path record subst ast fields, elcx {
+  let value = ast::nth-tree 2 ast
+  let value, elcx = elcx::lower-expr value elcx
+
+  // the name might be an error, so we need to check for that
+  match ast::nth-ident 0 ast {
+    some name -> match record.fields |> (list::find |n, _| n == name) {
+      some (_, type) -> {
+        let type = uir::type::substitute subst type
+        let elcx = elcx::unify type value.type ast.span elcx
+
+        // check for duplicate fields
+        let elcx = match fields |> (list::any |n, _| n == name) {
+          false -> elcx
+          true  -> {
+            let diagnostic = diagnostic::error "duplicate field `{name}` in record"
+              |> diagnostic::with-label ast.span "found here"
+
+            elcx::with-diagnostic diagnostic elcx
+          }
+        }
+        
+        [name, value; ..fields], elcx
+      }
+
+      none -> {
+        let diagnostic = diagnostic::error "record `{path::format path}` does not have a field `{name}`"
+          |> diagnostic::with-label path.span "record found here"
+          |> diagnostic::with-label ast.span "field found here"
+
+        fields, elcx::with-diagnostic diagnostic elcx
+      }
+    }
+
+    none -> fields, elcx
+  }
+}
+
+fn elcx::lower-expr::with_ ast elcx {
+  let target = ast::nth-tree 0 ast
+  let target, elcx = elcx::lower-expr target elcx
+
+  let fields, elcx = ast
+    |> ast::trees-of ast::expr::with_::field
+    |> list::foldl ([], elcx) |fields, elcx ast| {
+      match ast::nth-ident 0 ast {
+        some name -> {
+          let value = ast::nth-tree 2 ast
+          let value, elcx = elcx::lower-expr value elcx
+
+          // check for duplicates
+          let elcx = match fields |> (list::any |n, _| n == name) {
+            false -> elcx
+            true  -> {
+              let diagnostic = diagnostic::error "duplicate field `{name}` in with expression"
+                |> diagnostic::with-label ast.span "found here"
+
+              elcx::with-diagnostic diagnostic elcx
+            }
+          }
+
+          let elcx = elcx::require-field target.type name value.type ast.span elcx
+          [name, value; ..fields], elcx
+        }
+
+        none -> fields, elcx
+      }
+    }
+
+  let fields = list::reverse fields
+
+  let expr = ir::expr {
+    kind: ir::expr::with_ (target, fields)
+    span: ast.span
+    type: target.type
+  }
+
+  expr, elcx
+}
+
+fn elcx::lower-expr::list ast elcx {
+  let item-type, elcx = elcx::infer-type ast.span elcx
+  let list-type = uir::type::list item-type ast.span
+
+  let tail, elcx = match ast::trees-of ast::expr::list::tail ast {
+    [tail] -> {
+      let tail = ast::nth-tree 1 tail
+      let tail, elcx = elcx::lower-expr tail elcx
+      tail, elcx::unify tail.type list-type tail.span elcx
+    }
+
+    _ -> {
+      let empty = ir::expr {
+        kind: ir::expr::list-empty
+        span: ast.span
+        type: list-type
+      }
+
+      empty, elcx
+    }
+  }
+
+  ast::trees ast
+    |> list::filter ast::is-expr
+    |> list::foldr (tail, elcx) |head tail, elcx| {
+      let head, elcx = elcx::lower-expr head elcx
+      let elcx = elcx::unify item-type head.type ast.span elcx
+
+      let expr = ir::expr {
+        kind: ir::expr::list-cons (head, tail)
+        span: ast.span
+        type: list-type
+      }
+
+      expr, elcx
+    }
+}
+
+fn elcx::lower-expr::binary ast elcx {
+  let lhs = ast::nth-tree 0 ast
+  let rhs = ast::nth-tree 2 ast
+
+  let op = match ast::nth 1 ast {
+    ast::token (token::plus   , _) -> ir::expr::add
+    ast::token (token::minus  , _) -> ir::expr::sub
+    ast::token (token::star   , _) -> ir::expr::mul
+    ast::token (token::slash  , _) -> ir::expr::div
+    ast::token (token::percent, _) -> ir::expr::mod
+    ast::token (token::and_   , _) -> ir::expr::and_
+    ast::token (token::or_    , _) -> ir::expr::or_
+    ast::token (token::gt     , _) -> ir::expr::gt
+    ast::token (token::lt     , _) -> ir::expr::lt
+    ast::token (token::gteq   , _) -> ir::expr::ge
+    ast::token (token::lteq   , _) -> ir::expr::le
+    ast::token (token::eqeq   , _) -> ir::expr::eq
+    ast::token (token::noteq  , _) -> ir::expr::ne
+    c -> std::panic "{c} unreachable"
+  }
+
+  let lhs, elcx = elcx::lower-expr lhs elcx
+  let rhs, elcx = elcx::lower-expr rhs elcx
+
+  let type, elcx = match op {
+    ir::expr::add -> {
+      let elcx = elcx
+        |> elcx::unify lhs.type rhs.type ast.span
+        |> elcx::require-number lhs.type ast.span
+
+      lhs.type, elcx
+    }
+
+    ir::expr::sub -> {
+      let elcx = elcx
+        |> elcx::unify lhs.type rhs.type ast.span
+        |> elcx::require-number lhs.type ast.span
+
+      lhs.type, elcx
+    }
+
+    ir::expr::mul -> {
+      let elcx = elcx
+        |> elcx::unify lhs.type rhs.type ast.span
+        |> elcx::require-number lhs.type ast.span
+
+      lhs.type, elcx
+    }
+
+    ir::expr::div -> {
+      let elcx = elcx
+        |> elcx::unify lhs.type rhs.type ast.span
+        |> elcx::require-number lhs.type ast.span
+
+      lhs.type, elcx
+    }
+
+    ir::expr::mod -> {
+      let elcx = elcx
+        |> elcx::unify lhs.type rhs.type ast.span
+        |> elcx::require-number lhs.type ast.span
+
+      lhs.type, elcx
+    }
+
+    ir::expr::gt -> {
+      let elcx = elcx
+        |> elcx::unify lhs.type rhs.type ast.span
+        |> elcx::require-number lhs.type ast.span
+
+      uir::type::boolean ast.span, elcx
+    }
+
+    ir::expr::lt -> {
+      let elcx = elcx
+        |> elcx::unify lhs.type rhs.type ast.span
+        |> elcx::require-number lhs.type ast.span
+
+      uir::type::boolean ast.span, elcx
+    }
+
+    ir::expr::ge -> {
+      let elcx = elcx
+        |> elcx::unify lhs.type rhs.type ast.span
+        |> elcx::require-number lhs.type ast.span
+
+      uir::type::boolean ast.span, elcx
+    }
+
+    ir::expr::le -> {
+      let elcx = elcx
+        |> elcx::unify lhs.type rhs.type ast.span
+        |> elcx::require-number lhs.type ast.span
+
+      uir::type::boolean ast.span, elcx
+    }
+
+    ir::expr::eq -> {
+      let elcx = elcx::unify lhs.type rhs.type ast.span elcx
+      uir::type::boolean ast.span, elcx
+    }
+
+    ir::expr::ne -> {
+      let elcx = elcx::unify lhs.type rhs.type ast.span elcx
+      uir::type::boolean ast.span, elcx
+    }
+
+    ir::expr::and_ -> {
+      let boolean = uir::type::boolean ast.span
+
+      let elcx = elcx
+        |> elcx::unify lhs.type boolean ast.span
+        |> elcx::unify rhs.type boolean ast.span
+
+      boolean, elcx
+    }
+
+    ir::expr::or_ -> {
+      let boolean = uir::type::boolean ast.span
+
+      let elcx = elcx
+        |> elcx::unify lhs.type boolean ast.span
+        |> elcx::unify rhs.type boolean ast.span
+
+      boolean, elcx
+    }
+  }
+
+  let expr = ir::expr {
+    kind: ir::expr::binary (op, lhs, rhs)
+    span: ast.span
+    type: type
+  }
+
+  expr, elcx
+}

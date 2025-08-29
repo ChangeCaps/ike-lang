@@ -11,10 +11,61 @@ import ike::ir
 import ike::ir::uir
 import ike::diagnostic
 import ike::parse::token
+import ike::span
 
 type lcx = {
   uir:         uir::program
   diagnostics: [diagnostic]
+
+  call-graph:  call-graph
+  imports:     map (uir::module::id, str) lcx::import
+  records:     map uir::record::id lcx::record
+  unions:      map uir::union::id lcx::union
+  aliases:     map uir::alias::id lcx::alias
+  functions:   map uir::body::id lcx::function
+  ascriptions: [lcx::ascription]
+}
+
+type lcx::import = {
+  path: [str]
+  span: span
+}
+
+type lcx::union = {
+  module:   uir::module::id
+  variants: [lcx::variant]
+}
+
+type lcx::variant = {
+  module: uir::module::id
+  index:  int
+  name:   str
+  cons:   uir::body::id
+  body:   option ast::tree
+  span:   span
+}
+
+type lcx::record = {
+  module: uir::module::id
+  fields: [ast::tree]
+}
+
+type lcx::alias = {
+  module: uir::module::id
+  type:   ast::tree
+}
+
+type lcx::ascription = {
+  module: uir::module::id
+  name:   str
+  type:   ast::tree
+  span:   span
+}
+
+type lcx::function = {
+  module: uir::module::id
+  inputs: [ast::tree]
+  body:   ast::tree
 }
 
 fn lcx : lcx
@@ -22,7 +73,29 @@ fn lcx {
   lcx {
     uir:         uir::program
     diagnostics: []
+
+    call-graph:  call-graph
+    imports:     map
+    records:     map
+    unions:      map
+    aliases:     map
+    functions:   map
+    ascriptions: []
   }
+}
+
+fn lower : lcx -> uir::program, [diagnostic]
+fn lower lcx {
+  let lcx = lcx
+    |> lower::import-root-modules
+    |> lower::resolve-imports
+    |> lower::types
+    |> lower::ascriptions
+    |> lower::bodies
+
+  let diagnostics = list::append lcx.uir.tcx.errors lcx.diagnostics
+
+  lcx.uir, diagnostics
 }
 
 fn lcx::with-diagnostic diagnostic lcx {
@@ -42,6 +115,93 @@ fn lcx::fresh-var generic lcx {
   var, lcx
 }
 
+fn resolve-module base mods lcx {
+  match mods {
+    []            -> some base
+    [mod; ..rest] -> {
+      lcx.uir
+        |> uir::program::module base
+        |> uir::module::get-module mod
+        |> option::then |mod| resolve-module mod rest lcx
+    }
+  }
+}
+
+fn resolve-type base path lcx {
+  resolve-module base path.mods lcx
+    |> option::then |mod| {
+      lcx.uir
+        |> uir::program::module mod
+        |> uir::module::get-type path.name
+    }
+}
+
+fn resolve-body base path lcx {
+  resolve-module base path.mods lcx
+    |> option::then |mod| {
+      lcx.uir
+        |> uir::program::module mod
+        |> uir::module::get-body path.name
+    }
+}
+
+fn resolve-variant base path lcx {
+  resolve-module base path.mods lcx
+    |> option::then |mod| {
+      lcx.uir
+        |> uir::program::module mod
+        |> uir::module::get-variant path.name
+    }
+}
+
+fn type-generics type lcx {
+  match type {
+    uir::module::union id -> {
+      let type = uir::tcx::union id lcx.uir.tcx
+      type.generics
+    }
+
+    uir::module::record id -> {
+      let type = uir::tcx::record id lcx.uir.tcx
+      type.generics
+    }
+
+    uir::module::alias id -> {
+      let type = uir::tcx::alias id lcx.uir.tcx
+      type.generics
+    }
+  }
+}
+
+fn lcx::infer-type span lcx {
+  let var, lcx = lcx::fresh-var false lcx
+  let type = uir::type {
+    kind: uir::type::var var
+    span: span
+  }
+
+  type, lcx
+}
+
+fn lcx::instantiate-type type lcx {
+  let type, tcx = uir::tcx::instantiate type lcx.uir.tcx
+  type, lcx with {
+    uir: lcx.uir with {
+      tcx: tcx
+    }
+  }
+}
+
+fn lcx::unify lhs rhs span lcx {
+  lcx with {
+    uir: lcx.uir with {
+      tcx: uir::tcx::unify lhs rhs span lcx.uir.tcx
+    }
+  }
+}
+
+fn lcx::body body-id lcx -> uir::program::body body-id lcx.uir
+
 fn lcx::get-module mod-id name lcx {
   lcx.uir
     |> uir::program::module mod-id
@@ -60,12 +220,43 @@ fn lcx::get-type mod-id name lcx {
     |> uir::module::get-type name
 }
 
-fn lower : lcx -> uir::program, [diagnostic]
-fn lower lcx {
-  lcx
-    |> lower::import-root-modules
+fn lcx::get-variant mod-id name lcx {
+  lcx.uir
+    |> uir::program::module mod-id
+    |> uir::module::get-variant name
 }
 
-fn lower::import-root-modules lcx {
-  std::todo "{lcx}" 
+fn lcx::set-record id record lcx {
+  lcx with {
+    uir: lcx.uir with {
+      tcx: uir::tcx::set-record id record lcx.uir.tcx
+    }
+  }
+}
+
+fn lcx::set-union id union lcx {
+  lcx with {
+    uir: lcx.uir with {
+      tcx: uir::tcx::set-union id union lcx.uir.tcx
+    }
+  }
+}
+
+fn lcx::set-alias id alias lcx {
+  lcx with {
+    uir: lcx.uir with {
+      tcx: uir::tcx::set-alias id alias lcx.uir.tcx
+    }
+  }
+}
+
+fn lcx::set-body id body lcx {
+  lcx with {
+    uir: uir::program::set-body id body lcx.uir
+  }
+}
+
+fn lcx::root-module lcx {
+  lcx.uir
+    |> uir::program::module uir::module::root
 }

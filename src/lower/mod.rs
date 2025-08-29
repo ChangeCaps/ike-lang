@@ -646,6 +646,17 @@ enum Generics<'a> {
     Extendable(&'a mut Vec<(String, ir::Var)>),
 }
 
+impl Generics<'_> {
+    fn find(&self, name: &str) -> Option<ir::Var> {
+        let generics = match self {
+            Generics::Defined(items) => items,
+            Generics::Extendable(items) => items.as_slice(),
+        };
+
+        generics.iter().find(|(n, _)| n == name).map(|(_, v)| *v)
+    }
+}
+
 struct TypeLowerer<'a, 'b> {
     lowerer: &'a mut Lowerer<'b>,
     module: ir::Mid,
@@ -721,18 +732,14 @@ impl TypeLowerer<'_, '_> {
             }
 
             ast::TypeKind::Generic(name) => {
-                match &mut self.generics {
-                    Generics::Defined(generics) => {
-                        if let Some((_, var)) = generics.iter().find(|(n, _)| n == &name) {
-                            return Ok(ir::Type::Var(*var));
-                        }
-                    }
+                if let Some(var) = self.generics.find(&name) {
+                    return Ok(ir::Type::Var(var));
+                }
 
-                    Generics::Extendable(generics) => {
-                        let var = ir::Var::fresh(ast.span);
-                        generics.push((name, var));
-                        return Ok(ir::Type::Var(var));
-                    }
+                if let Generics::Extendable(ref mut generics) = self.generics {
+                    let var = ir::Var::fresh(ast.span);
+                    generics.push((name, var));
+                    return Ok(ir::Type::Var(var));
                 }
 
                 let diagnostic = Diagnostic::error(format!("unresolved generic type: {name}"))

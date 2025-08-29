@@ -17,3 +17,8 @@ fn map::map key f map {
     none   -> map
   }
 }
+
+fn map::from-list : ['k, 'v] -> map 'k 'v
+fn map::from-list pairs {
+  pairs |> list::foldl map |map k, v| map::put k v map
+}

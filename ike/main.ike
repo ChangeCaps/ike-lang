@@ -19,7 +19,17 @@ fn main {
   ast::format ast
     |> std::io::println
 
-  let lcx = lower::lcx
+  ast::errors ast
+    |> list::map diagnostic::format
+    |> list::foldl "" string::append
+    |> io::print
+
+  let uir, diagnostics = lower::lcx
     |> lower::add-file ["test"] ast 
     |> lower::lower
+
+  diagnostics
+    |> list::map diagnostic::format
+    |> list::foldl "" string::append
+    |> io::print
 }

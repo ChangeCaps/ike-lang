@@ -580,7 +580,7 @@ impl TypeContext {
 
                     let generics = generics
                         .iter()
-                        .map(|g| self.format_type_impl(g, vars, 0))
+                        .map(|g| self.format_type_impl(g, vars, 1))
                         .collect::<Vec<String>>();
 
                     if generics.is_empty() {

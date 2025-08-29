@@ -30,3 +30,144 @@ fn type::dummy {
     span: span::dummy
   }
 }
+
+fn type::integer span {
+  type {
+    kind: type::app app::integer
+    span: span
+  }
+}
+
+fn type::string span {
+  type {
+    kind: type::app app::string
+    span: span
+  }
+}
+
+fn type::boolean span {
+  type {
+    kind: type::app app::boolean
+    span: span
+  }
+}
+
+fn type::unit span {
+  type {
+    kind: type::app app::unit
+    span: span
+  }
+}
+
+fn type::list item span {
+  type {
+    kind: type::app <| app::list item
+    span: span
+  }
+}
+
+fn type::tuple items span {
+  type {
+    kind: type::app <| app::tuple items
+    span: span
+  }
+}
+
+fn type::function in out span {
+  type {
+    kind: type::app <| app::function (in, out)
+    span: span
+  }
+}
+
+fn type::record id generics span {
+  type {
+    kind: type::app <| app::record (id, generics)
+    span: span
+  }
+}
+
+fn type::union id generics span {
+  type {
+    kind: type::app <| app::union (id, generics)
+    span: span
+  }
+}
+
+fn type::alias id generics span {
+  type {
+    kind: type::app <| app::alias (id, generics)
+    span: span
+  }
+}
+
+fn type::substitute subst type {
+  match type.kind {
+    type::var var -> map::get var subst |> option::some-or type
+    type::app app -> match app {
+      app::integer -> type
+      app::string  -> type
+      app::boolean -> type
+      app::unit    -> type
+
+      app::list item -> {
+        let item = type::substitute subst item
+
+        type {
+          kind: type::app <| app::list item
+          span: type.span
+        }
+      }
+
+      app::tuple items -> {
+        let items = items
+          |> list::map |item| type::substitute subst item
+
+        type {
+          kind: type::app <| app::tuple items
+          span: type.span
+        }
+      }
+
+      app::function (in, out) -> {
+        let in = type::substitute subst in
+        let out = type::substitute subst out
+
+        type {
+          kind: type::app <| app::function (in, out)
+          span: type.span
+        }
+      }
+
+      app::record (id, generics) -> {
+        let generics = generics
+          |> list::map |generic| type::substitute subst generic
+
+        type {
+          kind: type::app <| app::record (id, generics)
+          span: type.span
+        }
+      }
+
+      app::union (id, generics) -> {
+        let generics = generics
+          |> list::map |generic| type::substitute subst generic
+
+        type {
+          kind: type::app <| app::union (id, generics)
+          span: type.span
+        }
+      }
+
+      app::alias (id, generics) -> {
+        let generics = generics
+          |> list::map |generic| type::substitute subst generic
+
+        type {
+          kind: type::app <| app::alias (id, generics)
+          span: type.span
+        }
+      }
+    }
+  }
+}

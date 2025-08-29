@@ -1,0 +1,343 @@
+import std::list
+import std::string
+
+fn tcx::unify : type -> type -> span -> tcx -> tcx
+fn tcx::unify lhs rhs span tcx {
+  match tcx::substitute-shallow lhs tcx {
+    some lhs -> tcx::unify lhs rhs span tcx
+    none     -> match tcx::substitute-shallow rhs tcx {
+      some rhs -> tcx::unify lhs rhs span tcx
+      none     -> {
+        match lhs.kind == rhs.kind or set::has (lhs, rhs) tcx.cache {
+          true  -> tcx
+          false -> {
+            let tcx = tcx with {
+              cache: set::put (lhs, lhs) tcx.cache
+            }
+
+            match lhs.kind, rhs.kind {
+              type::var var, _ -> {
+                tcx::unify-var-type var rhs span tcx
+              }
+
+              _ , type::var var -> {
+                tcx::unify-var-type var lhs span tcx
+              }
+
+              type::app lhs-app, type::app rhs-app -> {
+                tcx::unify-app-app lhs lhs-app rhs rhs-app span tcx
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+fn tcx::unify-var-type var type span tcx {
+  let bounds = tcx::bounds var tcx
+
+  let tcx = match bounds.number {
+    true  -> tcx::require-number type span tcx
+    false -> tcx
+  }
+
+  let tcx = bounds.fields
+    |> map::list
+    |> list::foldl tcx |tcx name, field| {
+      tcx::require-field type name field span tcx
+    }
+
+  tcx with {
+    subst: map::put var.index type tcx.subst
+  }
+}
+
+fn tcx::unify-app-app lhs lhs-app rhs rhs-app span tcx {
+  match lhs-app, rhs-app {
+    app::integer, app::integer -> tcx
+    app::string,  app::string  -> tcx
+    app::boolean, app::boolean -> tcx
+    app::unit,    app::unit    -> tcx
+
+    app::list lhs, app::list rhs -> {
+      tcx::unify lhs rhs span tcx
+    }
+
+    app::tuple lhs, app::tuple rhs -> {
+      match list::len lhs == list::len rhs {
+        true  -> {
+          list::zip rhs lhs
+            |> list::foldl tcx |tcx lhs, rhs| {
+              tcx::unify lhs rhs span tcx
+            }
+        }
+
+        false -> {
+          let error = diagnostic::error "cannot unify tuples with lengths `{list::len lhs}` and `{list::len rhs}`"
+            |> diagnostic::with-label span "required here" 
+
+          tcx::with-error error tcx
+        }
+      }
+    }
+
+    app::function (lhs-in, lhs-out), app::function (rhs-in, rhs-out) -> {
+      tcx
+        |> tcx::unify lhs-in rhs-in span
+        |> tcx::unify lhs-out rhs-out span
+    }
+
+    _, _ -> {
+      let lhs-fmt = tcx::format-type lhs tcx
+      let rhs-fmt = tcx::format-type rhs tcx
+      let error = diagnostic::error "cannot unify types `{lhs-fmt}` and `{rhs-fmt}`"
+        |> diagnostic::with-label span "required here"
+
+      tcx::with-error error tcx
+    }
+  }
+}
+
+fn tcx::require-number type span tcx {
+  match tcx::substitute-shallow type tcx {
+    some type -> tcx::require-number type span tcx
+    none -> match type.kind {
+      type::var var -> {
+        let bounds = (tcx::bounds var tcx) with {
+          number: true
+        }
+
+        tcx::set-bounds var bounds tcx
+      }
+
+      type::app app::integer -> tcx
+
+      type::app _ -> {
+        let fmt = tcx::format-type type tcx
+        let error = diagnostic::error "type `{fmt}` is not a number"
+          |> diagnostic::with-label span "required here"
+
+        tcx::with-error error tcx
+      }
+    } 
+  }
+}
+
+fn tcx::require-field type name field span tcx {
+  match tcx::substitute-shallow type tcx {
+    some type -> tcx::require-field type name field span tcx
+    none -> match type.kind {
+      type::var var -> {
+        let bounds = tcx::bounds var tcx
+
+        match map::get name bounds.fields {
+          some current -> {
+            tcx::unify type current span tcx
+          }
+
+          none -> {
+            let bounds = bounds with {
+              fields: map::put name field bounds.fields
+            }
+
+            tcx::set-bounds var bounds tcx
+          }
+        }
+      }
+
+      type::app app::record (id, generics) -> {
+        let record = tcx::record id tcx
+
+        match record.fields |> (list::find |n, _| n == name) {
+          some (_, type) -> {
+            let subst = record.generics
+              |> list::map |_, v, _| v
+              |> list::zip generics
+              |> map::from-list
+
+            let type = type::substitute subst type
+            tcx::unify type field span tcx
+          }
+
+          none -> {
+            let fmt = tcx::format-type type tcx
+            let error = diagnostic::error "type `{fmt}` is not have a field `{name}`"
+              |> diagnostic::with-label span "required here"
+
+            tcx::with-error error tcx
+          }
+        }
+      }
+
+      type::app _ -> {
+        let fmt = tcx::format-type type tcx
+        let error = diagnostic::error "type `{fmt}` is not have fields"
+          |> diagnostic::with-label span "required here"
+
+        tcx::with-error error tcx
+      }
+    }
+  }
+}
+
+fn tcx::substitute-shallow type tcx {
+  match type.kind {
+    type::var var -> map::get var.index tcx.subst
+    type::app     -> none
+  }
+}
+
+fn tcx::format-type type tcx {
+  let vars = tcx::enumerate-vars type tcx
+
+  let names = vars
+    |> set::list
+    |> list::map |var, _| var
+    |> list::enumerate
+    |> list::foldl map |map n, var| {
+      let name = tcx::generate-var-name n
+      map::put var name map
+    }
+
+  tcx::format-type' type names 0 tcx
+}
+
+fn tcx::format-type' type names p tcx {
+  match tcx::substitute-shallow type tcx {
+    some type -> tcx::format-type' type names p tcx
+    none -> match type.kind {
+      type::var var -> {
+        let name = names
+          |> map::get var
+          |> option::assert
+
+        "'{name}"
+      }
+
+      type::app app -> match app {
+        app::integer   -> "int"
+        app::string    -> "str"
+        app::boolean   -> "bool"
+        app::unit      -> "{{}}"
+
+        app::list item -> {
+          let item = tcx::format-type' item names 0 tcx
+          "[{item}]"
+        }
+        
+        app::tuple items -> {
+          items
+            |> list::map |t| tcx::format-type' t names 1 tcx
+            |> string::join ", "
+        }
+
+        app::function (in, out) -> {
+          let in = tcx::format-type' in names 1 tcx
+          let out = tcx::format-type' out names 0 tcx
+
+          match p > 0 {
+            true  -> "({in} -> {out})"
+            false -> "{in} -> {out}"
+          }
+        }
+
+        app::record (id, generics) -> {
+          let record = tcx::record id tcx
+
+          generics
+            |> list::map |t| tcx::format-type' t names 1 tcx
+            |> list::push <| string::join "::" record.path
+            |> string::join " "
+        }
+
+        app::union (id, generics) -> {
+          let union = tcx::union id tcx
+
+          generics
+            |> list::map |t| tcx::format-type' t names 1 tcx
+            |> list::push <| string::join "::" union.path
+            |> string::join " "
+        }
+
+        app::alias (id, generics) -> {
+          let alias = tcx::alias id tcx
+
+          generics
+            |> list::map |t| tcx::format-type' t names 1 tcx
+            |> list::push <| string::join "::" alias.path
+            |> string::join " "
+        }
+      }
+    }
+  }
+}
+
+fn tcx::enumerate-vars type tcx {
+  match tcx::substitute-shallow type tcx {
+    some type -> tcx::enumerate-vars type tcx
+    none -> {
+      match type.kind {
+        type::var var -> {
+          let bounds = tcx::bounds var tcx
+
+          bounds.fields
+            |> map::list
+            |> list::map |_, t| tcx::enumerate-vars t tcx
+            |> list::foldl set set::union
+            |> set::put (var, type.span)
+        }
+
+        type::app app -> {
+          match app {
+            app::list item -> tcx::enumerate-vars item tcx
+
+            app::tuple items -> {
+              items
+                |> list::map |t| tcx::enumerate-vars t tcx
+                |> list::foldl set set::union
+            }
+
+            app::function (in, out) -> {
+              let in = tcx::enumerate-vars in tcx
+              let out = tcx::enumerate-vars out tcx
+
+              set::union in out
+            }
+
+            app::record (_, generics) -> {
+              generics
+                |> list::map |t| tcx::enumerate-vars t tcx
+                |> list::foldl set set::union
+            }
+
+            app::union (_, generics) -> {
+              generics
+                |> list::map |t| tcx::enumerate-vars t tcx
+                |> list::foldl set set::union
+            }
+
+            app::alias (_, generics) -> {
+              generics
+                |> list::map |t| tcx::enumerate-vars t tcx
+                |> list::foldl set set::union
+            }
+
+            _ -> set
+          }
+        }
+      }
+    }
+  }
+}
+
+fn tcx::generate-var-name idx {
+  let letters = string::graphemes "abcdefghijklmnopqrstuvwxyz"
+  let letter = list::nth (idx % list::len letters) letters |> option::assert
+
+  match idx > list::len letters {
+    false -> letter
+    true  -> "{letter}{tcx::generate-var-name <| idx / list::len letters}"
+  }
+}
