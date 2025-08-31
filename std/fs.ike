@@ -20,6 +20,27 @@ fn fs::read-dir path {
   |> result::map |s| {
     s.output
     |> string::split "\n"
-    |> list::filter |s| s != "." and s != ".."
+    |> list::filter |s| s != "." and s != ".." and s != ""
+  }
+}
+
+fn fs::file-name : str -> option str
+fn fs::file-name path {
+  string::split "/" path
+    |> list::last
+}
+
+fn fs::file-extension : str -> option str
+fn fs::file-extension path {
+  match fs::file-name path {
+    none      -> none
+    some name -> {
+      let segments = string::split "." path
+
+      match list::len segments {
+        1 -> none
+        _ -> list::last segments
+      }
+    }
   }
 }

@@ -14,7 +14,8 @@ fn create-module mod-id path lcx {
         some id -> create-module id path lcx
         none    -> {
           let id, lcx = lcx::add-module uir::module lcx
-          id, lcx::put-module mod-id name id lcx
+          let lcx = lcx::put-module mod-id name id lcx
+          create-module id path lcx
         }
       }
     }
@@ -23,27 +24,27 @@ fn create-module mod-id path lcx {
 
 fn add-file : [str] -> ast::tree -> lcx -> lcx
 fn add-file path ast lcx {
-  let mod, lcx = create-module uir::module::root path lcx
+  let mod-id, lcx = create-module uir::module::root path lcx
 
-  add-file-rec mod (ast::trees ast) lcx
+  add-file-rec path mod-id (ast::trees ast) lcx
 }
 
-fn add-file-rec mod items lcx {
+fn add-file-rec mod-path mod-id items lcx {
   match items {
     []              -> lcx
     [item; ..items] -> {
       let lcx = match item.kind {
-        ast::item::import     -> add-file::import mod item lcx
-        ast::item::function   -> add-file::function mod item lcx
-        ast::item::extern     -> add-file::extern mod item lcx
-        ast::item::ascription -> add-file::ascription mod item lcx
-        ast::item::type       -> add-file::type mod item lcx
-        ast::item::alias      -> add-file::alias mod item lcx
+        ast::item::import     -> add-file::import mod-id item lcx
+        ast::item::function   -> add-file::function mod-path mod-id item lcx
+        ast::item::extern     -> add-file::extern mod-path mod-id item lcx
+        ast::item::ascription -> add-file::ascription mod-id item lcx
+        ast::item::type       -> add-file::type mod-path mod-id item lcx
+        ast::item::alias      -> add-file::alias mod-path mod-id item lcx
         ast::error            -> lcx
         kind -> std::panic "invalid ast {kind}"
       }
 
-      add-file-rec mod items lcx
+      add-file-rec mod-path mod-id items lcx
     }
   }
 }
@@ -63,14 +64,14 @@ fn add-file::import mod-id ast lcx {
   }
 }
 
-fn add-file::function mod-id ast lcx {
+fn add-file::function mod-path mod-id ast lcx {
   let path = ast::nth-tree 1 ast
     |> path::info
 
   let type, lcx = lcx::infer-type path.span lcx
 
   let body = ir::body {
-    path:   path.path
+    path:   list::append path.path mod-path
     locals: map
     inputs: []
     expr:   none
@@ -116,12 +117,12 @@ fn add-file::function mod-id ast lcx {
   }
 }
 
-fn add-file::extern mod-id ast lcx {
+fn add-file::extern mod-path mod-id ast lcx {
   let path = ast::nth-tree 1 ast
     |> path::info
 
   let body = ir::body {
-    path:   path.path
+    path:   list::append path.path mod-path
     locals: map
     inputs: []
     expr:   none
@@ -133,7 +134,20 @@ fn add-file::extern mod-id ast lcx {
   let existing        = lcx::get-body sub-mod-id path.name lcx
 
   match existing {
-    none -> lcx::put-body sub-mod-id path.name id lcx
+    none -> {
+      let extern = lcx::extern {
+        module: mod-id
+        type:   ast::nth-tree 3 ast
+      }
+
+      let lcx = lcx with {
+        externs: lcx.externs
+          |> map::put id extern
+      }
+
+      lcx::put-body sub-mod-id path.name id lcx
+    }
+
     some -> {
       let diagnostic = diagnostic::error "duplicate function `{path::format path}`"
         |> diagnostic::with-label path.span "here"
@@ -143,7 +157,7 @@ fn add-file::extern mod-id ast lcx {
   }
 }
 
-fn add-file::type mod-id ast lcx {
+fn add-file::type mod-path mod-id ast lcx {
   let path = ast::nth-tree 1 ast
     |> path::info
 
@@ -156,6 +170,7 @@ fn add-file::type mod-id ast lcx {
   match item.kind {
     ast::item::type::record -> {
       add-file::type::record
+        <| mod-path
         <| mod-id
         <| path
         <| generics
@@ -165,6 +180,7 @@ fn add-file::type mod-id ast lcx {
 
     ast::item::type::union -> {
       add-file::type::union
+        <| mod-path
         <| mod-id
         <| path
         <| generics
@@ -178,9 +194,9 @@ fn add-file::type mod-id ast lcx {
   }
 }
 
-fn add-file::type::record mod-id path generics item lcx {
+fn add-file::type::record mod-path mod-id path generics item lcx {
   let record = uir::record {
-    path:     path.path
+    path:     list::append path.path mod-path
     generics: generics
     fields:   []
     span:     path.span
@@ -217,9 +233,9 @@ fn add-file::type::record mod-id path generics item lcx {
   }
 }
 
-fn add-file::type::union mod-id path generics item lcx {
+fn add-file::type::union mod-path mod-id path generics item lcx {
   let union = uir::union {
-    path:     path.path
+    path:     list::append path.path mod-path
     generics: generics
     variants: []
     span:     path.span
@@ -235,6 +251,7 @@ fn add-file::type::union mod-id path generics item lcx {
         |> ast::trees-of ast::item::type::union::variant
 
       let variants, lcx = add-file::type::union::variants
+       <| list::append path.mods mod-path
        <| sub-mod-id
        <| union-id
        <| 0
@@ -263,11 +280,12 @@ fn add-file::type::union mod-id path generics item lcx {
   }
 }
 
-fn add-file::type::union::variants mod-id union-id n variants lcx {
+fn add-file::type::union::variants mod-path mod-id union-id n variants lcx {
   match variants {
     [] -> [], lcx
     [variant; ..rest] -> {
       let variant, lcx = add-file::type::union::variant
+        <| mod-path
         <| mod-id
         <| union-id
         <| n
@@ -275,6 +293,7 @@ fn add-file::type::union::variants mod-id union-id n variants lcx {
         <| lcx
 
       let variants, lcx = add-file::type::union::variants
+        <| mod-path
         <| mod-id
         <| union-id
         <| n + 1
@@ -286,7 +305,7 @@ fn add-file::type::union::variants mod-id union-id n variants lcx {
   }
 }
 
-fn add-file::type::union::variant mod-id union-id n ast lcx {
+fn add-file::type::union::variant mod-path mod-id union-id n ast lcx {
   let path = ast::nth-tree 0 ast
     |> path::info
 
@@ -313,7 +332,7 @@ fn add-file::type::union::variant mod-id union-id n ast lcx {
   }
 
   let body = ir::body {
-    path:   path.path
+    path:   list::append path.path mod-path
     locals: map
     inputs: []
     expr:   none
@@ -343,7 +362,7 @@ fn add-file::type::union::variant mod-id union-id n ast lcx {
   let variant = lcx::variant {
     module: sub-mod-id
     index:  n
-    name:   path::format path
+    path:   list::append path.path mod-path
     cons:   body-id
     body:   ast
       |> ast::trees
@@ -354,7 +373,7 @@ fn add-file::type::union::variant mod-id union-id n ast lcx {
   variant, lcx
 }
 
-fn add-file::alias mod-id ast lcx {
+fn add-file::alias mod-path mod-id ast lcx {
   let path = ast::nth-tree 1 ast
     |> path::info
 
@@ -363,7 +382,7 @@ fn add-file::alias mod-id ast lcx {
     <| lcx
 
   let alias = uir::alias {
-    path:     path.path
+    path:     list::append path.path mod-path
     generics: generics
     type:     uir::type::dummy
     span:     path.span
@@ -404,7 +423,8 @@ fn add-file::ascription mod-id ast lcx {
   let sub-mod-id, lcx = create-module mod-id path.mods lcx
 
   let ascription = lcx::ascription {
-    module: sub-mod-id 
+    module: mod-id 
+    submod: sub-mod-id
     name:   path.name
     type:   ast::nth-tree 3 ast
     span:   path.span

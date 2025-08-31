@@ -55,6 +55,13 @@ fn tcx::unify-var-type var type span tcx {
 }
 
 fn tcx::unify-app-app lhs lhs-app rhs rhs-app span tcx {
+  let unify-list = |lhs rhs span tcx| {
+    list::zip rhs lhs
+      |> list::foldl tcx |tcx lhs, rhs| {
+        tcx::unify lhs rhs span tcx
+      }
+  }
+
   match lhs-app, rhs-app {
     app::integer, app::integer -> tcx
     app::string,  app::string  -> tcx
@@ -67,13 +74,7 @@ fn tcx::unify-app-app lhs lhs-app rhs rhs-app span tcx {
 
     app::tuple lhs, app::tuple rhs -> {
       match list::len lhs == list::len rhs {
-        true  -> {
-          list::zip rhs lhs
-            |> list::foldl tcx |tcx lhs, rhs| {
-              tcx::unify lhs rhs span tcx
-            }
-        }
-
+        true  -> unify-list lhs rhs span tcx
         false -> {
           let error = diagnostic::error "cannot unify tuples with lengths `{list::len lhs}` and `{list::len rhs}`"
             |> diagnostic::with-label span "required here" 
@@ -89,6 +90,54 @@ fn tcx::unify-app-app lhs lhs-app rhs rhs-app span tcx {
         |> tcx::unify lhs-out rhs-out span
     }
 
+    app::record (lhs-id, lhs-generics), app::record (rhs-id, rhs-generics) -> {
+      match lhs-id == rhs-id {
+        true  -> unify-list lhs-generics rhs-generics span tcx
+        false -> {
+          let lhs-fmt = tcx::format-type lhs tcx
+          let rhs-fmt = tcx::format-type rhs tcx
+          let error = diagnostic::error "cannot unify types `{lhs-fmt}` and `{rhs-fmt}`"
+            |> diagnostic::with-label span "required here"
+
+          tcx::with-error error tcx
+        }
+      }
+    }
+
+    app::union (lhs-id, lhs-generics), app::union (rhs-id, rhs-generics) -> {
+      match lhs-id == rhs-id {
+        true  -> unify-list lhs-generics rhs-generics span tcx
+        false -> {
+          let lhs-fmt = tcx::format-type lhs tcx
+          let rhs-fmt = tcx::format-type rhs tcx
+          let error = diagnostic::error "cannot unify types `{lhs-fmt}` and `{rhs-fmt}`"
+            |> diagnostic::with-label span "required here"
+
+          tcx::with-error error tcx
+        }
+      }
+    }
+
+    app::alias (lhs-id, lhs-generics), app::alias (rhs-id, rhs-generics) -> {
+      match lhs-id == rhs-id {
+        true  -> unify-list lhs-generics rhs-generics span tcx
+        false -> {
+          let lhs = tcx::expand-alias lhs-id lhs-generics tcx
+          tcx::unify lhs rhs span tcx
+        }
+      }
+    }
+
+    app::alias (id, generics), _ -> {
+      let lhs = tcx::expand-alias id generics tcx
+      tcx::unify lhs rhs span tcx
+    }
+
+    _, app::alias (id, generics) -> {
+      let rhs = tcx::expand-alias id generics tcx
+      tcx::unify lhs rhs span tcx
+    }
+
     _, _ -> {
       let lhs-fmt = tcx::format-type lhs tcx
       let rhs-fmt = tcx::format-type rhs tcx
@@ -98,6 +147,17 @@ fn tcx::unify-app-app lhs lhs-app rhs rhs-app span tcx {
       tcx::with-error error tcx
     }
   }
+}
+
+fn tcx::expand-alias id generics tcx {
+  let alias = tcx::alias id tcx
+
+  let subst = alias.generics
+    |> list::map |_, var, _| var
+    |> list::zip generics
+    |> map::from-list
+
+  type::substitute subst alias.type
 }
 
 fn tcx::require-number type span tcx {
@@ -134,7 +194,7 @@ fn tcx::require-field type name field span tcx {
 
         match map::get name bounds.fields {
           some current -> {
-            tcx::unify type current span tcx
+            tcx::unify field current span tcx
           }
 
           none -> {
@@ -171,6 +231,11 @@ fn tcx::require-field type name field span tcx {
         }
       }
 
+      type::app app::alias (id, generics) -> {
+        let type = tcx::expand-alias id generics tcx
+        tcx::require-field type name field span tcx
+      }
+
       type::app _ -> {
         let fmt = tcx::format-type type tcx
         let error = diagnostic::error "type `{fmt}` is not have fields"
@@ -201,133 +266,137 @@ fn tcx::format-type type tcx {
       map::put var name map
     }
 
-  tcx::format-type' type names 0 tcx
+  tcx::format-type' type names [] 0 tcx
 }
 
-fn tcx::format-type' type names p tcx {
-  match tcx::substitute-shallow type tcx {
-    some type -> tcx::format-type' type names p tcx
-    none -> match type.kind {
-      type::var var -> {
-        let name = names
-          |> map::get var
-          |> option::assert
+fn tcx::format-type' type names seen p tcx {
+  match type.kind {
+    type::var var -> match list::contains var seen {
+      true  -> ".."
+      false -> match tcx::substitute-shallow type tcx {
+        some type -> tcx::format-type' type names [var; ..seen] p tcx
+        none -> {
+          let name = names
+            |> map::get var
+            |> option::assert
 
-        "'{name}"
+          "'{name}"
+        }
+      }
+    }
+
+    type::app app -> match app {
+      app::integer   -> "int"
+      app::string    -> "str"
+      app::boolean   -> "bool"
+      app::unit      -> "{{}}"
+
+      app::list item -> {
+        let item = tcx::format-type' item names seen 0 tcx
+        "[{item}]"
+      }
+      
+      app::tuple items -> {
+        items
+          |> list::map |t| tcx::format-type' t names seen 1 tcx
+          |> string::join ", "
       }
 
-      type::app app -> match app {
-        app::integer   -> "int"
-        app::string    -> "str"
-        app::boolean   -> "bool"
-        app::unit      -> "{{}}"
+      app::function (in, out) -> {
+        let in = tcx::format-type' in names seen 1 tcx
+        let out = tcx::format-type' out names seen 0 tcx
 
-        app::list item -> {
-          let item = tcx::format-type' item names 0 tcx
-          "[{item}]"
+        match p > 0 {
+          true  -> "({in} -> {out})"
+          false -> "{in} -> {out}"
         }
-        
-        app::tuple items -> {
-          items
-            |> list::map |t| tcx::format-type' t names 1 tcx
-            |> string::join ", "
-        }
+      }
 
-        app::function (in, out) -> {
-          let in = tcx::format-type' in names 1 tcx
-          let out = tcx::format-type' out names 0 tcx
+      app::record (id, generics) -> {
+        let record = tcx::record id tcx
 
-          match p > 0 {
-            true  -> "({in} -> {out})"
-            false -> "{in} -> {out}"
-          }
-        }
+        generics
+          |> list::map |t| tcx::format-type' t names seen 1 tcx
+          |> list::push <| string::join "::" record.path
+          |> string::join " "
+      }
 
-        app::record (id, generics) -> {
-          let record = tcx::record id tcx
+      app::union (id, generics) -> {
+        let union = tcx::union id tcx
 
-          generics
-            |> list::map |t| tcx::format-type' t names 1 tcx
-            |> list::push <| string::join "::" record.path
-            |> string::join " "
-        }
+        generics
+          |> list::map |t| tcx::format-type' t names seen 1 tcx
+          |> list::push <| string::join "::" union.path
+          |> string::join " "
+      }
 
-        app::union (id, generics) -> {
-          let union = tcx::union id tcx
+      app::alias (id, generics) -> {
+        let alias = tcx::alias id tcx
 
-          generics
-            |> list::map |t| tcx::format-type' t names 1 tcx
-            |> list::push <| string::join "::" union.path
-            |> string::join " "
-        }
-
-        app::alias (id, generics) -> {
-          let alias = tcx::alias id tcx
-
-          generics
-            |> list::map |t| tcx::format-type' t names 1 tcx
-            |> list::push <| string::join "::" alias.path
-            |> string::join " "
-        }
+        generics
+          |> list::map |t| tcx::format-type' t names seen 1 tcx
+          |> list::push <| string::join "::" alias.path
+          |> string::join " "
       }
     }
   }
 }
 
-fn tcx::enumerate-vars type tcx {
-  match tcx::substitute-shallow type tcx {
-    some type -> tcx::enumerate-vars type tcx
-    none -> {
-      match type.kind {
-        type::var var -> {
+fn tcx::enumerate-vars type tcx -> tcx::enumerate-vars' [] tcx type
+fn tcx::enumerate-vars' seen tcx type {
+  match type.kind {
+    type::var var -> match list::contains var seen {
+      true  -> set
+      false -> match map::get var.index tcx.subst {
+        some type -> tcx::enumerate-vars' [var; ..seen] tcx type
+        none -> {
           let bounds = tcx::bounds var tcx
 
           bounds.fields
             |> map::list
-            |> list::map |_, t| tcx::enumerate-vars t tcx
+            |> list::map |_, type| type
+            |> list::map <| tcx::enumerate-vars' [var; ..seen] tcx 
             |> list::foldl set set::union
             |> set::put (var, type.span)
         }
-
-        type::app app -> {
-          match app {
-            app::list item -> tcx::enumerate-vars item tcx
-
-            app::tuple items -> {
-              items
-                |> list::map |t| tcx::enumerate-vars t tcx
-                |> list::foldl set set::union
-            }
-
-            app::function (in, out) -> {
-              let in = tcx::enumerate-vars in tcx
-              let out = tcx::enumerate-vars out tcx
-
-              set::union in out
-            }
-
-            app::record (_, generics) -> {
-              generics
-                |> list::map |t| tcx::enumerate-vars t tcx
-                |> list::foldl set set::union
-            }
-
-            app::union (_, generics) -> {
-              generics
-                |> list::map |t| tcx::enumerate-vars t tcx
-                |> list::foldl set set::union
-            }
-
-            app::alias (_, generics) -> {
-              generics
-                |> list::map |t| tcx::enumerate-vars t tcx
-                |> list::foldl set set::union
-            }
-
-            _ -> set
-          }
-        }
       }
+    }
+
+    type::app app -> match app {
+      app::list item -> tcx::enumerate-vars' seen tcx item
+
+      app::function (in, out) -> {
+        let in = tcx::enumerate-vars' seen tcx in
+        let out = tcx::enumerate-vars' seen tcx out
+
+        set::union in out
+      }
+
+      app::tuple items -> {
+        items
+          |> list::map <| tcx::enumerate-vars' seen tcx
+          |> list::foldl set set::union
+      }
+
+      app::record (_, generics) -> {
+        generics
+          |> list::map <| tcx::enumerate-vars' seen tcx
+          |> list::foldl set set::union
+      }
+
+      app::union (_, generics) -> {
+        generics
+          |> list::map <| tcx::enumerate-vars' seen tcx
+          |> list::foldl set set::union
+      }
+
+      app::alias (_, generics) -> {
+        generics
+          |> list::map <| tcx::enumerate-vars' seen tcx
+          |> list::foldl set set::union
+      }
+
+      _ -> set
     }
   }
 }

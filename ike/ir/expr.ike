@@ -19,7 +19,7 @@ type expr::kind 'type = integer str
                       | tuple [expr 'type]
                       | record [str, expr 'type]
                       | with_ expr 'type, [str, expr 'type]
-                      | try_ [expr 'type]
+                      | try_ expr 'type
                       | call expr 'type, expr 'type
                       | binary expr::binop, expr 'type, expr 'type
                       | match_ expr 'type, [expr::arm 'type]

@@ -55,3 +55,35 @@ fn module::put-body name id module {
     bodies: map::put name id module.bodies
   }
 }
+
+fn module::debug-format -> module::debug-format' 0 "root"
+
+fn module::debug-format' indent name mod-id program {
+  let i = string::repeat indent "  "
+
+  let module = program::module mod-id program
+
+  let modules = module.modules
+    |> map::list
+    |> list::map |name, mod-id| {
+      module::debug-format' (indent + 1) name mod-id program
+    }
+    |> string::join ""
+
+  let types = module.types
+    |> map::list
+    |> list::map |name, type| "{i}  {name} => {type}\n"
+    |> string::join ""
+
+  let bodies = module.bodies
+    |> map::list
+    |> list::map |name, body| "{i}  {name} => {body}\n"
+    |> string::join ""
+
+  let variants = module.variants
+    |> map::list
+    |> list::map |name, variant| "{i}  {name} => {variant}\n"
+    |> string::join ""
+
+  "{i}{name}:\n{i} types:\n{types}{i} bodies:\n{bodies}{i} variants:\n{variants}{i} modules:\n{modules}"
+}

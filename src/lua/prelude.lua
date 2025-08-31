@@ -196,10 +196,21 @@ end
 E["std::string::split"] = function()
   return function(sep)
     return function(str)
-      local parts = {}
+      sep = sep:gsub("([%(%)%.%%%+%-%*%?%[%^%$])", "%%%1")
 
-      for part in string.gmatch(str, "(.-)" .. sep) do
-        table.insert(parts, part)
+      local parts = {}
+      local start = 0
+
+      while true do
+        local pstart, pend = string.find(str, sep, start)
+
+        if not pstart then
+          table.insert(parts, string.sub(str, start))
+          break
+        end
+
+        table.insert(parts, string.sub(str, start, pstart - 1))
+        start = pend + 1
       end
 
       return toList(parts)
@@ -328,6 +339,7 @@ end
 
 E["std::os::exit"] = function()
   return function(code)
+    print(debug.traceback())
     os.exit(code)
   end
 end

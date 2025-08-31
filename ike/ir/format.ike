@@ -1,0 +1,195 @@
+import std::string
+import std::some
+import std::none
+
+fn program::debug-format program {
+  program.bodies
+    |> map::list
+    |> list::map |body-id, body| body::debug-format program body-id body
+    |> string::join "\n\n"
+}
+
+fn body::debug-format program body-id body {
+  let name = string::join "::" body.path
+  let inputs = body.inputs
+    |> list::map pattern::debug-format 
+    |> string::join " "
+
+  let locals = body.locals
+    |> map::list
+    |> list::map |index, local| {
+      let type = uir::tcx::format-type local.type program.tcx
+      "  l{index}: {type} // {local.name}\n"
+    }
+    |> string::join ""
+
+  match body.expr {
+    some expr -> {
+      let expr = expr::debug-format 0 expr
+      "fn b{body-id} {inputs} // {name} \n{locals} -> {expr}"
+    }
+
+    none -> {
+      "fn b{body-id} {inputs} // {name}"
+    }
+  }
+}
+
+fn expr::debug-format indent expr {
+  let i = string::repeat indent "  "
+
+  match expr.kind {
+    expr::integer s -> s
+    expr::boolean b -> "{b}"
+    expr::string  s -> "\"{s}\""
+
+    expr::format parts -> {
+      let parts = parts
+        |> list::map <| expr::debug-format indent
+        |> string::join "; "
+
+      "format ({parts})"
+    }
+
+    expr::local local-id -> "l{local-id.index}"
+    expr::body body-id   -> "b{body-id.index}"
+
+    expr::let_ (pattern, value) -> {
+      let pattern = pattern::debug-format pattern
+      let value = expr::debug-format indent value
+
+      "let {pattern} = {value}"
+    }
+
+    expr::variant (index, value) -> {
+      match value {
+        none       -> "v{index}"
+        some value -> {
+          let value = expr::debug-format indent value
+          "v{index} {value}"
+        }
+      }
+    }
+
+    expr::list-empty -> "[]"
+    expr::list-cons (head, tail) -> {
+      let head = expr::debug-format indent head
+      let tail = expr::debug-format indent tail
+
+      "[{head}; ..{tail}]"
+    }
+
+    expr::tuple items -> {
+      items
+        |> list::map (expr::debug-format indent)
+        |> string::join ", "
+    }
+
+    expr::record fields -> {
+      let fields = fields
+        |> list::map |name, value| { 
+          let value = expr::debug-format indent value
+          "{name}: {value}"
+        }
+        |> string::join "; "
+
+      let open ="{{"
+      "{open} {fields} }}"
+    }
+
+    expr::with_ (target, fields) -> {
+      let target = expr::debug-format indent target
+
+      let fields = fields
+        |> list::map |name, value| { 
+          let value = expr::debug-format indent value
+          "{name}: {value}"
+        }
+        |> string::join "; "
+
+      let open ="{{"
+      "{target} with {open} {fields} }}"
+    }
+
+    expr::try_ value -> {
+      let value = expr::debug-format indent value
+      "(try {value})"
+    }
+
+    expr::call (callee, input) -> {
+      let callee = expr::debug-format indent callee
+      let input  = expr::debug-format indent input
+
+      "({callee} {input})"
+    }
+
+    expr::binary (op, lhs, rhs) -> {
+      let op = match op {
+        expr::add  -> "+"
+        expr::sub  -> "-"
+        expr::mul  -> "*"
+        expr::div  -> "/"
+        expr::mod  -> "%"
+        expr::and_ -> "and"
+        expr::or_  -> "or"
+        expr::gt   -> ">"
+        expr::lt   -> "<"
+        expr::ge   -> ">="
+        expr::le   -> "<="
+        expr::eq   -> "=="
+        expr::ne   -> "!="
+      }
+
+      let lhs = expr::debug-format indent lhs
+      let rhs = expr::debug-format indent rhs
+
+      "({lhs} {op} {rhs})"
+    }  
+
+    expr::match_ (target, arms) -> {
+      let target = expr::debug-format indent target
+
+      let arms = arms
+        |> list::map |arm| {
+          let pattern = pattern::debug-format arm.pattern
+          let expr = expr::debug-format (indent + 2) arm.expr
+
+          "{i}  {pattern} -> {expr}\n"
+        }
+        |> string::join ""
+
+      let open = "{{"
+      "match {target} {open}\n{arms}{i}}}"
+    }
+
+    expr::block exprs -> {
+      let exprs = exprs
+        |> list::map |expr| expr::debug-format (indent + 1) expr
+        |> list::map |expr| "{i}  {expr}\n"
+        |> string::join ""
+
+      let open = "{{"
+      "{open}\n{exprs}{i}}}"
+    }
+
+    _ -> "?"
+  }
+}
+
+fn pattern::debug-format pattern {
+  match pattern.kind {
+    pattern::wildcard         -> "_"
+    pattern::binding local-id -> "l{local-id.index}"
+    pattern::integer value    -> value
+    pattern::boolean value    -> "{value}"
+    pattern::string value     -> value
+
+    pattern::tuple items -> {
+      items
+        |> list::map pattern::debug-format
+        |> string::join ", "
+    }
+
+    _ -> "?"
+  }
+}

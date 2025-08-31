@@ -1,0 +1,18 @@
+fn lower::externs lcx {
+  lcx.externs
+    |> map::list
+    |> list::foldl lcx |lcx body-id, info| {
+      let tlcx = tlcx {
+        lcx:                lcx
+        mod:                info.module
+        generics:           []
+        allow-new-generics: true
+        allow-inferred:     false
+      }
+
+      let type, tlcx = lower-type info.type tlcx
+      let body = lcx::body body-id lcx
+      let body = body with { type: type }
+      lcx::set-body body-id body lcx
+    }
+}

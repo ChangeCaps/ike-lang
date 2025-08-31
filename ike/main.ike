@@ -1,33 +1,69 @@
 import std::string
 import std::io
 import std::list
+import std::result
+import std::some
+import std::option
 
 fn main {
-  let file = file::new "test.ike"
-  let ts, diagnostics = parse::tokenize file 
-    <| (file |> file::read |> std::result::assert)
+  let lcx = lower::lcx
+    |> add-path [] "std"
+    |> add-path [] "ike"
+
+  let uir, diagnostics = lcx
+    |> lower::lower
+
+  ir::program::debug-format uir
+    |> io::println
 
   diagnostics
     |> list::map diagnostic::format
     |> list::foldl "" string::append
     |> io::print
+}
 
-  let ast = parse::parser::new ts
-    |> parse::file
-    |> parse::finish
+fn add-path mods path lcx {
+  match fs::is-dir path {
+    true -> {
+      let name = fs::file-name path
+        |> option::assert
 
-  ast::format ast
-    |> std::io::println
+      let mods = list::append [name] mods
 
-  ast::errors ast
-    |> list::map diagnostic::format
-    |> list::foldl "" string::append
-    |> io::print
+      fs::read-dir path
+        |> result::assert
+        |> list::map <| string::prepend "{path}/"
+        |> list::foldl lcx |lcx path| {
+          add-path mods path lcx
+        }
+    }
 
-  let uir, diagnostics = lower::lcx
-    |> lower::add-file ["test"] ast 
-    |> lower::lower
+    false -> {
+      match fs::file-extension path == some "ike" {
+        false -> lcx
+        true  -> {
+          std::io::println "adding file {path}, {mods}"
 
+          let file = file::new path
+          let ts, diagnostics = parse::tokenize file 
+            <| (file |> file::read |> result::assert)
+
+          print-diagnostics diagnostics
+
+          let ast = parse::parser::new ts
+            |> parse::file
+            |> parse::finish
+
+          print-diagnostics <| ast::errors ast 
+
+          lower::add-file mods ast lcx
+        }
+      }
+    }
+  }
+}
+
+fn print-diagnostics diagnostics {
   diagnostics
     |> list::map diagnostic::format
     |> list::foldl "" string::append

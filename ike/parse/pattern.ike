@@ -86,7 +86,7 @@ fn pattern::path refutable parser {
     false -> close parser
     true  -> {
       parser
-        |> pattern refutable
+        |> pattern::term refutable
         |> close-with ast::pattern::variant
     }
   }

@@ -86,7 +86,7 @@ fn lower::variant union-id variant tlcx {
       let type, tlcx = lower-type type tlcx
 
       let local = ir::local {
-        name: variant.name
+        name: ""
         type: type
       }
 
@@ -94,8 +94,7 @@ fn lower::variant union-id variant tlcx {
       let local-id = ir::local::id { index: 0 }
 
       let out = uir::type::union union-id generics variant.span
-      let out, lcx = lcx::instantiate-type out tlcx.lcx
-      let tlcx = tlcx with { lcx: lcx }
+      let tlcx = tlcx with { lcx: tlcx.lcx }
 
       let function = uir::type::function type out variant.span
 
@@ -111,7 +110,7 @@ fn lower::variant union-id variant tlcx {
       }
 
       let body = ir::body {
-        path:   [variant.name]
+        path:   variant.path
         locals: locals
         inputs: [input]
         expr: some ir::expr {
@@ -129,7 +128,7 @@ fn lower::variant union-id variant tlcx {
       let type = uir::type::union union-id generics variant.span
 
       let body = ir::body {
-        path:   [variant.name]
+        path:   variant.path
         locals: map
         inputs: []
         expr:   some ir::expr {
@@ -147,7 +146,7 @@ fn lower::variant union-id variant tlcx {
   let lcx = lcx::set-body variant.cons cons tlcx.lcx
 
   let variant = uir::variant {
-    name: variant.name
+    path: variant.path
     body: body
   }
 
@@ -214,6 +213,8 @@ fn lower-type ast tlcx {
           [item; ..items], tlcx
         }
 
+      let items = list::reverse items
+
       uir::type::tuple items ast.span, tlcx
     }
 
@@ -251,11 +252,12 @@ fn lower-type ast tlcx {
       type, tlcx
     }
 
-    ast::error -> {
-      std::todo ""
+    ast::type::paren -> {
+      let type = ast::nth-tree 1 ast
+      lower-type type tlcx
     }
 
-    _ -> std::panic "unreachable"
+    kind -> std::panic "{kind} unimplemented"
   }
 }
 

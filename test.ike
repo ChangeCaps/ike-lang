@@ -1,25 +1,9 @@
-fn main {
-  match [] {
-    bar::b _ -> {}
-  }
+type option 'a = some 'a | none
 
-  let f = foo 1 2, 2
-  let y = "{f} {f}"
+type foo 'a 'b = { f: 'a; g: 'b }
 
-  let f = foo {
-    a: 100
-    b: "hello world!"
-  }
-
-  let f = f with {
-    a: (200)
-  }
-
-  let a = [0; 1; 2; ..[0]]
+fn test : foo int str
+fn test {
+  let f = foo { f: 0; g: "" }
+  f
 }
-
-fn foo x y -> x + y
-
-type foo = { a: int; b: str }
-
-type bar = bar::a int | bar::b

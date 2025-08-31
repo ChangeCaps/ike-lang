@@ -7,7 +7,7 @@ fn set::len : set 'k -> int
 fn set::len -> map::len
 
 fn set::put : 'k -> set 'k -> set 'k
-fn set::put key set -> map::put key {} set
+fn set::put key set { map::put key {} set }
 
 fn set::has : 'k -> set 'k -> bool
 fn set::has key set -> map::has key set

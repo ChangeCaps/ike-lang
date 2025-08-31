@@ -139,7 +139,8 @@ fn nth n ast {
     |> list::filter |c| {
       match c {
         token (token::whitespace, _) -> false
-        token (token::comment,    _) -> false
+        token (token::newline   , _) -> false
+        token (token::comment   , _) -> false
         _ -> true
       }
     }
@@ -213,7 +214,7 @@ fn format-rec ast indent {
   let indent' = string::repeat indent " "
   let kind = match ast.kind {
     error e -> "{indent'}error \"{e.message}\""
-    kind    -> "{indent'}{ast.kind}"
+    kind    -> "{indent'}{ast.kind} {ast.span}"
   }
 
   ast.children

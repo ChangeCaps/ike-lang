@@ -23,6 +23,7 @@ type lcx = {
   unions:      map uir::union::id lcx::union
   aliases:     map uir::alias::id lcx::alias
   functions:   map uir::body::id lcx::function
+  externs:     map uir::body::id lcx::extern
   ascriptions: [lcx::ascription]
 }
 
@@ -39,7 +40,7 @@ type lcx::union = {
 type lcx::variant = {
   module: uir::module::id
   index:  int
-  name:   str
+  path:   [str]
   cons:   uir::body::id
   body:   option ast::tree
   span:   span
@@ -57,6 +58,7 @@ type lcx::alias = {
 
 type lcx::ascription = {
   module: uir::module::id
+  submod: uir::module::id
   name:   str
   type:   ast::tree
   span:   span
@@ -66,6 +68,11 @@ type lcx::function = {
   module: uir::module::id
   inputs: [ast::tree]
   body:   ast::tree
+}
+
+type lcx::extern = { 
+  module: uir::module::id
+  type:   ast::tree
 }
 
 fn lcx : lcx
@@ -80,6 +87,7 @@ fn lcx {
     unions:      map
     aliases:     map
     functions:   map
+    externs:     map
     ascriptions: []
   }
 }
@@ -90,12 +98,13 @@ fn lower lcx {
     |> lower::import-root-modules
     |> lower::resolve-imports
     |> lower::types
+    |> lower::externs
     |> lower::ascriptions
     |> lower::bodies
 
   let diagnostics = list::append lcx.uir.tcx.errors lcx.diagnostics
 
-  lcx.uir, diagnostics
+  lcx.uir, list::reverse diagnostics
 }
 
 fn lcx::with-diagnostic diagnostic lcx {

@@ -243,18 +243,29 @@ fn elcx::lower-pattern::variant ast type elcx {
       let variant = list::nth index union.variants
         |> option::assert
 
-      let generics, subst, elcx = union.generics
-        |> list::foldr ([], map, elcx) |_, var, span generics, subst, elcx| {
-          let type, elcx = elcx::infer-type span elcx
-          [type; ..generics], map::put var type subst, elcx
-        }
+      let generics, subst, elcx = elcx::infer-generics union.generics elcx 
 
       let union-type = uir::type::union union-id generics path.span
       let elcx = elcx::unify type union-type path.span elcx
 
       match variant.body {
-        some body -> {
-          std::todo ""
+        some body-type -> {
+          let body-type = uir::type::substitute subst body-type
+          let body-pattern = ast::nth-tree 1 ast
+          let body-pattern, elcx = elcx::lower-pattern body-pattern body-type elcx
+
+          let variant = ir::pattern::variant {
+            type:  union-type
+            index: index
+            body:  some body-pattern
+          }
+
+          let pattern = ir::pattern {
+            kind: ir::pattern::variant variant
+            span: ast.span
+          }
+
+          pattern, elcx
         }
 
         none -> {
@@ -282,5 +293,243 @@ fn elcx::lower-pattern::variant ast type elcx {
 
       pattern, elcx::with-diagnostic diagnostic elcx
     }
+  }
+}
+
+fn elcx::exhaust stack matrix elcx {
+  let conses = match matrix::pattern matrix {
+    none         -> [cons::wildcard]
+    some pattern -> match pattern.kind {
+      ir::pattern::boolean     -> [cons::boolean true; cons::boolean false]
+      ir::pattern::integer     -> [cons::integer]
+      ir::pattern::string      -> [cons::string]
+      ir::pattern::list-empty  -> [cons::list false; cons::list true]
+      ir::pattern::list-cons   -> [cons::list false; cons::list true]
+      ir::pattern::variant v   -> {
+        let union-id = match v.type.kind {
+          uir::type::app uir::app::union (id, _) -> id
+          _ -> std::panic "unreachable"
+        }
+
+        let union = uir::tcx::union union-id elcx.lcx.uir.tcx
+
+        union.variants
+          |> list::enumerate
+          |> list::map |index, variant| {
+            cons::variant <| variant.path, index, option::is-some variant.body
+          }
+      }
+
+      ir::pattern::tuple items -> [cons::tuple <| list::len items]
+
+      _ -> std::panic "{pattern.kind} unreachable"
+    }
+  }
+
+  conses
+    |> list::map |cons| {
+      match matrix::specialize cons matrix {
+        none        -> [[cons; ..stack]]
+        some matrix -> match matrix::len matrix {
+          0 -> []
+          _ -> elcx::exhaust [cons; ..stack] matrix elcx
+        }  
+      }
+    }
+    |> list::flatten
+}
+
+fn elcx::format-pattern conses elcx {
+  match conses {
+    []             -> "_", []
+    [cons; ..rest] -> match cons {
+      cons::string        -> "_"    , rest
+      cons::integer       -> "_"    , rest
+      cons::boolean true  -> "true" , rest
+      cons::boolean false -> "false", rest
+      cons::list false    -> "[]"   , rest
+      cons::wildcard      -> "_"    , rest
+
+      cons::tuple arity -> {
+        list::repeat arity {}
+          |> list::foldl ("", rest) |fmt, rest _| {
+            let pattern, rest = elcx::format-pattern rest elcx
+
+            match fmt {
+              "" -> pattern, rest
+              _  -> "{fmt}, {pattern}", rest
+            }
+          }
+      }
+
+      cons::list true -> {
+        let head, rest = elcx::format-pattern rest elcx
+        let tail, rest = elcx::format-pattern::list rest elcx
+        "[{head}{tail}]", rest
+      }
+
+      cons::variant (path, _, false) -> {
+        string::join "::" path, rest
+      }
+
+      cons::variant (path, _, true) -> {
+        let body, rest = elcx::format-pattern rest elcx
+        let name = string::join "::" path
+
+        "{name} {body}", rest
+      }
+    }
+  }
+}
+
+fn elcx::format-pattern::list rest elcx {
+  match rest {
+    [cons::list false; ..rest] -> "", rest
+    [cons::list true;  ..rest] -> {
+      let head, rest = elcx::format-pattern rest elcx
+      let tail, rest = elcx::format-pattern::list rest elcx
+      "; {head}{tail}", rest
+    }
+    _ -> {
+      let tail, rest = elcx::format-pattern rest elcx
+      "; ..{tail}", rest
+    }
+  }
+} 
+
+type matrix = {
+  rows: [matrix-row]
+}
+
+fn matrix::new arms {
+  matrix {
+    rows: list::map matrix-row::new arms
+  }
+}
+
+fn matrix::len matrix {
+  let row = list::first matrix.rows
+    |> option::assert
+
+  list::len row.patterns
+}
+
+fn matrix::pattern matrix {
+  matrix.rows
+    |> list::find-map |row| {
+      let pattern = row.patterns
+        |> list::first
+        |> option::assert
+      
+      match pattern.kind {
+        ir::pattern::wildcard -> none
+        ir::pattern::binding  -> none
+        _ -> some pattern
+      }
+    }
+}
+
+fn matrix::specialize cons matrix {
+  let rows = matrix.rows
+    |> list::filter-map (matrix-row::specialize cons)
+
+  match rows {
+    [] -> none
+    _  -> some matrix { rows: rows }
+  }
+}
+
+type matrix-row = {
+  patterns: [uir::pattern]
+}
+
+fn matrix-row::new arm {
+  matrix-row {
+    patterns: [arm.pattern]
+  }
+}
+
+fn matrix-row::specialize cons row {
+  let head, tail = list::pop row.patterns
+    |> option::assert
+
+  match cons::specialize head cons {
+    none          -> none
+    some patterns -> {
+      some matrix-row {
+        patterns: list::append tail patterns
+      }
+    }
+  }
+}
+
+type cons = cons::string
+          | cons::integer
+          | cons::boolean bool
+          | cons::list bool
+          | cons::tuple int
+          | cons::variant [str], int, bool
+          | cons::wildcard
+
+fn cons::arity cons {
+  match cons {
+    cons::string             -> 0
+    cons::integer            -> 0
+    cons::boolean            -> 0
+    cons::list false         -> 0
+    cons::variant (_, _, false) -> 0
+    cons::wildcard           -> 0
+
+    cons::list true         -> 2
+    cons::tuple len         -> len
+    cons::variant (_, _, true) -> 1
+  }
+}
+
+fn cons::specialize pattern cons {
+  match cons, pattern.kind {
+    cons::string,  ir::pattern::string  -> none
+    cons::integer, ir::pattern::integer -> none
+
+    cons::boolean true,  ir::pattern::boolean true  -> some []
+    cons::boolean false, ir::pattern::boolean false -> some []
+
+    cons::tuple, ir::pattern::tuple items -> some items
+
+    cons::list false, ir::pattern::list-empty -> some []
+
+    cons::list true, ir::pattern::list-cons (head, tail) -> some [head; tail]
+
+    cons::variant (_, c, _), ir::pattern::variant variant -> {
+      match c == variant.index {
+        false -> none
+        true  -> match variant.body {
+          some body -> some [body]
+          none      -> some []
+        }
+      }
+    }
+
+    cons::wildcard, _ -> some []
+
+    cons, ir::pattern::wildcard -> {
+      let wildcard = ir::pattern {
+        kind: ir::pattern::wildcard
+        span: pattern.span
+      }
+
+      some <| list::repeat (cons::arity cons) wildcard
+    }
+
+    cons, ir::pattern::binding _ -> {
+      let wildcard = ir::pattern {
+        kind: ir::pattern::wildcard
+        span: pattern.span
+      }
+
+      some <| list::repeat (cons::arity cons) wildcard
+    }
+
+    _, _ -> none
   }
 }

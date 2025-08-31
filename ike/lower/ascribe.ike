@@ -11,7 +11,7 @@ fn lower::ascriptions lcx {
 
       let expected, tlcx = lower-type info.type tlcx
 
-      match lcx::get-body info.module info.name tlcx.lcx {
+      match lcx::get-body info.submod info.name tlcx.lcx {
         some body-id -> {
           let body = lcx::body body-id tlcx.lcx
           lcx::unify expected body.type info.span tlcx.lcx

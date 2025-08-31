@@ -1,11 +1,3 @@
-fn elcx::capture-local name elcx {
-  elcx.scope
-    |> list::find |local-id| {
-      let local = elcx::local local-id elcx
-      local.name == name
-    }
-}
-
 fn elcx::error-expr span elcx {
   let type, elcx = elcx::infer-type span elcx
   let expr = ir::expr {
@@ -128,6 +120,9 @@ fn elcx::lower-expr ast elcx {
       expr, elcx
     }
 
+    ast::expr::lambda -> elcx::lower-expr::lambda ast elcx
+    ast::expr::binary -> elcx::lower-expr::binary ast elcx
+
     ast::expr::call -> {
       let callee = ast::nth-tree 0 ast
       let input = ast::nth-tree 1 ast
@@ -148,7 +143,67 @@ fn elcx::lower-expr ast elcx {
       expr, elcx
     }
 
-    ast::expr::binary -> elcx::lower-expr::binary ast elcx
+    ast::expr::pipe-left -> {
+      let callee = ast::nth-tree 0 ast
+      let input = ast::nth-tree 2 ast
+
+      let callee, elcx = elcx::lower-expr callee elcx
+      let input, elcx = elcx::lower-expr input elcx
+
+      let output, elcx = elcx::infer-type ast.span elcx
+      let function = uir::type::function input.type output ast.span
+      let elcx = elcx::unify callee.type function ast.span elcx
+
+      let expr = ir::expr {
+        kind: ir::expr::call (callee, input)
+        span: ast.span
+        type: output
+      }
+
+      expr, elcx
+    }
+
+    ast::expr::pipe-right -> {
+      let input = ast::nth-tree 0 ast
+      let callee = ast::nth-tree 2 ast
+
+      let input, elcx = elcx::lower-expr input elcx
+      let callee, elcx = elcx::lower-expr callee elcx
+
+      let output, elcx = elcx::infer-type ast.span elcx
+      let function = uir::type::function input.type output ast.span
+      let elcx = elcx::unify callee.type function ast.span elcx
+
+      let expr = ir::expr {
+        kind: ir::expr::call (callee, input)
+        span: ast.span
+        type: output
+      }
+
+      expr, elcx
+    }
+
+    ast::expr::field -> {
+      let input = ast::nth-tree 0 ast
+      let input, elcx = elcx::lower-expr input elcx
+
+      match ast::nth-ident 2 ast {
+        none      -> elcx::error-expr ast.span elcx
+        some name -> {
+          let type, elcx = elcx::infer-type ast.span elcx
+          let elcx = elcx::require-field input.type name type ast.span elcx
+
+          let expr = ir::expr {
+            kind: ir::expr::field (input, name)
+            span: ast.span
+            type: type
+          }
+
+          expr, elcx
+        }
+      }
+    }
+
     ast::expr::match_ -> elcx::lower-expr::match_ ast elcx
 
     ast::expr::paren -> {
@@ -201,7 +256,7 @@ fn elcx::lower-expr::path ast elcx {
   }
 
   match local {
-    some local-id -> {
+    some (local-id, elcx) -> {
       let local = elcx::local local-id elcx
 
       let expr = ir::expr {
@@ -287,6 +342,84 @@ fn elcx::lower-expr::path ast elcx {
           |> elcx::error-expr path.span
       }
     }
+  }
+}
+
+fn elcx::capture-local name elcx {
+  let in-this-scope = elcx.scope
+    |> list::find |local-id| {
+      let local = elcx::local local-id elcx
+      local.name == name
+    }
+
+  match in-this-scope {
+    some local-id -> some (local-id, elcx)
+    none -> match elcx::capture-local' name elcx.parent-scopes elcx.body-id elcx {
+      some (local-id, parent-scopes, elcx) -> {
+        let elcx = elcx with {
+          scope:         [local-id; ..elcx.scope]
+          parent-scopes: parent-scopes
+        }
+
+        some (local-id, elcx)
+      }
+      none -> none
+    }
+  }
+}
+
+fn elcx::capture-local' name parent-scopes body-id elcx {
+  match parent-scopes {
+    [parent-scope; ..parent-scopes] -> {
+      let in-parent-scope = parent-scope.scope
+        |> list::find |local-id| {
+          let body = lcx::body parent-scope.body-id elcx.lcx
+          let local = map::get local-id.index body.locals
+            |> option::assert
+
+          local.name == name
+        }
+
+      let found = match in-parent-scope {
+        some local-id -> some (local-id, parent-scopes, elcx)
+        none -> {
+          elcx::capture-local'
+            <| name
+            <| parent-scopes
+            <| parent-scope.body-id
+            <| elcx
+        }
+      }
+
+      match found {
+        none -> none
+        some (local-id, parent-scopes, elcx) -> {
+          let body = lcx::body parent-scope.body-id elcx.lcx
+          let local = map::get local-id.index body.locals
+            |> option::assert
+
+          let body = lcx::body body-id elcx.lcx
+          let index = map::len body.locals
+          let body = body with {
+            locals: map::put index local body.locals
+          }
+
+          let lcx = lcx::set-body body-id body elcx.lcx
+          let captured-id = ir::local::id { index: index }
+
+          let parent-scope = parent-scope with {
+            scope:    [local-id; ..parent-scope.scope]
+            captures: [local-id, captured-id; ..parent-scope.captures]
+          }
+
+          let elcx = elcx with { lcx: lcx }
+
+          some (captured-id, [parent-scope; ..parent-scopes], elcx)
+        }
+      }
+    }
+
+    [] -> none
   }
 }
 
@@ -462,6 +595,131 @@ fn elcx::lower-expr::list ast elcx {
 
       expr, elcx
     }
+}
+
+fn elcx::lower-expr::lambda ast elcx {
+  let body = elcx::body elcx
+  let body = ir::body {
+    path: list::append ["{{lambda}}"] body.path
+    locals: map
+    inputs: []
+    expr: none
+    type: uir::type::dummy
+  }
+
+  let body-id, lcx = lcx::add-body body elcx.lcx
+
+  let parent-scope = parent-scope {
+    body-id:  elcx.body-id
+    scope:    elcx.scope
+    captures: []
+  }
+
+  let lambda-elcx = elcx {
+    lcx:           lcx
+    body-id:       body-id
+    module:        elcx.module
+    scope:         []
+    parent-scopes: [parent-scope; ..elcx.parent-scopes]
+  }
+
+  let types, inputs, lambda-elcx = ast
+    |> ast::nth-tree 0
+    |> ast::trees
+    |> list::filter ast::is-pattern
+    |> list::foldl ([], [], lambda-elcx) |types, inputs, elcx ast| {
+      let type, elcx = elcx::infer-type ast.span elcx
+      let input, elcx = elcx::lower-pattern ast type elcx
+
+      let elcx = match ir::pattern::is-refutable input {
+        false -> elcx
+        true  -> {
+          let diagnostic = diagnostic::error "pattern must be irrefutable"
+            |> diagnostic::with-label ast.span "found in lambda parameter here"
+
+          elcx::with-diagnostic diagnostic elcx
+        }
+      }
+
+      [type; ..types], [input; ..inputs], elcx
+    }
+
+  let types  = list::reverse types
+  let inputs = list::reverse inputs
+
+  let expr = ast::nth-tree 1 ast
+  let expr, lambda-elcx = elcx::lower-expr expr lambda-elcx
+
+  let parent-scope, parent-scopes = lambda-elcx.parent-scopes
+    |> list::pop 
+    |> option::assert
+
+  let capture-types, capture-inputs = parent-scope.captures
+    |> list::map |_, local-id| {
+      let body = elcx::body lambda-elcx
+      let local = map::get local-id.index body.locals
+        |> option::assert
+      
+      let pattern = ir::pattern {
+        kind: ir::pattern::binding local-id
+        span: expr.span
+      }
+
+      local.type, pattern
+    }
+    |> list::unzip
+
+  let types  = list::append types capture-types
+  let inputs = list::append inputs capture-inputs
+
+  let type = types
+    |> list::foldr expr.type |in out| uir::type::function in out ast.span
+
+  let body = elcx::body lambda-elcx
+  let body = body with {
+    inputs: inputs
+    expr:   some expr
+    type:   type
+  }
+
+  let lambda-elcx = elcx::set-body body lambda-elcx
+
+  let elcx = elcx with {
+    lcx:           lambda-elcx.lcx
+    parent-scopes: parent-scopes
+  }
+
+  let expr = ir::expr {
+    kind: ir::expr::body body-id
+    span: ast.span
+    type: type
+  }
+
+  let expr = parent-scope.captures
+    |> list::foldl expr |expr local-id, _| {
+      let body = elcx::body elcx
+      let local = map::get local-id.index body.locals
+        |> option::assert
+
+      let input = ir::expr {
+        kind: ir::expr::local local-id
+        span: ast.span
+        type: local.type
+      }
+
+      let type = match expr.type.kind {
+        uir::type::app uir::app::function (_, out) -> out
+        _ -> std::panic "unreachable"
+      }
+
+      ir::expr {
+        kind: ir::expr::call (expr, input)
+        span: ast.span
+        type: type
+      }
+    }
+
+  expr, elcx
 }
 
 fn elcx::lower-expr::binary ast elcx {
@@ -657,242 +915,4 @@ fn elcx::lower-expr::match_ ast elcx {
   }
 
   expr, elcx
-}
-
-fn elcx::exhaust stack matrix elcx {
-  let conses = match matrix::pattern matrix {
-    none         -> [cons::wildcard]
-    some pattern -> match pattern.kind {
-      ir::pattern::boolean     -> [cons::boolean true; cons::boolean false]
-      ir::pattern::integer     -> [cons::integer]
-      ir::pattern::string      -> [cons::string]
-      ir::pattern::list-empty  -> [cons::list false; cons::list true]
-      ir::pattern::list-cons   -> [cons::list false; cons::list true]
-      ir::pattern::variant v   -> {
-        let union-id = match v.type.kind {
-          uir::type::app uir::app::union (id, _) -> id
-          _ -> std::panic "unreachable"
-        }
-
-        let union = uir::tcx::union union-id elcx.lcx.uir.tcx
-
-        union.variants
-          |> list::enumerate
-          |> list::map |index, variant| {
-            cons::variant <| variant.name, index, option::is-some variant.body
-          }
-      }
-
-      ir::pattern::tuple items -> [cons::tuple <| list::len items]
-
-      _ -> std::panic "{pattern.kind} unreachable"
-    }
-  }
-
-  conses
-    |> list::map |cons| {
-      match matrix::specialize cons matrix {
-        none        -> [[cons; ..stack]]
-        some matrix -> match matrix::len matrix {
-          0 -> []
-          _ -> elcx::exhaust [cons; ..stack] matrix elcx
-        }  
-      }
-    }
-    |> list::flatten
-}
-
-fn elcx::format-pattern conses elcx {
-  match conses {
-    []             -> "_", []
-    [cons; ..rest] -> match cons {
-      cons::string        -> "_"    , rest
-      cons::integer       -> "_"    , rest
-      cons::boolean true  -> "true" , rest
-      cons::boolean false -> "false", rest
-      cons::list false    -> "[]"   , rest
-      cons::wildcard      -> "_"    , rest
-
-      cons::tuple arity -> {
-        list::repeat arity {}
-          |> std::debug::print
-          |> list::foldl ("", rest) |fmt, rest _| {
-            let pattern, rest = elcx::format-pattern rest elcx
-
-            match fmt {
-              "" -> pattern, rest
-              _  -> "{fmt}, {pattern}", rest
-            }
-          }
-      }
-
-      cons::list true -> {
-        let head, rest = elcx::format-pattern rest elcx
-        let tail, rest = elcx::format-pattern::list rest elcx
-        "[{head}{tail}]", rest
-      }
-
-      cons::variant (name, _, false) -> {
-        name, rest
-      }
-
-      cons::variant (name, _, true) -> {
-        let body, rest = elcx::format-pattern rest elcx
-
-        "{name} {body}", rest
-      }
-    }
-  }
-}
-
-fn elcx::format-pattern::list rest elcx {
-  match rest {
-    [cons::list false; ..rest] -> "", rest
-    [cons::list true;  ..rest] -> {
-      let head, rest = elcx::format-pattern rest elcx
-      let tail, rest = elcx::format-pattern::list rest elcx
-      "; {head}{tail}", rest
-    }
-    _ -> {
-      let tail, rest = elcx::format-pattern rest elcx
-      "; ..{tail}", rest
-    }
-  }
-} 
-
-type matrix = {
-  rows: [matrix-row]
-}
-
-fn matrix::new arms {
-  matrix {
-    rows: list::map matrix-row::new arms
-  }
-}
-
-fn matrix::len matrix {
-  let row = list::first matrix.rows
-    |> option::assert
-
-  list::len row.patterns
-}
-
-fn matrix::pattern matrix {
-  matrix.rows
-    |> list::find-map |row| {
-      let pattern = row.patterns
-        |> list::first
-        |> option::assert
-      
-      match pattern.kind {
-        ir::pattern::wildcard -> none
-        ir::pattern::binding  -> none
-        _ -> some pattern
-      }
-    }
-}
-
-fn matrix::specialize cons matrix {
-  let rows = matrix.rows
-    |> list::filter-map (matrix-row::specialize cons)
-
-  match rows {
-    [] -> none
-    _  -> some matrix { rows: rows }
-  }
-}
-
-type matrix-row = {
-  patterns: [uir::pattern]
-}
-
-fn matrix-row::new arm {
-  matrix-row {
-    patterns: [arm.pattern]
-  }
-}
-
-fn matrix-row::specialize cons row {
-  let head, tail = list::pop row.patterns
-    |> option::assert
-
-  match cons::specialize head cons {
-    none          -> none
-    some patterns -> {
-      some matrix-row {
-        patterns: list::append tail patterns
-      }
-    }
-  }
-}
-
-type cons = cons::string
-          | cons::integer
-          | cons::boolean bool
-          | cons::list bool
-          | cons::tuple int
-          | cons::variant str, int, bool
-          | cons::wildcard
-
-fn cons::arity cons {
-  match cons {
-    cons::string             -> 0
-    cons::integer            -> 0
-    cons::boolean            -> 0
-    cons::list false         -> 0
-    cons::variant (_, _, false) -> 0
-    cons::wildcard           -> 0
-
-    cons::list true         -> 2
-    cons::tuple len         -> len
-    cons::variant (_, _, true) -> 1
-  }
-}
-
-fn cons::specialize pattern cons {
-  match cons, pattern.kind {
-    cons::string,  ir::pattern::string  -> none
-    cons::integer, ir::pattern::integer -> none
-
-    cons::boolean true,  ir::pattern::boolean true  -> some []
-    cons::boolean false, ir::pattern::boolean false -> some []
-
-    cons::tuple, ir::pattern::tuple items -> some items
-
-    cons::list false, ir::pattern::list-empty -> some []
-
-    cons::list true, ir::pattern::list-cons (head, tail) -> some [head; tail]
-
-    cons::variant (_, c, _), ir::pattern::variant variant -> {
-      match c == variant.index {
-        false -> none
-        true  -> match variant.body {
-          some body -> some [body]
-          none      -> some []
-        }
-      }
-    }
-
-    cons::wildcard, _ -> some []
-
-    cons, ir::pattern::wildcard -> {
-      let wildcard = ir::pattern {
-        kind: ir::pattern::wildcard
-        span: pattern.span
-      }
-
-      some <| list::repeat (cons::arity cons) wildcard
-    }
-
-    cons, ir::pattern::binding _ -> {
-      let wildcard = ir::pattern {
-        kind: ir::pattern::wildcard
-        span: pattern.span
-      }
-
-      some <| list::repeat (cons::arity cons) wildcard
-    }
-
-    _, _ -> none
-  }
 }

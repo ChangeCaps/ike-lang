@@ -36,7 +36,7 @@ type union = {
 }
 
 type variant = {
-  name: str
+  path: [str]
   body: option type
 }
 
@@ -256,7 +256,7 @@ fn tcx::substitute type tcx {
       app::unit    -> type
 
       app::list item -> {
-        let item = tcx::substitute type tcx
+        let item = tcx::substitute item tcx
         type::list item type.span
       }
 

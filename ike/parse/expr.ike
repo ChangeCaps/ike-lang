@@ -323,7 +323,7 @@ fn expr::lambda allow-block parser {
     |> expr::lambda::params
 
   parser
-    |> expr <| allow-block and peek parser == token::open-brace
+    |> expr::tuple <| allow-block and peek parser == token::open-brace
     |> close
 }
 
@@ -332,16 +332,13 @@ fn expr::lambda::params parser {
     |> open ast::expr::lambda::params
     |> expect token::pipe
     |> expr::lambda::params-rec
+    |> expect token::pipe
     |> close
 }
 
 fn expr::lambda::params-rec parser {
   match peek parser {
-    token::pipe -> {
-      parser
-        |> expect token::pipe
-    }
-
+    token::pipe -> parser
     token -> {
       match pattern::first token {
         true -> {

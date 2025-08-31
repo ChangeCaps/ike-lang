@@ -1,6 +1,5 @@
+import std::io
+
 fn main {
-  let x = foo (a + b)
-  let y = "a {0} b {100} c"
-    |> std::string::graphemes
-    |> std::debug::print
+  io::print "hello"
 }

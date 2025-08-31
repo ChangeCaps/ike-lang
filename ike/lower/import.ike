@@ -27,15 +27,15 @@ fn lower::resolve-imports lcx {
   match next-import {
     some ((mod-id, name), import) -> {
       lcx
-        |> lower::resolve-import mod-id name import.span import.path
-        |> lower::resolve-imports
+      |> lower::resolve-import mod-id mod-id name import.span import.path
+      |> lower::resolve-imports
     }
 
     none -> lcx
   }
 }
 
-fn lower::resolve-import mod-id name span mods lcx {
+fn lower::resolve-import this mod-id name span mods lcx {
   let lcx = lcx with {
     imports: lcx.imports
       |> map::remove (mod-id, name) 
@@ -44,7 +44,7 @@ fn lower::resolve-import mod-id name span mods lcx {
   let lcx = match map::get (mod-id, name) lcx.imports {
     none        -> lcx
     some import -> {
-      lower::resolve-import mod-id name span import.path lcx
+      lower::resolve-import mod-id mod-id name span import.path lcx
     }
   }
 
@@ -52,7 +52,7 @@ fn lower::resolve-import mod-id name span mods lcx {
     [mod; ..rest] -> {
       match lcx::get-module mod-id mod lcx {
         some mod-id -> {
-          lower::resolve-import mod-id name span rest lcx
+          lower::resolve-import this mod-id name span rest lcx
         }
 
         none -> {
@@ -66,22 +66,22 @@ fn lower::resolve-import mod-id name span mods lcx {
 
     [] -> {
       let lcx, found-mod = match lcx::get-module mod-id name lcx {
-        some m -> lcx::put-module mod-id name m lcx, true
+        some m -> lcx::put-module this name m lcx, true
         none   -> lcx, false
       }
 
       let lcx, found-body = match lcx::get-body mod-id name lcx {
-        some b -> lcx::put-body mod-id name b lcx, true
+        some b -> lcx::put-body this name b lcx, true
         none   -> lcx, false
       }
 
       let lcx, found-type = match lcx::get-type mod-id name lcx {
-        some t -> lcx::put-type mod-id name t lcx, true
+        some t -> lcx::put-type this name t lcx, true
         none   -> lcx, false
       }
 
       let lcx, found-variant = match lcx::get-variant mod-id name lcx {
-        some (u, i) -> lcx::put-variant mod-id name u i lcx, true
+        some (u, i) -> lcx::put-variant this name u i lcx, true
         none        -> lcx, false
       }
 

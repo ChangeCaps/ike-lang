@@ -23,12 +23,14 @@ fn lower::body body-id lcx {
       }
 
       let body = lcx::body body-id lcx
+      std::io::println "lowering body: {body.path}"
 
       let elcx = elcx {
-        lcx:     lcx
-        body-id: body-id
-        module:  info.module
-        scope:   []
+        lcx:           lcx
+        body-id:       body-id
+        module:        info.module
+        scope:         []
+        parent-scopes: []
       }
 
       let types, inputs, elcx = info.inputs
@@ -58,10 +60,14 @@ fn lower::body body-id lcx {
 
       let elcx = elcx::unify body.type type expr.span elcx
 
+      let body = elcx::body elcx
       let body = body with {
         inputs: list::reverse inputs
         expr: some expr
       }
+
+      let type = uir::tcx::format-type body.type elcx.lcx.uir.tcx
+      std::io::println "lowered body: {body.path} :: {type}"
 
       lcx::set-body body-id body elcx.lcx
     }
@@ -70,10 +76,17 @@ fn lower::body body-id lcx {
 
 /// Expression lowering context
 type elcx = {
-  lcx:     lcx
-  body-id: uir::body::id
-  module:  uir::module::id
-  scope:   [uir::local::id]
+  lcx:           lcx
+  body-id:       uir::body::id
+  module:        uir::module::id
+  scope:         [uir::local::id]
+  parent-scopes: [parent-scope]
+}
+
+type parent-scope = {
+  body-id:  uir::body::id
+  scope:    [uir::local::id]
+  captures: [uir::local::id, uir::local::id]
 }
 
 fn elcx::body elcx {
@@ -152,4 +165,12 @@ fn elcx::add-local local elcx {
 
 fn elcx::with-diagnostic diagnostic elcx {
   elcx with { lcx: lcx::with-diagnostic diagnostic elcx.lcx }
+}
+
+fn elcx::infer-generics generics elcx {
+  generics
+    |> list::foldr ([], map, elcx) |_, var, span generics, subst, elcx| {
+      let type, elcx = elcx::infer-type span elcx
+      [type; ..generics], map::put var type subst, elcx
+    }
 }

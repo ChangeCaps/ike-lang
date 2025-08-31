@@ -1,7 +1,7 @@
 extern debug::format : 'a -> str
 
 fn debug::print : 'a -> 'a
-fn debug::print value -> {
+fn debug::print value {
   value |> debug::format |> io::println
   value
 }
