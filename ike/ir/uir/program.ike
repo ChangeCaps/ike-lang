@@ -17,7 +17,7 @@ alias pattern = ir::pattern type
 
 fn expr::dummy {
   ir::expr {
-    kind: ir::expr::record []
+    kind: ir::expr::block []
     span: span::dummy
     type: type::dummy
   }
@@ -38,14 +38,27 @@ fn program {
   }
 }
 
+fn get-body : [str] -> program -> option body::id
+fn get-body path program {
+  let len = list::len path
+  let mods = list::take (len - 1) path
+
+  list::last path
+    |> option::then |name| {
+      program::get-module module::root mods program
+        |> option::then |module| {
+          let module = program::module module program
+          module::get-body name module
+        }
+    }
+}
+
 fn program::add-body : body -> program -> body::id, program
 fn program::add-body body program {
   let index = map::len program.bodies
 
-  let program = program {
-    modules: program.modules
-    bodies:  map::put index body program.bodies
-    tcx:     program.tcx
+  let program = program with {
+    bodies: map::put index body program.bodies
   }
 
   ir::body::id { index: index }, program
@@ -53,10 +66,8 @@ fn program::add-body body program {
 
 fn program::set-body : body::id -> body -> program -> program
 fn program::set-body id body program {
-  program {
-    modules: program.modules
-    bodies:  map::put id.index body program.bodies
-    tcx:     program.tcx
+  program with {
+    bodies: map::put id.index body program.bodies
   }
 }
 
@@ -71,10 +82,8 @@ fn program::add-module : module -> program -> module::id, program
 fn program::add-module module program {
   let index = map::len program.modules
 
-  let program = program {
+  let program = program with {
     modules: map::put index module program.modules
-    bodies:  program.bodies
-    tcx:     program.tcx
   }
 
   module::id { index: index }, program

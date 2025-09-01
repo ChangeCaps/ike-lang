@@ -1,0 +1,543 @@
+import std::map
+import std::option
+import std::list
+import std::some
+import std::none
+import std::string
+
+import ike::ir
+import ike::ir::uir
+import ike::ir::tir
+
+fn specialize : uir::body::id -> uir::program -> tir::body::id, tir::program
+fn specialize entry program {
+  let scx = scx {
+    uir: program
+    tir: tir::program
+
+    bodies:  map
+    records: map
+    unions:  map
+  }
+
+  let entry, scx = specialize::body entry map scx
+  entry, scx.tir
+}
+
+type scx = {
+  uir: uir::program
+  tir: tir::program
+
+  bodies:  map (uir::body::id  ,  tir::type ) tir::body::id
+  records: map (uir::record::id, [tir::type]) tir::record::id
+  unions:  map (uir::union::id , [tir::type]) tir::union::id
+}
+
+alias generics = map uir::var tir::type
+
+fn specialize::body : uir::body::id -> generics -> scx -> tir::body::id, scx
+fn specialize::body body-id generics scx {
+  let body = uir::program::body body-id scx.uir
+  let type, scx = specialize::type body.type generics scx
+
+  match map::get (body-id, type) scx.bodies {
+    some body-id -> body-id, scx
+    none -> {
+      std::io::println "specialized: {map::len scx.tir.bodies} bodies {body.path}"
+
+      let locals, scx = body.locals
+        |> map::list
+        |> list::foldr (map, scx) |index, local locals, scx| {
+          let type, scx = specialize::type local.type generics scx
+          let local = ir::local {
+            name: local.name
+            type: type
+          }
+
+          map::put index local locals, scx
+        }
+
+      let inputs, scx = body.inputs
+        |> list::foldr ([], scx) |input inputs, scx| {
+          let input, scx = specialize::pattern input generics scx
+          [input; ..inputs], scx
+        }
+
+      let tir-body = ir::body {
+        path: body.path
+        locals: locals
+        inputs: inputs
+        expr: none
+        type: type
+      }
+
+      let tir-body-id, tir = tir::add-body tir-body scx.tir
+      let scx = scx with {
+        bodies: map::put (body-id, type) tir-body-id scx.bodies
+        tir:    tir
+      }
+
+      let scx = match body.expr {
+        none      -> scx
+        some expr -> {
+          let expr, scx = specialize::expr expr generics scx
+
+          let tir-body = tir-body with {
+            expr: some expr
+          }
+
+          scx with {
+            tir: tir::set-body tir-body-id tir-body scx.tir
+          }
+        }
+      }
+
+      tir-body-id, scx
+    }
+  }
+}
+
+fn specialize::expr : uir::expr -> generics -> scx -> tir::expr, scx
+fn specialize::expr expr generics scx {
+  let type, scx = specialize::type expr.type generics scx
+
+  let kind, scx = match expr.kind {
+    ir::expr::integer value -> ir::expr::integer value, scx
+    ir::expr::boolean value -> ir::expr::boolean value, scx
+    ir::expr::string  value -> ir::expr::string value, scx
+
+    ir::expr::format items -> {
+      let items, tcx = specialize::exprs items generics scx
+      ir::expr::format items, scx
+    }
+
+    ir::expr::local local-id -> {
+      let local-id = ir::local::id {
+        index: local-id.index
+      }
+      
+      ir::expr::local local-id, scx
+    }
+
+    ir::expr::body body-id -> {
+      let body = uir::program::body body-id scx.uir
+      let generics = extract-generics body.type type scx  
+      let body-id, scx = specialize::body body-id generics scx
+
+      ir::expr::body body-id, scx
+    }
+
+    ir::expr::let_ (pattern, value) -> {
+      let pattern, scx = specialize::pattern pattern generics scx
+      let value, scx = specialize::expr value generics scx
+
+      ir::expr::let_ (pattern, value), scx
+    }
+
+    ir::expr::variant (index, body) -> {
+      let body, scx = match body {
+        none      -> none, scx
+        some body -> {
+          let body, scx = specialize::expr body generics scx
+          some body, scx
+        }
+      }
+
+      ir::expr::variant (index, body), scx
+    }
+
+    ir::expr::list-empty -> ir::expr::list-empty, scx
+
+    ir::expr::list-cons (head, tail) -> {
+      let head, scx = specialize::expr head generics scx
+      let tail, scx = specialize::expr tail generics scx
+
+      ir::expr::list-cons (head, tail), scx
+    }
+
+    ir::expr::tuple items -> {
+      let items, scx = specialize::exprs items generics scx
+
+      ir::expr::tuple items, scx
+    }
+
+    ir::expr::record fields -> {
+      let fields, scx = fields
+        |> list::foldr ([], scx) |name, expr fields, scx| {
+          let expr, scx = specialize::expr expr generics scx
+          [name, expr; ..fields], scx
+        }
+
+      ir::expr::record fields, scx
+    }
+
+    ir::expr::with_ (target, fields) -> {
+      let target, scx = specialize::expr target generics scx
+
+      let fields, scx = fields
+        |> list::foldr ([], scx) |name, expr fields, scx| {
+          let expr, scx = specialize::expr expr generics scx
+          [name, expr; ..fields], scx
+        }
+
+      ir::expr::with_ (target, fields), scx
+    }
+
+    ir::expr::try_ expr -> {
+      let expr, scx = specialize::expr expr generics scx
+      ir::expr::try_ expr, scx
+    }
+
+    ir::expr::call (callee, input) -> {
+      let callee, scx = specialize::expr callee generics scx
+      let input, scx = specialize::expr input generics scx
+
+      ir::expr::call (callee, input), scx
+    }
+
+    ir::expr::binary (op, lhs, rhs) -> {
+      let lhs, scx = specialize::expr lhs generics scx
+      let rhs, scx = specialize::expr rhs generics scx
+
+      ir::expr::binary (op, lhs, rhs), scx
+    }
+
+    ir::expr::match_ (target, arms) -> {
+      let target, scx = specialize::expr target generics scx
+
+      let arms, scx = arms
+        |> list::foldr ([], scx) |arm arms, scx| {
+          let pattern, scx = specialize::pattern arm.pattern generics scx
+          let expr, scx = specialize::expr arm.expr generics scx
+
+          let arm = ir::expr::arm {
+            pattern: pattern
+            expr:    expr
+          }
+
+          [arm; ..arms], scx
+        }
+
+      ir::expr::match_ (target, arms), scx
+    }
+
+    ir::expr::field (expr, name) -> {
+      let expr, scx = specialize::expr expr generics scx
+
+      ir::expr::field (expr, name), scx
+    }
+
+    ir::expr::block exprs -> {
+      let exprs, scx = specialize::exprs exprs generics scx
+      ir::expr::format exprs, scx
+    }
+  }
+
+  let expr = ir::expr {
+    kind: kind
+    span: expr.span
+    type: type
+  }
+
+  expr, scx
+}
+
+fn specialize::exprs : [uir::expr] -> generics -> scx -> [tir::expr], scx
+fn specialize::exprs exprs generics scx {
+  exprs |> list::foldr ([], scx) |expr exprs, scx| {
+    let expr, scx = specialize::expr expr generics scx
+    [expr; ..exprs], scx
+  }
+}
+
+fn specialize::pattern : uir::pattern -> generics -> scx -> tir::pattern, scx
+fn specialize::pattern pattern generics scx {
+  let kind, scx = match pattern.kind {
+    ir::pattern::wildcard -> ir::pattern::wildcard, scx
+
+    ir::pattern::binding local-id -> {
+      let local-id = ir::local::id {
+        index: local-id.index
+      }
+
+      ir::pattern::binding local-id, scx
+    }
+
+    ir::pattern::tuple items -> {
+      let items, scx = specialize::patterns items generics scx
+      ir::pattern::tuple items, scx
+    }
+
+    ir::pattern::integer value -> ir::pattern::integer value, scx
+    ir::pattern::boolean value -> ir::pattern::boolean value, scx
+    ir::pattern::string value -> ir::pattern::string value, scx
+
+    ir::pattern::variant variant -> {
+      let type, scx = specialize::type variant.type generics scx
+      let body, scx = match variant.body {
+        none      -> none, scx
+        some body -> {
+          let body, scx = specialize::pattern body generics scx
+          some body, scx
+        }
+      }
+
+      let variant = ir::pattern::variant {
+        type: type
+        body: body
+        index: variant.index
+      }
+
+      ir::pattern::variant variant, scx
+    }
+
+    ir::pattern::list-empty -> ir::pattern::list-empty, scx
+
+    ir::pattern::list-cons (head, tail) -> {
+      let head, scx = specialize::pattern head generics scx
+      let tail, scx = specialize::pattern tail generics scx
+
+      ir::pattern::list-cons (head, tail), scx
+    }
+  }
+
+  let pattern = ir::pattern {
+    kind: kind
+    span: pattern.span
+  }
+
+  pattern, scx
+}
+
+fn specialize::patterns : [uir::pattern] -> generics -> scx -> [tir::pattern], scx
+fn specialize::patterns patterns generics scx {
+  patterns |> list::foldr ([], scx) |pattern patterns, scx| {
+    let pattern, scx = specialize::pattern pattern generics scx
+    [pattern; ..patterns], scx
+  }
+}
+
+fn specialize::type : uir::type -> generics -> scx -> tir::type, scx
+fn specialize::type type generics scx {
+  match type.kind {
+    uir::type::var var -> match uir::tcx::substitute-shallow type scx.uir.tcx {
+      some type -> specialize::type type generics scx
+      none -> {
+        let type = map::get var generics
+          |> option::some-or tir::type::unit
+
+        type, scx
+      }
+    }
+
+    uir::type::app app -> match app {
+      uir::app::integer -> tir::type::integer, scx
+      uir::app::boolean -> tir::type::boolean, scx
+      uir::app::string  -> tir::type::string, scx
+      uir::app::unit    -> tir::type::unit, scx
+
+      uir::app::list item -> {
+        let item, scx = specialize::type item generics scx
+
+        tir::type::list item, scx
+      }
+
+      uir::app::tuple items -> {
+        let items, scx = specialize::types items generics scx
+        tir::type::tuple items, scx
+      }
+
+      uir::app::function (in, out) -> {
+        let in, scx = specialize::type in generics scx
+        let out, scx = specialize::type out generics scx
+
+        tir::type::function (in, out), scx
+      }
+
+      uir::app::record (record-id, params) -> {
+        let record = uir::tcx::record record-id scx.uir.tcx
+        let params, scx = specialize::types params generics scx
+
+        match map::get (record-id, params) scx.records {
+          some tir-record-id -> tir::type::record tir-record-id, scx
+          none -> {
+            let generics = record.generics
+              |> list::map |_, var, _| var
+              |> list::zip params
+              |> map::from-list
+
+            let tir-record = tir::record {
+              name:     string::join "::" record.path
+              generics: params
+              fields:   []
+            }
+
+            let tir-record-id, tir = tir::add-record tir-record scx.tir
+            let scx = scx with {
+              records: map::put (record-id, params) tir-record-id scx.records
+              tir:     tir
+            }
+
+            let fields, scx = record.fields
+              |> list::foldr ([], scx) |name, type fields, scx| {
+                let type, scx = specialize::type type generics scx
+                [name, type; ..fields], scx
+              }
+
+            let tir-record = tir-record with { fields: fields }
+
+            let scx = scx with {
+              tir: tir::set-record tir-record-id tir-record scx.tir
+            }
+
+            tir::type::record tir-record-id, scx
+          }
+        }
+      }
+
+      uir::app::union (union-id, params) -> {
+        let union = uir::tcx::union union-id scx.uir.tcx
+        let params, scx = specialize::types params generics scx
+
+        match map::get (union-id, params) scx.unions {
+          some tir-union-id -> tir::type::union tir-union-id, scx
+          none -> {
+            let generics = union.generics
+              |> list::map |_, var, _| var
+              |> list::zip params
+              |> map::from-list
+
+            let tir-union = tir::union {
+              name:     string::join "::" union.path
+              generics: params
+              variants: []
+            }
+
+            let tir-union-id, tir = tir::add-union tir-union scx.tir
+            let scx = scx with {
+              unions: map::put (union-id, params) tir-union-id scx.unions
+              tir:    tir
+            }
+
+            let variants, scx = union.variants
+              |> list::foldr ([], scx) |variant variants, scx| {
+                let body, scx = match variant.body {
+                  none      -> none, scx
+                  some body -> {
+                    let body, scx = specialize::type body generics scx
+                    some body, scx
+                  }
+                }
+
+                let variant = tir::variant {
+                  name: string::join "::" variant.path
+                  body: body
+                }
+
+                [variant; ..variants], scx
+              }
+
+            let tir-union = tir-union with { variants: variants }
+
+            let scx = scx with {
+              tir: tir::set-union tir-union-id tir-union scx.tir
+            }
+
+            tir::type::union tir-union-id, scx
+          }
+        }
+      }
+
+      uir::app::alias (alias-id, params) -> {
+        let alias = uir::tcx::alias alias-id scx.uir.tcx
+        let params, scx = specialize::types params generics scx
+        
+        let generics = alias.generics
+          |> list::map |_, var, _| var
+          |> list::zip params
+          |> map::from-list
+
+        specialize::type alias.type generics scx
+      }
+    }
+  }
+}
+
+fn specialize::types : [uir::type] -> generics -> scx -> [tir::type], scx
+fn specialize::types types generics scx {
+  types |> list::foldr ([], scx) |type types, scx| {
+    let type, scx = specialize::type type generics scx
+    [type; ..types], scx
+  }
+}
+
+fn extract-generics : uir::type -> tir::type -> scx -> map uir::var tir::type
+fn extract-generics type expected scx {
+  let map-union = |a b| {
+    map::list a |> list::foldl b |acc k, v| map::put k v acc
+  }
+
+  match type.kind {
+    uir::type::var var -> match uir::tcx::substitute-shallow type scx.uir.tcx {
+      some type -> extract-generics type expected scx
+      none      -> map::put var expected map
+    }
+
+    uir::type::app app -> match app, expected {
+      uir::app::integer, tir::type::integer -> map
+      uir::app::boolean, tir::type::boolean -> map
+      uir::app::string,  tir::type::string  -> map
+      uir::app::unit,    tir::type::unit    -> map
+
+      uir::app::list type, tir::type::list expected -> {
+        extract-generics type expected scx
+      }
+
+      uir::app::function (in, out), tir::type::function (in-ex, out-ex) -> {
+        let in = extract-generics in in-ex scx
+        let out = extract-generics out out-ex scx
+
+        map-union in out
+      }
+
+      uir::app::tuple types, tir::type::tuple expected -> {
+        types
+          |> list::zip expected
+          |> list::map |a, b| extract-generics a b scx
+          |> list::foldl map map-union
+      }
+
+      uir::app::record (_, generics), tir::type::record id -> {
+        let record = tir::record id scx.tir
+
+        generics
+          |> list::zip record.generics
+          |> list::map |a, b| extract-generics a b scx
+          |> list::foldl map map-union
+      }
+
+      uir::app::union (_, generics), tir::type::union id -> {
+        let union = tir::union id scx.tir
+
+        generics
+          |> list::zip union.generics
+          |> list::map |a, b| extract-generics a b scx
+          |> list::foldl map map-union
+      }
+
+      uir::app::alias (id, generics), _ -> {
+        let alias = uir::tcx::alias id scx.uir.tcx
+
+        let subst = alias.generics
+          |> list::map |_, var, _| var
+          |> list::zip generics
+          |> map::from-list
+
+        let type = uir::type::substitute subst alias.type
+        extract-generics type expected scx
+      }
+
+      _ -> map 
+    }
+  }
+}

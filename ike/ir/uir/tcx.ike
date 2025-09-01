@@ -203,7 +203,6 @@ fn bounds::default {
   }
 }
 
-
 /// Create a new instance of a type.
 fn tcx::instantiate : type -> tcx -> type, tcx
 fn tcx::instantiate type tcx {

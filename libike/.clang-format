@@ -1,0 +1,21 @@
+IndentWidth: 4
+
+BinPackArguments: false
+BinPackParameters: false
+AlignAfterOpenBracket: BlockIndent
+AllowAllArgumentsOnNextLine: false
+PenaltyBreakAssignment: 1000
+
+AlignConsecutiveAssignments:
+  Enabled: true
+  AcrossEmptyLines: true
+  AcrossComments: false
+
+AlignConsecutiveDeclarations:
+  Enabled: true
+
+AlignConsecutiveMacros:
+  Enabled: true
+
+AlignConsecutiveShortCaseStatements:
+  Enabled: true

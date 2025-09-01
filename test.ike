@@ -1,9 +1,5 @@
-type option 'a = some 'a | none
+import std::list
 
-type foo 'a 'b = { f: 'a; g: 'b }
-
-fn test : foo int str
-fn test {
-  let f = foo { f: 0; g: "" }
-  f
+fn main x {
+  std::option::assert
 }

@@ -1,0 +1,9 @@
+type type = type::integer
+          | type::boolean
+          | type::string
+          | type::unit
+          | type::list type
+          | type::tuple [type]
+          | type::function type, type
+          | type::record record::id
+          | type::union union::id
