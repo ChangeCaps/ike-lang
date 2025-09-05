@@ -299,6 +299,34 @@ E["std::fs::read"] = function()
   end
 end
 
+E["std::fs::write"] = function()
+  return function(path)
+    return function(contents)
+      local file = io.open(path, "w")
+
+      if not file then
+        return {
+          tag = "err",
+          value = "file not found",
+        }
+      end
+
+      local _, err = file:write(contents)
+
+      if err then
+        return {
+          tag = "err",
+          value = err,
+        }
+      end
+
+      file:close()
+
+      return { tag = "ok" }
+    end
+  end
+end
+
 E["std::os::execute"] = function()
   return function(cmd)
     cmd = fromList(cmd)

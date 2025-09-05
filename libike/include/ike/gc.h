@@ -14,4 +14,5 @@ typedef struct ike_alloc {
 
 void *ike_alloc(size_t size);
 void  ike_copy(void *object);
+bool  ike_is_unique(void *object);
 bool  ike_free(void *object);

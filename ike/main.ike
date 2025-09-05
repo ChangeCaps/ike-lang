@@ -8,7 +8,7 @@ import std::option
 fn main {
   let lcx = lower::lcx
     |> add-path [] "std"
-    |> add-path [] "ike"
+    |> add-path [] "test.ike"
 
   let uir, diagnostics = lcx
     |> lower::lower
@@ -21,12 +21,18 @@ fn main {
     |> list::foldl "" string::append
     |> io::print
 
-  let entry = ir::uir::get-body ["ike"; "main"] uir
+  let entry = ir::uir::get-body ["main"] uir
     |> option::assert
 
   let entry, tir = specialize::specialize entry uir
+  let c = c::codegen entry tir
 
-  std::debug::print tir
+  std::io::println ""
+  std::io::println " -- GENERATED C CODE --"
+  std::io::println ""
+  std::io::println c
+
+  std::fs::write "test.c" c
 }
 
 fn add-path mods path lcx {

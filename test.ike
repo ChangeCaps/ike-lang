@@ -1,5 +1,3 @@
-import std::list
-
-fn main x {
-  std::option::assert
+fn main {
+  std::io::print "hello"
 }

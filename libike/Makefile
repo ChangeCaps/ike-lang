@@ -2,7 +2,7 @@ SOURCES = $(wildcard src/*.c)
 OBJECTS = $(SOURCES:src/%.c=out/%.o)
 DEPENDS = $(OBJECTS:.o=.d)
 
-CFLAGS = -std=c99 -Wall -Iinclude
+CFLAGS = -std=c99 -Wall -Iinclude -O3
 
 .PHONY: all
 

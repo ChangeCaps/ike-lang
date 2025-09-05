@@ -229,7 +229,8 @@ fn specialize::expr expr generics scx {
 
     ir::expr::block exprs -> {
       let exprs, scx = specialize::exprs exprs generics scx
-      ir::expr::format exprs, scx
+
+      ir::expr::block exprs, scx
     }
   }
 

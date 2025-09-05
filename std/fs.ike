@@ -1,4 +1,5 @@
-extern fs::read : str -> result str str
+extern fs::read  : str -> result str str
+extern fs::write : str -> str -> result {} str
 
 fn fs::is-dir : str -> bool
 fn fs::is-dir path {
