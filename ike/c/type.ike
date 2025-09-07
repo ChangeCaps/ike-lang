@@ -1,0 +1,111 @@
+fn codegen::type : tir::type -> codegen -> codegen, str
+fn codegen::type type codegen {
+  match type {
+    tir::type::integer  -> codegen, "ike_int"
+    tir::type::boolean  -> codegen, "ike_bool"
+    tir::type::string   -> codegen, "ike_string"
+    tir::type::unit     -> codegen, "ike_unit"
+    tir::type::list     -> codegen, "ike_list"
+    tir::type::function -> codegen, "ike_function"
+
+    tir::type::tuple items -> match map::get type codegen.tuples {
+      some tuple -> codegen, tuple
+      none -> {
+        let index = map::len codegen.tuples
+        let name = "ike_tuple_{index}"
+
+        let codegen, fields = items
+          |> list::enumerate
+          |> list::rfold (codegen, []) |index, type codegen, fields| {
+            let codegen, type = codegen::type type codegen
+            codegen, ["{type} item_{index};"; ..fields]
+          }
+
+        let fields = fields
+          |> list::map |field| "    {field}"
+          |> string::join "\n"
+
+        let codegen = codegen
+          |> codegen::with-type "// {tir::format-type type codegen.tir}\ntypedef struct {name} *{name};"
+          |> codegen::with-impl "// {tir::format-type type codegen.tir}\nstruct {name} {{\n{fields}\n}};"
+
+        let codegen = codegen with {
+          tuples: map::put type name codegen.tuples
+        }
+
+        codegen, name
+      }
+    }
+
+    tir::type::record id -> match map::get id codegen.records {
+      some record -> codegen, record
+      none -> {
+        let record = tir::record id codegen.tir
+        let name = "ike_record_{id.index}"
+
+        let codegen, fields = record.fields
+          |> list::enumerate
+          |> list::rfold (codegen, []) |i, (name, type) codegen, fields| {
+            let codegen, type = codegen::type type codegen
+            codegen, ["{type} field_{i};"; ..fields]
+          }
+
+        let fields = fields
+          |> list::map |field| "    {field}"
+          |> string::join "\n"
+
+        let codegen = codegen
+          |> codegen::with-type "// {tir::format-type type codegen.tir}\ntypedef struct {name} *{name};"
+          |> codegen::with-impl "// {tir::format-type type codegen.tir}\nstruct {name} {{\n{fields}\n}}; "
+
+        let codegen = codegen with {
+          records: map::put id name codegen.records
+        }
+
+        codegen, name
+      }
+    }
+
+    tir::type::union id -> match map::get id codegen.unions {
+      some union -> codegen, union
+      none -> {
+        let union = tir::union id codegen.tir
+        let name = "ike_union_{id.index}"
+
+        let codegen, variants = union.variants
+          |> list::enumerate
+          |> list::rfold (codegen, []) |i, variant codegen, variants| {
+            match variant.body {
+              none      -> codegen, variants
+              some body -> {
+                let codegen, body = codegen::type body codegen
+                codegen, ["{body} variant_{i};"; ..variants]
+              }
+            }
+          }
+
+        let variants = variants
+          |> list::map |variant| "        {variant}"
+          |> string::join "\n"
+
+        let codegen = codegen
+          |> codegen::with-type "// {tir::format-type type codegen.tir}\ntypedef struct {name} *{name};"
+          |> codegen::with-impl "// {tir::format-type type codegen.tir}\nstruct {name} {{\n    ike_int discriminant;\n    union {{\n{variants}\n    }};\n}};"
+
+        let codegen = codegen with {
+          unions: map::put id name codegen.unions
+        }
+
+        codegen, name
+      }
+    } 
+  }
+}
+
+fn codegen::types : [tir::type] -> codegen -> codegen, [str]
+fn codegen::types types codegen {
+  types |> list::rfold (codegen, []) |type codegen, types| {
+    let codegen, type = codegen::type type codegen
+    codegen, [type; ..types]
+  }
+}

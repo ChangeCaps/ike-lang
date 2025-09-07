@@ -13,26 +13,25 @@ fn main {
   let uir, diagnostics = lcx
     |> lower::lower
 
-  ir::program::debug-format uir
-    |> io::println
-
   diagnostics
     |> list::map diagnostic::format
-    |> list::foldl "" string::append
+    |> list::lfold "" string::append
     |> io::print
 
-  let entry = ir::uir::get-body ["main"] uir
-    |> option::assert
+  match diagnostics {
+    [] -> {
+      let entry = ir::uir::get-body ["main"] uir
+        |> option::assert
 
-  let entry, tir = specialize::specialize entry uir
-  let c = c::codegen entry tir
+      let entry, tir = specialize::specialize entry uir
+      let c = c::codegen entry tir
+      std::fs::write "test.c" c
 
-  std::io::println ""
-  std::io::println " -- GENERATED C CODE --"
-  std::io::println ""
-  std::io::println c
+      {}
+    }
 
-  std::fs::write "test.c" c
+    _ -> {}
+  }
 }
 
 fn add-path mods path lcx {
@@ -46,7 +45,7 @@ fn add-path mods path lcx {
       fs::read-dir path
         |> result::assert
         |> list::map <| string::prepend "{path}/"
-        |> list::foldl lcx |lcx path| {
+        |> list::lfold lcx |lcx path| {
           add-path mods path lcx
         }
     }
@@ -77,6 +76,6 @@ fn add-path mods path lcx {
 fn print-diagnostics diagnostics {
   diagnostics
     |> list::map diagnostic::format
-    |> list::foldl "" string::append
+    |> list::lfold "" string::append
     |> io::print
 }

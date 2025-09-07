@@ -172,6 +172,8 @@ impl Codegen {
                     ir::BinOp::Mul => "*",
                     ir::BinOp::Div => "/",
                     ir::BinOp::Mod => "%",
+                    ir::BinOp::Shl => "<<",
+                    ir::BinOp::Shr => ">>",
                     ir::BinOp::And => "and",
                     ir::BinOp::Or => "or",
                     ir::BinOp::Eq => return format!("equal({lhs}, {rhs})"),

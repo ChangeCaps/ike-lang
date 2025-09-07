@@ -76,6 +76,8 @@ fn lexer::lex ts lexer {
         ">", some "=" -> lexer::two-symbol ">=" token::gteq
         "<", some "|" -> lexer::two-symbol "<|" token::ltpipe
         "|", some ">" -> lexer::two-symbol "|>" token::pipegt
+        "<", some "<" -> lexer::two-symbol "<<" token::ltlt
+        ">", some ">" -> lexer::two-symbol ">>" token::gtgt
 
         "(",  _ -> lexer::one-symbol g token::open-paren
         ")",  _ -> lexer::one-symbol g token::close-paren

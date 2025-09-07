@@ -146,7 +146,7 @@ fn diagnostic::format diagnostic {
   let indent = diagnostic::indent diagnostic
 
   let labels, _ = diagnostic.labels
-    |> list::foldl ("", none) |acc, prev label| {
+    |> list::lfold ("", none) |acc, prev label| {
       let s = diagnostic::label::format prev indent color label
       string::append s acc, some label.span.file.path
     }
@@ -165,7 +165,7 @@ fn diagnostic::indent diagnostic {
 
       string::len "{info.line}"
     }
-    |> list::foldl 0 math::max
+    |> list::lfold 0 math::max
 }
 
 fn diagnostic::label::format prev indent color label {

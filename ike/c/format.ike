@@ -1,0 +1,177 @@
+fn codegen::format : tir::type -> codegen -> codegen, str
+fn codegen::format type codegen {
+  match map::get type codegen.formats {
+    some format -> codegen, format
+    none -> {
+      let index = map::len codegen.formats
+      let name = "ike_format_{index}"
+
+      let codegen = codegen with {
+        formats: map::put type name codegen.formats
+      }
+
+      let codegen, contents = match type {
+        tir::type::integer  -> {
+          let lines = [
+            "return ike_format_int(input);"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::boolean  -> {
+          let lines = [
+            "return ike_format_bool(input);"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::string -> {
+          let lines = [
+            "ike_string items[] = {{"
+            "    ike_string_new(\"\\\"\"),"
+            "    input,"
+            "    ike_string_new(\"\\\"\"),"
+            "}};"
+            ""
+            "return ike_string_concat_n(items, 3);"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::unit -> {
+          let lines = [
+            "return ike_string_new(\"{{}}\");"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::function -> {
+          let lines = [
+            "return ike_string_new(\"{{{{function}}}}\");"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::list item -> {
+          let codegen, format = codegen::format item codegen
+          let codegen, item = codegen::type item codegen
+
+          let lines = [
+            "bool is_first = true;"
+            "ike_string output = ike_string_new(\"[\");"
+            "while (input) {{"
+            "    if (!is_first) output = ike_string_append(output, \"; \");"
+            "    is_first = false;"
+            ""
+            "    output = ike_string_concat(output, {format}(*({item} *)input->head));"
+            "    input  = input->tail;"
+            "}}"
+            "return ike_string_append(output, \"]\");"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::tuple items -> {
+          let codegen, items = items
+            |> list::enumerate
+            |> list::rfold (codegen, []) |index, item codegen, items| {
+              let codegen, format = codegen::format item codegen
+
+              match items {
+                [] -> codegen, ["    {format}(input->item_{index}),"]
+                _  -> codegen, [
+                  "    {format}(input->item_{index}),"
+                  "    ike_string_new(\", \"),"
+                  ..items
+                ]
+              } 
+            }
+          
+          let lines = ["ike_string items[] = {{"]
+            |> list::append items
+            |> list::append ["}};"]
+            |> list::append ["return ike_string_concat_n(items, {list::len items});"]
+
+          codegen, lines
+        }
+
+        tir::type::record id -> {
+          let record = tir::record id codegen.tir
+          
+          let codegen, fields = record.fields
+            |> list::enumerate
+            |> list::rfold (codegen, []) |i, (name, type) codegen, fields| {
+              let codegen, format = codegen::format type codegen
+
+              let name  = "ike_string_new(\"{name}: \")"
+              let value = "{format}(input->field_{i})"
+              let field = "ike_string_concat({name}, {value})"
+
+              match fields {
+                [] -> codegen, ["    {field},"]
+                _  -> codegen, [
+                  "    {field},"
+                  "    ike_string_new(\"; \"),"
+                  ..fields
+                ]
+              } 
+            }
+          
+          let lines = ["ike_string fields[] = {{"]
+            |> list::append ["    ike_string_new(\"{{ \"),"]
+            |> list::append fields
+            |> list::append ["    ike_string_new(\" }}\"),"]
+            |> list::append ["}};"]
+            |> list::append ["return ike_string_concat_n(fields, {list::len fields + 2});"]
+
+          codegen, lines
+        }
+
+        tir::type::union id -> {
+          let union = tir::union id codegen.tir
+
+          let codegen, variants = union.variants
+            |> list::enumerate
+            |> list::rfold (codegen, []) |i, variant codegen, variants| {
+              match variant.body {
+                some body -> {
+                  let codegen, format = codegen::format body codegen
+
+                  let name = "ike_string_new(\"{variant.name} \")"
+                  let body = "{format}(input->variant_{i})"
+                  let variant = "ike_string_concat({name}, {body})"
+                  codegen, ["  case {i}: return {variant};"; ..variants]
+                }
+
+                none -> {
+                  let name = "ike_string_new(\"{variant.name}\")"
+                  codegen, ["  case {i}: return {name};"; ..variants]
+                }
+              }
+            }
+
+          let lines = ["switch (input->discriminant) {{"]
+            |> list::append variants
+            |> list::append ["}}"]
+
+          codegen, lines
+        }
+      }
+
+      let contents = codegen::lines contents
+
+      let codegen, type = codegen::type type codegen
+      let codegen = codegen
+        |> codegen::with-func "ike_string {name}({type} input);"
+        |> codegen::with-impl "ike_string {name}({type} input) {{\n{contents}\n}}"
+
+      codegen, name
+    }
+  }
+}

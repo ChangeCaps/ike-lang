@@ -1,0 +1,93 @@
+fn codegen::pattern::assign : tir::pattern -> str -> codegen -> codegen
+fn codegen::pattern::assign pattern value codegen {
+  match pattern.kind {
+    ir::pattern::wildcard   -> codegen
+    ir::pattern::boolean    -> codegen
+    ir::pattern::integer    -> codegen
+    ir::pattern::string     -> codegen
+    ir::pattern::list-empty -> codegen
+
+    ir::pattern::binding local-id -> {
+      let local = "local_{local-id.index}"
+
+      codegen::with-line "{local} = *(typeof({local}) *)(&{value});" codegen
+    }
+
+    ir::pattern::list-cons (head, tail) -> {
+      codegen
+        |> codegen::pattern::assign head "*{value}->head"
+        |> codegen::pattern::assign tail "{value}->tail"
+    }
+
+    ir::pattern::variant variant -> match variant.body {
+      none      -> codegen
+      some body -> {
+        codegen::pattern::assign body "{value}->variant_{variant.index}" codegen
+      }
+    }
+
+    ir::pattern::tuple patterns -> {
+      patterns
+        |> list::enumerate
+        |> list::lfold codegen |codegen index, pattern| {
+          codegen::pattern::assign pattern "{value}->item_{index}" codegen
+        }
+    }
+  }
+}
+
+fn codegen::pattern::check : tir::pattern -> str -> codegen -> str
+fn codegen::pattern::check pattern target codegen {
+  match pattern.kind {
+    ir::pattern::wildcard -> "true"
+    ir::pattern::binding  -> "true"
+
+    ir::pattern::integer value -> {
+      "({target} == {value})"
+    }
+
+    ir::pattern::boolean value -> {
+      "({target} == {value})"
+    }
+
+    ir::pattern::string value -> {
+      "(strcmp({target}->contents, \"{value}\") == 0)"
+    }
+
+    ir::pattern::list-empty -> {
+      "({target} == NULL)"
+    }
+
+    ir::pattern::list-cons (head, tail) -> {
+      let head = codegen::pattern::check head "{target}->head" codegen
+      let tail = codegen::pattern::check tail "{target}->tail" codegen
+      "({target} != NULL && {head} && {tail})"
+    }
+
+    ir::pattern::variant variant -> match variant.body {
+      some body -> {
+        let body = codegen::pattern::check
+          <| body
+          <| "{target}->variant_{variant.index}"
+          <| codegen
+
+        "({target}->discriminant == {variant.index}) && {body}"
+      }
+
+      none -> {
+        "({target}->discriminant == {variant.index})"
+      }
+    }
+
+    ir::pattern::tuple patterns -> {
+      let patterns = patterns
+        |> list::enumerate
+        |> list::map |index, pattern| {
+          codegen::pattern::check pattern "{target}->item_{index}" codegen 
+        }
+        |> string::join " && "
+
+      "({patterns})"
+    }
+  }
+}

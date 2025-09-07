@@ -45,7 +45,7 @@ fn tcx::unify-var-type var type span tcx {
 
   let tcx = bounds.fields
     |> map::list
-    |> list::foldl tcx |tcx name, field| {
+    |> list::lfold tcx |tcx name, field| {
       tcx::require-field type name field span tcx
     }
 
@@ -57,7 +57,7 @@ fn tcx::unify-var-type var type span tcx {
 fn tcx::unify-app-app lhs lhs-app rhs rhs-app span tcx {
   let unify-list = |lhs rhs span tcx| {
     list::zip rhs lhs
-      |> list::foldl tcx |tcx lhs, rhs| {
+      |> list::lfold tcx |tcx lhs, rhs| {
         tcx::unify lhs rhs span tcx
       }
   }
@@ -261,12 +261,47 @@ fn tcx::format-type type tcx {
     |> set::list
     |> list::map |var, _| var
     |> list::enumerate
-    |> list::foldl map |map n, var| {
+    |> list::lfold map |map n, var| {
       let name = tcx::generate-var-name n
       map::put var name map
     }
 
-  tcx::format-type' type names [] 0 tcx
+  let type = tcx::format-type' type names [] 0 tcx
+
+  let where = []
+    // names
+    // |> map::list
+    // |> list::filter-map |var, name| {
+    //   let bounds = tcx::bounds var tcx
+
+    //   let fields = bounds.fields
+    //     |> map::list
+    //     |> list::map |name, type| {
+    //       let type = tcx::format-type' type names [] 0 tcx
+    //       ".{name} = {type}"
+    //     }
+
+    //   let fields = match bounds.number {
+    //     true  -> ["number"; ..fields]
+    //     false -> fields
+    //   }
+
+    //   match fields {
+    //     [] -> none
+    //     _  -> {
+    //       let fields = string::join " + " fields
+    //       some "'{name}: {fields}"
+    //     }
+    //   }
+    // }
+
+  match where {
+    [] -> type
+    _  -> {
+      let where = string::join ", " where
+      "{type} where {where}"
+    }
+  }
 }
 
 fn tcx::format-type' type names seen p tcx {
@@ -356,7 +391,7 @@ fn tcx::enumerate-vars' seen tcx type {
             |> map::list
             |> list::map |_, type| type
             |> list::map <| tcx::enumerate-vars' [var; ..seen] tcx 
-            |> list::foldl set set::union
+            |> list::lfold set set::union
             |> set::put (var, type.span)
         }
       }
@@ -375,25 +410,25 @@ fn tcx::enumerate-vars' seen tcx type {
       app::tuple items -> {
         items
           |> list::map <| tcx::enumerate-vars' seen tcx
-          |> list::foldl set set::union
+          |> list::lfold set set::union
       }
 
       app::record (_, generics) -> {
         generics
           |> list::map <| tcx::enumerate-vars' seen tcx
-          |> list::foldl set set::union
+          |> list::lfold set set::union
       }
 
       app::union (_, generics) -> {
         generics
           |> list::map <| tcx::enumerate-vars' seen tcx
-          |> list::foldl set set::union
+          |> list::lfold set set::union
       }
 
       app::alias (_, generics) -> {
         generics
           |> list::map <| tcx::enumerate-vars' seen tcx
-          |> list::foldl set set::union
+          |> list::lfold set set::union
       }
 
       _ -> set

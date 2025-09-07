@@ -3,11 +3,11 @@ fn lower::import-root-modules lcx {
 
   root.modules
     |> map::list
-    |> list::foldl lcx |lcx name, root-mod-id| {
+    |> list::lfold lcx |lcx name, root-mod-id| {
       lcx with {
         uir: lcx.uir.modules
           |> map::list
-          |> list::foldl lcx.uir |uir mod-id, module| {
+          |> list::lfold lcx.uir |uir mod-id, module| {
             let module = module
               |> uir::module::put-module name root-mod-id
 

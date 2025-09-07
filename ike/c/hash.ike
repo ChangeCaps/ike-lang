@@ -1,0 +1,148 @@
+fn codegen::hash : tir::type -> codegen -> codegen, str
+fn codegen::hash type codegen {
+  match map::get type codegen.hashes {
+    some hash -> codegen, hash
+    none -> {
+      let index = map::len codegen.hashes
+      let name = "ike_hash_{index}"
+
+      let codegen = codegen with {
+        hashes: map::put type name codegen.hashes
+      }
+
+      let codegen, contents = match type {
+        tir::type::integer -> {
+          let lines = [
+            "return ike_hash_int(input);"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::boolean -> {
+          let lines = [
+            "return ike_hash_int(input);"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::string -> {
+          let lines = [
+            "return ike_hash_string(input);"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::unit -> {
+          let lines = [
+            "return ike_hash_int(0xdeadbeefull);"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::function -> {
+          let lines = [
+            "return ike_hash_int((ike_int)input->vtable);"
+          ]
+
+          codegen, lines
+        }
+        
+        tir::type::list item -> {
+          let codegen, hash = codegen::hash item codegen
+          let codegen, type = codegen::type item codegen
+
+          let lines = [
+            "ike_int hash = ike_hash_int(0xdeadbeefull);"
+            ""
+            "while (input) {{"
+            "    hash ^= {hash}(*({type} *)input->head);"
+            "    input = input->tail;"
+            "}}"
+            ""
+            "return hash;"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::tuple items -> {
+          let codegen, items = items
+            |> list::enumerate
+            |> list::rfold (codegen, []) |index, item codegen, items| {
+              let codegen, hash = codegen::hash item codegen
+
+              codegen, ["{hash}(input->item_{index})"; ..items]
+            } 
+
+          let items = string::join " ^ " items
+
+          let lines = [
+            "return {items};"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::record id -> {
+          let record = tir::record id codegen.tir
+          
+          let codegen, fields = record.fields
+            |> list::enumerate
+            |> list::rfold (codegen, []) |i, (_, type) codegen, fields| {
+              let codegen, hash = codegen::hash type codegen
+
+              codegen, ["{hash}(input->field_{i})"; ..fields]
+            }
+
+          let fields = string::join " ^ " fields
+          
+          let lines = [
+            "return {fields};"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::union id -> {
+          let union = tir::union id codegen.tir
+
+          let codegen, variants = union.variants
+            |> list::enumerate
+            |> list::rfold (codegen, []) |i, variant codegen, variants| {
+              match variant.body {
+                some body -> {
+                  let codegen, hash = codegen::hash body codegen 
+                  codegen, ["  case {i}: return hash ^ {hash}(input->variant_{i});"; ..variants]
+                }
+
+                none -> codegen, variants
+              }
+            }
+
+          let lines = [
+            "ike_int hash = ike_hash_int(input->discriminant);"
+            "switch (input->discriminant) {{"
+          ]
+            |> list::append variants
+            |> list::append ["  default: return hash;"]
+            |> list::append ["}}"]
+
+          codegen, lines
+        }
+      }
+
+      let contents = codegen::lines contents
+
+      let codegen, type = codegen::type type codegen
+      let codegen = codegen
+        |> codegen::with-func "ike_int {name}({type} input);"
+        |> codegen::with-impl "ike_int {name}({type} input) {{\n{contents}\n}}"
+
+      codegen, name
+    }
+  }
+}

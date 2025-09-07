@@ -671,6 +671,8 @@ fn token_semantics(token: &parse::Token) -> Option<[u32; 2]> {
         | parse::Token::GtEq
         | parse::Token::LtPipe
         | parse::Token::PipeGt
+        | parse::Token::LtLt
+        | parse::Token::GtGt
         | parse::Token::Semi
         | parse::Token::Colon
         | parse::Token::Comma

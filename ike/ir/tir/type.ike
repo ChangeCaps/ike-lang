@@ -1,3 +1,6 @@
+import std::list
+import std::string
+
 type type = type::integer
           | type::boolean
           | type::string
@@ -7,3 +10,44 @@ type type = type::integer
           | type::function type, type
           | type::record record::id
           | type::union union::id
+
+fn format-type type tir {
+  match type {
+    type::integer -> "int"
+    type::boolean -> "bool"
+    type::string  -> "str"
+    type::unit    -> "{{}}"
+
+    type::list item -> {
+      "[{format-type item tir}]"
+    }
+
+    type::tuple items -> {
+      items
+        |> list::map |item| format-type item tir
+        |> string::join ", "
+    }
+
+    type::function (in, out) -> {
+      "{format-type in tir} -> {format-type out tir}"
+    }
+
+    type::record id -> {
+      let record = record id tir
+
+      record.generics
+        |> list::map |item| format-type item tir
+        |> list::push record.name
+        |> string::join " "
+    }
+
+    type::union id -> {
+      let union = union id tir
+
+      union.generics
+        |> list::map |item| format-type item tir
+        |> list::push union.name
+        |> string::join " "
+    }
+  }
+}

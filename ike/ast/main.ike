@@ -225,7 +225,7 @@ fn format-rec ast indent {
         _ -> true
       }
     }
-    |> list::foldl kind |acc child| {
+    |> list::lfold kind |acc child| {
       let child = match child {
         token (t, _) -> "{indent'}  {t}"
         tree ast -> format-rec ast (indent + 2)

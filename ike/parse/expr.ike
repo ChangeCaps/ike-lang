@@ -495,13 +495,20 @@ fn expr::add-sub allow-block {
   ] expr::mul-div-mod allow-block
 }
 
+fn expr::shl-shr allow-block {
+  expr::binary [
+    token::ltlt
+    token::gtgt
+  ] expr::add-sub allow-block
+}
+
 fn expr::cmp allow-block {
   expr::binary [
     token::gt
     token::lt
     token::gteq
     token::lteq
-  ] expr::add-sub allow-block
+  ] expr::shl-shr allow-block
 }
 
 fn expr::eq-ne allow-block { 

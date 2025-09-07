@@ -8,7 +8,7 @@ fn lower::types lcx {
 fn lower::records lcx {
   lcx.records
     |> map::list
-    |> list::foldl lcx lower::record
+    |> list::lfold lcx lower::record
 }
 
 fn lower::record lcx record-id, info {
@@ -23,7 +23,7 @@ fn lower::record lcx record-id, info {
   }
 
   let fields, tlcx = info.fields
-    |> list::foldl ([], tlcx) |fields, tlcx ast| {
+    |> list::lfold ([], tlcx) |fields, tlcx ast| {
       match ast::nth-ident 0 ast {
         none      -> fields, tlcx
         some name -> {
@@ -45,7 +45,7 @@ fn lower::record lcx record-id, info {
 fn lower::unions lcx {
   lcx.unions
     |> map::list
-    |> list::foldl lcx lower::union
+    |> list::lfold lcx lower::union
 }
 
 fn lower::union lcx union-id, info {
@@ -60,7 +60,7 @@ fn lower::union lcx union-id, info {
   }
 
   let variants, tlcx = info.variants
-    |> list::foldl ([], tlcx) |variants, tlcx variant| {
+    |> list::lfold ([], tlcx) |variants, tlcx variant| {
       let variant, tlcx = lower::variant union-id variant tlcx
       [variant; ..variants], tlcx
     }
@@ -158,7 +158,7 @@ fn lower::variant union-id variant tlcx {
 fn lower::aliases lcx {
   lcx.aliases
     |> map::list
-    |> list::foldl lcx lower::alias
+    |> list::lfold lcx lower::alias
 }
 
 fn lower::alias lcx alias-id, info {
@@ -208,7 +208,7 @@ fn lower-type ast tlcx {
 
     ast::type::tuple -> {
       let items, tlcx = ast::trees ast
-        |> list::foldl ([], tlcx) |items, tlcx item| {
+        |> list::lfold ([], tlcx) |items, tlcx item| {
           let item, tlcx = lower-type item tlcx
           [item; ..items], tlcx
         }
@@ -271,7 +271,7 @@ fn lower-type::path ast tlcx {
         |> list::skip 1
 
       let generics, tlcx = generics
-        |> list::foldl ([], tlcx) |generics, tlcx ast| {
+        |> list::lfold ([], tlcx) |generics, tlcx ast| {
           let generic, tlcx = lower-type ast tlcx
           [generic; ..generics], tlcx
         }

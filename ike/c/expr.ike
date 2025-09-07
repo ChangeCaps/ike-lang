@@ -1,0 +1,279 @@
+fn codegen::expr : tir::expr -> codegen -> codegen, str
+fn codegen::expr expr codegen {
+  match expr.kind {
+    ir::expr::integer value -> codegen, "{value}"
+    ir::expr::boolean value -> codegen, "{value}"
+    ir::expr::string value -> {
+      let value = string::graphemes value
+        |> list::map |g| {
+          match g {
+            "\n" -> "\\n"
+            _    -> g
+          }
+        }
+        |> string::join ""
+
+      codegen, "ike_string_new(\"{value}\")"
+    }
+
+    ir::expr::format values -> {
+      let codegen, values = values
+        |> list::rfold (codegen, []) |value codegen, values| {
+          match value.type {
+            tir::type::string -> {
+              let codegen, value = codegen::expr value codegen
+
+              codegen, [value; ..values]
+            }
+            
+            _ -> {
+              let codegen, format = codegen::format value.type codegen
+              let codegen, value = codegen::expr value codegen
+
+              codegen, ["{format}({value})"; ..values]
+            }
+          }
+        }
+
+      let temp = "temp_{codegen.temp}"
+      let codegen = codegen with { temp: codegen.temp + 1 }
+
+      let codegen = codegen
+        |> codegen::with-line "ike_string {temp}[] = {{ // format expr"
+
+      let codegen = values |> list::lfold codegen |codegen value| {
+        codegen |> codegen::with-line "   {value},"
+      }
+
+      let codegen = codegen
+        |> codegen::with-line "}};"
+
+      codegen, "ike_string_concat_n({temp}, {list::len values})"
+    }
+
+    ir::expr::local local-id -> codegen, "local_{local-id.index}"
+
+    ir::expr::body body-id -> {
+      let body = tir::body body-id codegen.tir
+      let name = codegen::body::name body-id.index
+
+      codegen, "{name}()"
+    }
+
+    ir::expr::let_ (pattern, value) -> {
+      let codegen, value = codegen::expr value codegen
+      let codegen = codegen::pattern::assign pattern value codegen
+      codegen, "((ike_unit) {{}})"
+    }
+
+    ir::expr::variant (index, body) -> {
+      let codegen, type  = codegen::type expr.type codegen
+      let codegen, value = codegen::temp expr.type codegen
+
+      let codegen = codegen
+        |> codegen::with-line "{value} = ike_alloc(sizeof *{value});"
+        |> codegen::with-line "{value}->discriminant = {index};"
+
+      let codegen = match body {
+        none      -> codegen
+        some body -> {
+          let codegen, body = codegen::expr body codegen
+          codegen |> codegen::with-line "{value}->variant_{index} = {body};"
+        }
+      }
+
+      codegen, value
+    }
+
+    ir::expr::list-empty -> {
+      codegen, "NULL"
+    }
+
+    ir::expr::list-cons (head, tail) -> {
+      let codegen, head-type = codegen::type head.type codegen
+
+      let codegen, head = codegen::expr head codegen
+      let codegen, tail = codegen::expr tail codegen
+
+      let codegen, value = codegen::temp expr.type codegen
+
+      let codegen = codegen
+        |> codegen::with-line "{value} = ike_alloc((sizeof *{value}));"
+        |> codegen::with-line "*({head-type} *){value}->head = {head};"
+        |> codegen::with-line "{value}->tail = {tail};"
+
+      codegen, value
+    }
+
+    ir::expr::tuple items -> {
+      let codegen, value = codegen::temp expr.type codegen
+
+      let codegen = codegen
+        |> codegen::with-line "{value} = ike_alloc(sizeof *{value});"
+
+      let codegen = items
+        |> list::enumerate
+        |> list::lfold codegen |codegen index, item| {
+          let codegen, item = codegen::expr item codegen
+          codegen |> codegen::with-line "{value}->item_{index} = {item};"
+        }
+
+      codegen, value
+    }
+
+    ir::expr::record fields -> {
+      let codegen, value = codegen::temp expr.type codegen
+
+      let record = match expr.type {
+        tir::type::record id -> tir::record id codegen.tir
+        _ -> panic "unreachable"
+      }
+
+      let codegen = codegen
+        |> codegen::with-line "{value} = ike_alloc(sizeof *{value});"
+
+      let codegen = fields
+        |> list::lfold codegen |codegen name, field| {
+          let index = record.fields
+            |> list::position |n, _| n == name
+            |> option::assert
+
+          let codegen, field = codegen::expr field codegen
+          codegen |> codegen::with-line "{value}->field_{index} = {field};"
+        }
+
+      codegen, value
+    }
+
+    ir::expr::with_ (target, fields) -> {
+      let codegen, target = codegen::expr target codegen
+      let codegen, value = codegen::temp expr.type codegen
+
+      let record = match expr.type {
+        tir::type::record id -> tir::record id codegen.tir
+        _ -> panic "unreachable"
+      }
+
+      let codegen = codegen
+        |> codegen::with-line "{value} = ike_alloc(sizeof *{value});"
+        |> codegen::with-line "memcpy({value}, {target}, (sizeof *{value}));"
+
+      let codegen = fields
+        |> list::lfold codegen |codegen name, field| {
+          let index = record.fields
+            |> list::position |n, _| n == name
+            |> option::assert
+
+          let codegen, field = codegen::expr field codegen
+          codegen |> codegen::with-line "{value}->field_{index} = {field};"
+        }
+
+      codegen, value
+    }
+
+    ir::expr::try_ -> {
+      todo "expr::try"
+    }
+
+    ir::expr::call (callee, value) -> {
+      let codegen, output = codegen::temp expr.type codegen
+      let codegen, input = codegen::temp value.type codegen
+
+      let codegen, callee = codegen::expr callee codegen
+      let codegen, value = codegen::expr value codegen
+
+      let codegen = codegen
+        |> codegen::with-line "{input} = {value};" 
+        |> codegen::with-line "ike_call({callee}, &{input}, (sizeof {input}), &{output});" 
+
+      codegen, "{output}"
+    }
+
+    ir::expr::binary (op, lhs-expr, rhs-expr) -> {
+      let codegen, rhs = codegen::expr rhs-expr codegen
+      let codegen, lhs = codegen::expr lhs-expr codegen
+
+      match op {
+        ir::expr::add  -> codegen, "({lhs} + {rhs})"
+        ir::expr::sub  -> codegen, "({lhs} - {rhs})"
+        ir::expr::mul  -> codegen, "({lhs} * {rhs})"
+        ir::expr::div  -> codegen, "({lhs} / {rhs})"
+        ir::expr::mod  -> codegen, "({lhs} % {rhs})"
+        ir::expr::shl  -> codegen, "({lhs} << {rhs})"
+        ir::expr::shr  -> codegen, "({lhs} >> {rhs})"
+        ir::expr::and_ -> codegen, "({lhs} && {rhs})"
+        ir::expr::or_  -> codegen, "({lhs} || {rhs})"
+        ir::expr::gt   -> codegen, "({lhs} > {rhs})"
+        ir::expr::lt   -> codegen, "({lhs} < {rhs})"
+        ir::expr::ge   -> codegen, "({lhs} >= {rhs})"
+        ir::expr::le   -> codegen, "({lhs} <= {rhs})"
+
+        ir::expr::eq   -> {
+          let codegen, equal = codegen::equal lhs-expr.type codegen
+          codegen, "{equal}({lhs}, {rhs})"
+        }
+        
+        ir::expr::ne   -> {
+          let codegen, equal = codegen::equal lhs-expr.type codegen
+          codegen, "!{equal}({lhs}, {rhs})"
+        }
+      }
+    }
+
+    ir::expr::match_ (target, arms) -> {
+      let codegen, value  = codegen::expr target codegen
+      let codegen, target = codegen::temp target.type codegen
+      let codegen, output = codegen::temp expr.type codegen
+
+      let codegen = codegen::with-line "{target} = {value};" codegen
+
+      let codegen, _ = arms
+        |> list::lfold (codegen, true) |codegen, is-first arm| {
+          let if_ = match is-first {
+            true  -> "if"
+            false -> "else if"
+          }
+
+          let check = codegen::pattern::check arm.pattern target codegen
+          let codegen = codegen
+            |> codegen::with-line "{if_} ({check}) {{"
+            |> codegen::pattern::assign arm.pattern target
+
+          let codegen, value = codegen::expr arm.expr codegen
+
+          let codegen = codegen
+            |> codegen::with-line "{output} = {value};"
+            |> codegen::with-line "}}"
+
+          codegen, false
+        }
+
+      codegen, output
+    }
+
+    ir::expr::field (target, name) -> {
+      let record = match target.type {
+        tir::type::record id -> tir::record id codegen.tir
+        _ -> panic "unreachable"
+      }
+
+      let codegen, target = codegen::expr target codegen
+
+      let index = record.fields
+        |> list::position |n, _| n == name
+        |> option::assert
+
+      codegen, "{target}->field_{index}"
+    }
+
+    ir::expr::block exprs -> {
+      let value, codegen = exprs
+        |> list::lfold (none, codegen) |value, codegen expr| {
+          let codegen, expr = codegen::expr expr codegen
+          some expr, codegen
+        }
+
+      codegen, option::some-or "((ike_unit) {{}})" value
+    }
+  }
+}

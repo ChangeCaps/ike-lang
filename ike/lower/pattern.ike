@@ -14,7 +14,7 @@ fn elcx::lower-pattern ast type elcx {
 
     ast::pattern::tuple -> {
       let types, items, elcx = ast::trees ast
-        |> list::foldl ([], [], elcx) |types, items, elcx ast| {
+        |> list::lfold ([], [], elcx) |types, items, elcx ast| {
           let type, elcx = elcx::infer-type ast.span elcx
           let item, elcx = elcx::lower-pattern ast type elcx
 
@@ -129,7 +129,7 @@ fn elcx::lower-pattern ast type elcx {
 
       ast::trees ast
         |> list::filter ast::is-pattern
-        |> list::foldr (tail, elcx) |head tail, elcx| {
+        |> list::rfold (tail, elcx) |head tail, elcx| {
           let head, elcx = elcx::lower-pattern head item-type elcx
 
           let pattern = ir::pattern {
@@ -352,7 +352,7 @@ fn elcx::format-pattern conses elcx {
 
       cons::tuple arity -> {
         list::repeat arity {}
-          |> list::foldl ("", rest) |fmt, rest _| {
+          |> list::lfold ("", rest) |fmt, rest _| {
             let pattern, rest = elcx::format-pattern rest elcx
 
             match fmt {

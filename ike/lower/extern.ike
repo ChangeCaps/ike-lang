@@ -1,7 +1,7 @@
 fn lower::externs lcx {
   lcx.externs
     |> map::list
-    |> list::foldl lcx |lcx body-id, info| {
+    |> list::lfold lcx |lcx body-id, info| {
       let tlcx = tlcx {
         lcx:                lcx
         mod:                info.module

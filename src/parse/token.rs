@@ -36,6 +36,8 @@ pub enum Token {
     GtEq,       // '>='
     LtPipe,     // '<|'
     PipeGt,     // '|>'
+    LtLt,       // '<<'
+    GtGt,       // '>>'
 
     /* one-character symbols */
     Semi,      // ';'
@@ -104,6 +106,8 @@ impl fmt::Display for Token {
             Token::GtEq => write!(f, ">="),
             Token::LtPipe => write!(f, "<|"),
             Token::PipeGt => write!(f, "|>"),
+            Token::LtLt => write!(f, "<<"),
+            Token::GtGt => write!(f, ">>"),
 
             /* one-character symbols */
             Token::Semi => write!(f, ";"),
@@ -167,6 +171,8 @@ impl FromStr for Token {
             ">=" => Token::GtEq,
             "<|" => Token::LtPipe,
             "|>" => Token::PipeGt,
+            "<<" => Token::LtLt,
+            ">>" => Token::GtGt,
 
             /* one-character symbols */
             ";" => Token::Semi,

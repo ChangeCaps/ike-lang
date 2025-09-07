@@ -43,11 +43,14 @@ fn specialize::body body-id generics scx {
   match map::get (body-id, type) scx.bodies {
     some body-id -> body-id, scx
     none -> {
-      std::io::println "specialized: {map::len scx.tir.bodies} bodies {body.path}"
+      let name-fmt = string::join "::" body.path
+      let type-fmt = tir::format-type type scx.tir
+
+      std::io::println "{name-fmt}: {type-fmt}"
 
       let locals, scx = body.locals
         |> map::list
-        |> list::foldr (map, scx) |index, local locals, scx| {
+        |> list::rfold (map, scx) |index, local locals, scx| {
           let type, scx = specialize::type local.type generics scx
           let local = ir::local {
             name: local.name
@@ -58,7 +61,7 @@ fn specialize::body body-id generics scx {
         }
 
       let inputs, scx = body.inputs
-        |> list::foldr ([], scx) |input inputs, scx| {
+        |> list::rfold ([], scx) |input inputs, scx| {
           let input, scx = specialize::pattern input generics scx
           [input; ..inputs], scx
         }
@@ -107,7 +110,7 @@ fn specialize::expr expr generics scx {
     ir::expr::string  value -> ir::expr::string value, scx
 
     ir::expr::format items -> {
-      let items, tcx = specialize::exprs items generics scx
+      let items, scx = specialize::exprs items generics scx
       ir::expr::format items, scx
     }
 
@@ -163,7 +166,7 @@ fn specialize::expr expr generics scx {
 
     ir::expr::record fields -> {
       let fields, scx = fields
-        |> list::foldr ([], scx) |name, expr fields, scx| {
+        |> list::rfold ([], scx) |name, expr fields, scx| {
           let expr, scx = specialize::expr expr generics scx
           [name, expr; ..fields], scx
         }
@@ -175,7 +178,7 @@ fn specialize::expr expr generics scx {
       let target, scx = specialize::expr target generics scx
 
       let fields, scx = fields
-        |> list::foldr ([], scx) |name, expr fields, scx| {
+        |> list::rfold ([], scx) |name, expr fields, scx| {
           let expr, scx = specialize::expr expr generics scx
           [name, expr; ..fields], scx
         }
@@ -206,7 +209,7 @@ fn specialize::expr expr generics scx {
       let target, scx = specialize::expr target generics scx
 
       let arms, scx = arms
-        |> list::foldr ([], scx) |arm arms, scx| {
+        |> list::rfold ([], scx) |arm arms, scx| {
           let pattern, scx = specialize::pattern arm.pattern generics scx
           let expr, scx = specialize::expr arm.expr generics scx
 
@@ -245,7 +248,7 @@ fn specialize::expr expr generics scx {
 
 fn specialize::exprs : [uir::expr] -> generics -> scx -> [tir::expr], scx
 fn specialize::exprs exprs generics scx {
-  exprs |> list::foldr ([], scx) |expr exprs, scx| {
+  exprs |> list::rfold ([], scx) |expr exprs, scx| {
     let expr, scx = specialize::expr expr generics scx
     [expr; ..exprs], scx
   }
@@ -312,7 +315,7 @@ fn specialize::pattern pattern generics scx {
 
 fn specialize::patterns : [uir::pattern] -> generics -> scx -> [tir::pattern], scx
 fn specialize::patterns patterns generics scx {
-  patterns |> list::foldr ([], scx) |pattern patterns, scx| {
+  patterns |> list::rfold ([], scx) |pattern patterns, scx| {
     let pattern, scx = specialize::pattern pattern generics scx
     [pattern; ..patterns], scx
   }
@@ -380,7 +383,7 @@ fn specialize::type type generics scx {
             }
 
             let fields, scx = record.fields
-              |> list::foldr ([], scx) |name, type fields, scx| {
+              |> list::rfold ([], scx) |name, type fields, scx| {
                 let type, scx = specialize::type type generics scx
                 [name, type; ..fields], scx
               }
@@ -421,7 +424,7 @@ fn specialize::type type generics scx {
             }
 
             let variants, scx = union.variants
-              |> list::foldr ([], scx) |variant variants, scx| {
+              |> list::rfold ([], scx) |variant variants, scx| {
                 let body, scx = match variant.body {
                   none      -> none, scx
                   some body -> {
@@ -466,7 +469,7 @@ fn specialize::type type generics scx {
 
 fn specialize::types : [uir::type] -> generics -> scx -> [tir::type], scx
 fn specialize::types types generics scx {
-  types |> list::foldr ([], scx) |type types, scx| {
+  types |> list::rfold ([], scx) |type types, scx| {
     let type, scx = specialize::type type generics scx
     [type; ..types], scx
   }
@@ -475,7 +478,7 @@ fn specialize::types types generics scx {
 fn extract-generics : uir::type -> tir::type -> scx -> map uir::var tir::type
 fn extract-generics type expected scx {
   let map-union = |a b| {
-    map::list a |> list::foldl b |acc k, v| map::put k v acc
+    map::list a |> list::lfold b |acc k, v| map::put k v acc
   }
 
   match type.kind {
@@ -505,7 +508,7 @@ fn extract-generics type expected scx {
         types
           |> list::zip expected
           |> list::map |a, b| extract-generics a b scx
-          |> list::foldl map map-union
+          |> list::lfold map map-union
       }
 
       uir::app::record (_, generics), tir::type::record id -> {
@@ -514,7 +517,7 @@ fn extract-generics type expected scx {
         generics
           |> list::zip record.generics
           |> list::map |a, b| extract-generics a b scx
-          |> list::foldl map map-union
+          |> list::lfold map map-union
       }
 
       uir::app::union (_, generics), tir::type::union id -> {
@@ -523,7 +526,7 @@ fn extract-generics type expected scx {
         generics
           |> list::zip union.generics
           |> list::map |a, b| extract-generics a b scx
-          |> list::foldl map map-union
+          |> list::lfold map map-union
       }
 
       uir::app::alias (id, generics), _ -> {

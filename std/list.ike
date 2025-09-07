@@ -250,21 +250,28 @@ fn list::find-map f xs {
   }
 }
 
+fn list::position : ('a -> bool) -> ['a] -> option int
+fn list::position f xs {
+  list::enumerate xs
+    |> list::find |_, x| f x
+    |> option::map |i, _| i
+}
+
 /// Fold a list from the left with an accumulator.
-fn list::foldl : 'a -> ('a -> 'b -> 'a) -> ['b] -> 'a
-fn list::foldl acc f xs {
+fn list::lfold : 'a -> ('a -> 'b -> 'a) -> ['b] -> 'a
+fn list::lfold acc f xs {
   match xs {
     []        -> acc
-    [x; ..xs] -> list::foldl (f acc x) f xs
+    [x; ..xs] -> list::lfold (f acc x) f xs
   }
 }
 
 /// Fold list from the right with an accumulator.
-fn list::foldr : 'a -> ('b -> 'a -> 'a) -> ['b] -> 'a
-fn list::foldr acc f xs {
+fn list::rfold : 'a -> ('b -> 'a -> 'a) -> ['b] -> 'a
+fn list::rfold acc f xs {
   match xs {
     []        -> acc
-    [x; ..xs] -> f x (list::foldr acc f xs)
+    [x; ..xs] -> f x (list::rfold acc f xs)
   }
 }
 

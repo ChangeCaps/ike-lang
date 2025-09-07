@@ -53,6 +53,8 @@ type token = token::unknown str
            | token::gteq
            | token::ltpipe
            | token::pipegt
+           | token::ltlt
+           | token::gtgt
 
            // one-character symbols
            | token::open-paren

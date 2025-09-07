@@ -19,12 +19,12 @@ fn set::list : set 'k -> ['k]
 fn set::list set -> map::list set |> list::map |k, _| k
 
 fn set::union : set 'k -> set 'k -> set 'k
-fn set::union a b -> set::list a |> list::foldr b set::put
+fn set::union a b -> set::list a |> list::rfold b set::put
 
 fn set::difference : set 'k -> set 'k -> set 'k
 fn set::difference a b {
   set::list b
-    |> list::foldl a |acc key| {
+    |> list::lfold a |acc key| {
       match set::has key a {
         true  -> set::remove key acc
         false -> set::put key acc

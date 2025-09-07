@@ -33,6 +33,8 @@ pub enum BinOp {
     Div,
     Mod,
     And,
+    Shl,
+    Shr,
     Or,
     Gt,
     Lt,

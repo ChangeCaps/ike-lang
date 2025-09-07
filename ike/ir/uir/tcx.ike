@@ -212,29 +212,32 @@ fn tcx::instantiate type tcx {
     |> set::list
 
   let new-vars, subst, tcx = vars
-    |> list::foldl ([], map, tcx) |new-vars, subst, tcx var, span| {
+    |> list::lfold ([], map, tcx) |new-vars, subst, tcx var, span| {
       let new-var, tcx = tcx::fresh-var false tcx
       let type = type {
         kind: type::var new-var
         span: span
       }
 
-      [new-var; ..new-vars], map::put var type subst, tcx
+      [var, new-var; ..new-vars], map::put var type subst, tcx
     }
 
   let tcx = new-vars
-    |> list::foldl tcx |tcx var| {
+    |> list::lfold tcx |tcx var, new-var| {
       let bounds = tcx::bounds var tcx
 
       let new-bounds = bounds {
         number: bounds.number
         fields: bounds.fields
           |> map::list
-          |> list::map |n, t| n, type::substitute subst t
+          |> list::map |name, type| {
+            let type = tcx::substitute type tcx
+            name, type::substitute subst type
+          }
           |> map::from-list
       }
 
-      tcx::set-bounds var new-bounds tcx
+      tcx::set-bounds new-var new-bounds tcx
     }
 
   type::substitute subst type, tcx

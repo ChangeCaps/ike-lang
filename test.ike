@@ -1,3 +1,1212 @@
+import std::io::print
+import std::io::println
+import std::string
+import std::option
+import std::some
+import std::none
+import std::list
+
 fn main {
-  std::io::print "hello"
+  let node = trie::node::empty
+    |> trie::node::put-64 0 0 1
+
+  println "{node}"
+}
+
+type trie 'k 'v = {
+  root: trie::node-64 [('k, 'v)]
+}
+
+fn trie::empty : trie 'k 'v
+fn trie::empty {
+  trie {
+    root: trie::node::empty
+  }
+}
+
+fn trie::node::new-64 : int -> 'a -> trie::node-64 'a
+fn trie::node::new-64 hash value {
+  trie::node::new-8 hash value
+    |> trie::node::new-56 (hash >> 8)
+}
+
+fn trie::node::new-56 : int -> 'a -> trie::node-56 'a
+fn trie::node::new-56 hash value {
+  trie::node::new-8 hash value
+    |> trie::node::new-48 (hash >> 8)
+}
+
+fn trie::node::new-48 : int -> 'a -> trie::node-48 'a
+fn trie::node::new-48 hash value {
+  trie::node::new-8 hash value
+    |> trie::node::new-40 (hash >> 8)
+}
+
+fn trie::node::new-40 : int -> 'a -> trie::node-40 'a
+fn trie::node::new-40 hash value {
+  trie::node::new-8 hash value
+    |> trie::node::new-32 (hash >> 8)
+}
+
+fn trie::node::new-32 : int -> 'a -> trie::node-32 'a
+fn trie::node::new-32 hash value {
+  trie::node::new-8 hash value
+    |> trie::node::new-24 (hash >> 8)
+}
+
+fn trie::node::new-24 : int -> 'a -> trie::node-24 'a
+fn trie::node::new-24 hash value {
+  trie::node::new-8 hash value
+    |> trie::node::new-16 (hash >> 8)
+}
+
+fn trie::node::new-16 : int -> 'a -> trie::node-16 'a
+fn trie::node::new-16 hash value {
+  trie::node::new-8 hash value
+    |> trie::node::new-8 (hash >> 8)
+}
+
+fn trie::node::new-8 : int -> 'a -> trie::node-8 'a
+fn trie::node::new-8 hash value {
+  trie::node::empty
+    |> trie::node::put hash value
+}
+
+fn trie::node::put-64 : int -> 'k -> 'v -> trie::node-64 ['k, 'v] -> trie::node-64 ['k, 'v] 
+fn trie::node::put-64 hash key value node {
+  let sub = match trie::node::get hash node {
+    some sub -> trie::node::put-56 (hash >> 8) key value sub
+    none     -> trie::node::new-56 (hash >> 8) [key, value]
+  }
+
+  trie::node::put hash sub node
+}
+
+fn trie::node::put-56 : int -> 'k -> 'v -> trie::node-56 ['k, 'v] -> trie::node-56 ['k, 'v] 
+fn trie::node::put-56 hash key value node {
+  let sub = match trie::node::get hash node {
+    some sub -> trie::node::put-48 (hash >> 8) key value sub
+    none     -> trie::node::new-48 (hash >> 8) [key, value]
+  }
+
+  trie::node::put hash sub node
+}
+
+fn trie::node::put-48 : int -> 'k -> 'v -> trie::node-48 ['k, 'v] -> trie::node-48 ['k, 'v] 
+fn trie::node::put-48 hash key value node {
+  let sub = match trie::node::get hash node {
+    some sub -> trie::node::put-40 (hash >> 8) key value sub
+    none     -> trie::node::new-40 (hash >> 8) [key, value]
+  }
+
+  trie::node::put hash sub node
+}
+
+fn trie::node::put-40 : int -> 'k -> 'v -> trie::node-40 ['k, 'v] -> trie::node-40 ['k, 'v] 
+fn trie::node::put-40 hash key value node {
+  let sub = match trie::node::get hash node {
+    some sub -> trie::node::put-32 (hash >> 8) key value sub
+    none     -> trie::node::new-32 (hash >> 8) [key, value]
+  }
+
+  trie::node::put hash sub node
+}
+
+fn trie::node::put-32 : int -> 'k -> 'v -> trie::node-32 ['k, 'v] -> trie::node-32 ['k, 'v] 
+fn trie::node::put-32 hash key value node {
+  let sub = match trie::node::get hash node {
+    some sub -> trie::node::put-24 (hash >> 8) key value sub
+    none     -> trie::node::new-24 (hash >> 8) [key, value]
+  }
+
+  trie::node::put hash sub node
+}
+
+fn trie::node::put-24 : int -> 'k -> 'v -> trie::node-24 ['k, 'v] -> trie::node-24 ['k, 'v] 
+fn trie::node::put-24 hash key value node {
+  let sub = match trie::node::get hash node {
+    some sub -> trie::node::put-16 (hash >> 8) key value sub
+    none     -> trie::node::new-16 (hash >> 8) [key, value]
+  }
+
+  trie::node::put hash sub node
+}
+
+fn trie::node::put-16 : int -> 'k -> 'v -> trie::node-16 ['k, 'v] -> trie::node-16 ['k, 'v] 
+fn trie::node::put-16 hash key value node {
+  let sub = match trie::node::get hash node {
+    some sub -> trie::node::put-8 (hash >> 8) key value sub
+    none     -> trie::node::new-8 (hash >> 8) [key, value]
+  }
+
+  trie::node::put hash sub node
+}
+
+fn trie::node::put-8 : int -> 'k -> 'v -> trie::node-8 ['k, 'v] -> trie::node-8 ['k, 'v] 
+fn trie::node::put-8 hash key value node {
+  let buckets = match trie::node::get hash node {
+    none         -> [key, value]
+    some buckets -> {
+      buckets  
+        |> list::filter |k, _| k != key
+        |> list::push (key, value)
+    }
+  }
+
+  trie::node::put hash buckets node
+}
+
+alias trie::node-64 'a = trie::node-8 (trie::node-56 'a)
+alias trie::node-56 'a = trie::node-8 (trie::node-48 'a)
+alias trie::node-48 'a = trie::node-8 (trie::node-40 'a)
+alias trie::node-40 'a = trie::node-8 (trie::node-32 'a)
+alias trie::node-32 'a = trie::node-8 (trie::node-24 'a)
+alias trie::node-24 'a = trie::node-8 (trie::node-16 'a)
+alias trie::node-16 'a = trie::node-8 (trie::node-8 'a)
+
+type trie::node-8 'a = {
+  num-0:   option 'a
+  num-1:   option 'a
+  num-2:   option 'a
+  num-3:   option 'a
+  num-4:   option 'a
+  num-5:   option 'a
+  num-6:   option 'a
+  num-7:   option 'a
+  num-8:   option 'a
+  num-9:   option 'a
+  num-10:  option 'a
+  num-11:  option 'a
+  num-12:  option 'a
+  num-13:  option 'a
+  num-14:  option 'a
+  num-15:  option 'a
+  num-16:  option 'a
+  num-17:  option 'a
+  num-18:  option 'a
+  num-19:  option 'a
+  num-20:  option 'a
+  num-21:  option 'a
+  num-22:  option 'a
+  num-23:  option 'a
+  num-24:  option 'a
+  num-25:  option 'a
+  num-26:  option 'a
+  num-27:  option 'a
+  num-28:  option 'a
+  num-29:  option 'a
+  num-30:  option 'a
+  num-31:  option 'a
+  num-32:  option 'a
+  num-33:  option 'a
+  num-34:  option 'a
+  num-35:  option 'a
+  num-36:  option 'a
+  num-37:  option 'a
+  num-38:  option 'a
+  num-39:  option 'a
+  num-40:  option 'a
+  num-41:  option 'a
+  num-42:  option 'a
+  num-43:  option 'a
+  num-44:  option 'a
+  num-45:  option 'a
+  num-46:  option 'a
+  num-47:  option 'a
+  num-48:  option 'a
+  num-49:  option 'a
+  num-50:  option 'a
+  num-51:  option 'a
+  num-52:  option 'a
+  num-53:  option 'a
+  num-54:  option 'a
+  num-55:  option 'a
+  num-56:  option 'a
+  num-57:  option 'a
+  num-58:  option 'a
+  num-59:  option 'a
+  num-60:  option 'a
+  num-61:  option 'a
+  num-62:  option 'a
+  num-63:  option 'a
+  num-64:  option 'a
+  num-65:  option 'a
+  num-66:  option 'a
+  num-67:  option 'a
+  num-68:  option 'a
+  num-69:  option 'a
+  num-70:  option 'a
+  num-71:  option 'a
+  num-72:  option 'a
+  num-73:  option 'a
+  num-74:  option 'a
+  num-75:  option 'a
+  num-76:  option 'a
+  num-77:  option 'a
+  num-78:  option 'a
+  num-79:  option 'a
+  num-80:  option 'a
+  num-81:  option 'a
+  num-82:  option 'a
+  num-83:  option 'a
+  num-84:  option 'a
+  num-85:  option 'a
+  num-86:  option 'a
+  num-87:  option 'a
+  num-88:  option 'a
+  num-89:  option 'a
+  num-90:  option 'a
+  num-91:  option 'a
+  num-92:  option 'a
+  num-93:  option 'a
+  num-94:  option 'a
+  num-95:  option 'a
+  num-96:  option 'a
+  num-97:  option 'a
+  num-98:  option 'a
+  num-99:  option 'a
+  num-100: option 'a
+  num-101: option 'a
+  num-102: option 'a
+  num-103: option 'a
+  num-104: option 'a
+  num-105: option 'a
+  num-106: option 'a
+  num-107: option 'a
+  num-108: option 'a
+  num-109: option 'a
+  num-110: option 'a
+  num-111: option 'a
+  num-112: option 'a
+  num-113: option 'a
+  num-114: option 'a
+  num-115: option 'a
+  num-116: option 'a
+  num-117: option 'a
+  num-118: option 'a
+  num-119: option 'a
+  num-120: option 'a
+  num-121: option 'a
+  num-122: option 'a
+  num-123: option 'a
+  num-124: option 'a
+  num-125: option 'a
+  num-126: option 'a
+  num-127: option 'a
+  num-128: option 'a
+  num-129: option 'a
+  num-130: option 'a
+  num-131: option 'a
+  num-132: option 'a
+  num-133: option 'a
+  num-134: option 'a
+  num-135: option 'a
+  num-136: option 'a
+  num-137: option 'a
+  num-138: option 'a
+  num-139: option 'a
+  num-140: option 'a
+  num-141: option 'a
+  num-142: option 'a
+  num-143: option 'a
+  num-144: option 'a
+  num-145: option 'a
+  num-146: option 'a
+  num-147: option 'a
+  num-148: option 'a
+  num-149: option 'a
+  num-150: option 'a
+  num-151: option 'a
+  num-152: option 'a
+  num-153: option 'a
+  num-154: option 'a
+  num-155: option 'a
+  num-156: option 'a
+  num-157: option 'a
+  num-158: option 'a
+  num-159: option 'a
+  num-160: option 'a
+  num-161: option 'a
+  num-162: option 'a
+  num-163: option 'a
+  num-164: option 'a
+  num-165: option 'a
+  num-166: option 'a
+  num-167: option 'a
+  num-168: option 'a
+  num-169: option 'a
+  num-170: option 'a
+  num-171: option 'a
+  num-172: option 'a
+  num-173: option 'a
+  num-174: option 'a
+  num-175: option 'a
+  num-176: option 'a
+  num-177: option 'a
+  num-178: option 'a
+  num-179: option 'a
+  num-180: option 'a
+  num-181: option 'a
+  num-182: option 'a
+  num-183: option 'a
+  num-184: option 'a
+  num-185: option 'a
+  num-186: option 'a
+  num-187: option 'a
+  num-188: option 'a
+  num-189: option 'a
+  num-190: option 'a
+  num-191: option 'a
+  num-192: option 'a
+  num-193: option 'a
+  num-194: option 'a
+  num-195: option 'a
+  num-196: option 'a
+  num-197: option 'a
+  num-198: option 'a
+  num-199: option 'a
+  num-200: option 'a
+  num-201: option 'a
+  num-202: option 'a
+  num-203: option 'a
+  num-204: option 'a
+  num-205: option 'a
+  num-206: option 'a
+  num-207: option 'a
+  num-208: option 'a
+  num-209: option 'a
+  num-210: option 'a
+  num-211: option 'a
+  num-212: option 'a
+  num-213: option 'a
+  num-214: option 'a
+  num-215: option 'a
+  num-216: option 'a
+  num-217: option 'a
+  num-218: option 'a
+  num-219: option 'a
+  num-220: option 'a
+  num-221: option 'a
+  num-222: option 'a
+  num-223: option 'a
+  num-224: option 'a
+  num-225: option 'a
+  num-226: option 'a
+  num-227: option 'a
+  num-228: option 'a
+  num-229: option 'a
+  num-230: option 'a
+  num-231: option 'a
+  num-232: option 'a
+  num-233: option 'a
+  num-234: option 'a
+  num-235: option 'a
+  num-236: option 'a
+  num-237: option 'a
+  num-238: option 'a
+  num-239: option 'a
+  num-240: option 'a
+  num-241: option 'a
+  num-242: option 'a
+  num-243: option 'a
+  num-244: option 'a
+  num-245: option 'a
+  num-246: option 'a
+  num-247: option 'a
+  num-248: option 'a
+  num-249: option 'a
+  num-250: option 'a
+  num-251: option 'a
+  num-252: option 'a
+  num-253: option 'a
+  num-254: option 'a
+  num-255: option 'a
+}
+
+fn trie::node::empty : trie::node-8 'a
+fn trie::node::empty {
+  trie::node-8 {
+    num-0:   none
+    num-1:   none
+    num-2:   none
+    num-3:   none
+    num-4:   none
+    num-5:   none
+    num-6:   none
+    num-7:   none
+    num-8:   none
+    num-9:   none
+    num-10:  none
+    num-11:  none
+    num-12:  none
+    num-13:  none
+    num-14:  none
+    num-15:  none
+    num-16:  none
+    num-17:  none
+    num-18:  none
+    num-19:  none
+    num-20:  none
+    num-21:  none
+    num-22:  none
+    num-23:  none
+    num-24:  none
+    num-25:  none
+    num-26:  none
+    num-27:  none
+    num-28:  none
+    num-29:  none
+    num-30:  none
+    num-31:  none
+    num-32:  none
+    num-33:  none
+    num-34:  none
+    num-35:  none
+    num-36:  none
+    num-37:  none
+    num-38:  none
+    num-39:  none
+    num-40:  none
+    num-41:  none
+    num-42:  none
+    num-43:  none
+    num-44:  none
+    num-45:  none
+    num-46:  none
+    num-47:  none
+    num-48:  none
+    num-49:  none
+    num-50:  none
+    num-51:  none
+    num-52:  none
+    num-53:  none
+    num-54:  none
+    num-55:  none
+    num-56:  none
+    num-57:  none
+    num-58:  none
+    num-59:  none
+    num-60:  none
+    num-61:  none
+    num-62:  none
+    num-63:  none
+    num-64:  none
+    num-65:  none
+    num-66:  none
+    num-67:  none
+    num-68:  none
+    num-69:  none
+    num-70:  none
+    num-71:  none
+    num-72:  none
+    num-73:  none
+    num-74:  none
+    num-75:  none
+    num-76:  none
+    num-77:  none
+    num-78:  none
+    num-79:  none
+    num-80:  none
+    num-81:  none
+    num-82:  none
+    num-83:  none
+    num-84:  none
+    num-85:  none
+    num-86:  none
+    num-87:  none
+    num-88:  none
+    num-89:  none
+    num-90:  none
+    num-91:  none
+    num-92:  none
+    num-93:  none
+    num-94:  none
+    num-95:  none
+    num-96:  none
+    num-97:  none
+    num-98:  none
+    num-99:  none
+    num-100: none
+    num-101: none
+    num-102: none
+    num-103: none
+    num-104: none
+    num-105: none
+    num-106: none
+    num-107: none
+    num-108: none
+    num-109: none
+    num-110: none
+    num-111: none
+    num-112: none
+    num-113: none
+    num-114: none
+    num-115: none
+    num-116: none
+    num-117: none
+    num-118: none
+    num-119: none
+    num-120: none
+    num-121: none
+    num-122: none
+    num-123: none
+    num-124: none
+    num-125: none
+    num-126: none
+    num-127: none
+    num-128: none
+    num-129: none
+    num-130: none
+    num-131: none
+    num-132: none
+    num-133: none
+    num-134: none
+    num-135: none
+    num-136: none
+    num-137: none
+    num-138: none
+    num-139: none
+    num-140: none
+    num-141: none
+    num-142: none
+    num-143: none
+    num-144: none
+    num-145: none
+    num-146: none
+    num-147: none
+    num-148: none
+    num-149: none
+    num-150: none
+    num-151: none
+    num-152: none
+    num-153: none
+    num-154: none
+    num-155: none
+    num-156: none
+    num-157: none
+    num-158: none
+    num-159: none
+    num-160: none
+    num-161: none
+    num-162: none
+    num-163: none
+    num-164: none
+    num-165: none
+    num-166: none
+    num-167: none
+    num-168: none
+    num-169: none
+    num-170: none
+    num-171: none
+    num-172: none
+    num-173: none
+    num-174: none
+    num-175: none
+    num-176: none
+    num-177: none
+    num-178: none
+    num-179: none
+    num-180: none
+    num-181: none
+    num-182: none
+    num-183: none
+    num-184: none
+    num-185: none
+    num-186: none
+    num-187: none
+    num-188: none
+    num-189: none
+    num-190: none
+    num-191: none
+    num-192: none
+    num-193: none
+    num-194: none
+    num-195: none
+    num-196: none
+    num-197: none
+    num-198: none
+    num-199: none
+    num-200: none
+    num-201: none
+    num-202: none
+    num-203: none
+    num-204: none
+    num-205: none
+    num-206: none
+    num-207: none
+    num-208: none
+    num-209: none
+    num-210: none
+    num-211: none
+    num-212: none
+    num-213: none
+    num-214: none
+    num-215: none
+    num-216: none
+    num-217: none
+    num-218: none
+    num-219: none
+    num-220: none
+    num-221: none
+    num-222: none
+    num-223: none
+    num-224: none
+    num-225: none
+    num-226: none
+    num-227: none
+    num-228: none
+    num-229: none
+    num-230: none
+    num-231: none
+    num-232: none
+    num-233: none
+    num-234: none
+    num-235: none
+    num-236: none
+    num-237: none
+    num-238: none
+    num-239: none
+    num-240: none
+    num-241: none
+    num-242: none
+    num-243: none
+    num-244: none
+    num-245: none
+    num-246: none
+    num-247: none
+    num-248: none
+    num-249: none
+    num-250: none
+    num-251: none
+    num-252: none
+    num-253: none
+    num-254: none
+    num-255: none
+  }
+}
+
+fn trie::node::get : int -> trie::node-8 'a -> option 'a
+fn trie::node::get hash node {
+  match hash % 256 {
+    0   -> node.num-0
+    1   -> node.num-1
+    2   -> node.num-2
+    3   -> node.num-3
+    4   -> node.num-4
+    5   -> node.num-5
+    6   -> node.num-6
+    7   -> node.num-7
+    8   -> node.num-8
+    9   -> node.num-9
+    10  -> node.num-10
+    11  -> node.num-11
+    12  -> node.num-12
+    13  -> node.num-13
+    14  -> node.num-14
+    15  -> node.num-15
+    16  -> node.num-16
+    17  -> node.num-17
+    18  -> node.num-18
+    19  -> node.num-19
+    20  -> node.num-20
+    21  -> node.num-21
+    22  -> node.num-22
+    23  -> node.num-23
+    24  -> node.num-24
+    25  -> node.num-25
+    26  -> node.num-26
+    27  -> node.num-27
+    28  -> node.num-28
+    29  -> node.num-29
+    30  -> node.num-30
+    31  -> node.num-31
+    32  -> node.num-32
+    33  -> node.num-33
+    34  -> node.num-34
+    35  -> node.num-35
+    36  -> node.num-36
+    37  -> node.num-37
+    38  -> node.num-38
+    39  -> node.num-39
+    40  -> node.num-40
+    41  -> node.num-41
+    42  -> node.num-42
+    43  -> node.num-43
+    44  -> node.num-44
+    45  -> node.num-45
+    46  -> node.num-46
+    47  -> node.num-47
+    48  -> node.num-48
+    49  -> node.num-49
+    50  -> node.num-50
+    51  -> node.num-51
+    52  -> node.num-52
+    53  -> node.num-53
+    54  -> node.num-54
+    55  -> node.num-55
+    56  -> node.num-56
+    57  -> node.num-57
+    58  -> node.num-58
+    59  -> node.num-59
+    60  -> node.num-60
+    61  -> node.num-61
+    62  -> node.num-62
+    63  -> node.num-63
+    64  -> node.num-64
+    65  -> node.num-65
+    66  -> node.num-66
+    67  -> node.num-67
+    68  -> node.num-68
+    69  -> node.num-69
+    70  -> node.num-70
+    71  -> node.num-71
+    72  -> node.num-72
+    73  -> node.num-73
+    74  -> node.num-74
+    75  -> node.num-75
+    76  -> node.num-76
+    77  -> node.num-77
+    78  -> node.num-78
+    79  -> node.num-79
+    80  -> node.num-80
+    81  -> node.num-81
+    82  -> node.num-82
+    83  -> node.num-83
+    84  -> node.num-84
+    85  -> node.num-85
+    86  -> node.num-86
+    87  -> node.num-87
+    88  -> node.num-88
+    89  -> node.num-89
+    90  -> node.num-90
+    91  -> node.num-91
+    92  -> node.num-92
+    93  -> node.num-93
+    94  -> node.num-94
+    95  -> node.num-95
+    96  -> node.num-96
+    97  -> node.num-97
+    98  -> node.num-98
+    99  -> node.num-99
+    100 -> node.num-100
+    101 -> node.num-101
+    102 -> node.num-102
+    103 -> node.num-103
+    104 -> node.num-104
+    105 -> node.num-105
+    106 -> node.num-106
+    107 -> node.num-107
+    108 -> node.num-108
+    109 -> node.num-109
+    110 -> node.num-110
+    111 -> node.num-111
+    112 -> node.num-112
+    113 -> node.num-113
+    114 -> node.num-114
+    115 -> node.num-115
+    116 -> node.num-116
+    117 -> node.num-117
+    118 -> node.num-118
+    119 -> node.num-119
+    120 -> node.num-120
+    121 -> node.num-121
+    122 -> node.num-122
+    123 -> node.num-123
+    124 -> node.num-124
+    125 -> node.num-125
+    126 -> node.num-126
+    127 -> node.num-127
+    128 -> node.num-128
+    129 -> node.num-129
+    130 -> node.num-130
+    131 -> node.num-131
+    132 -> node.num-132
+    133 -> node.num-133
+    134 -> node.num-134
+    135 -> node.num-135
+    136 -> node.num-136
+    137 -> node.num-137
+    138 -> node.num-138
+    139 -> node.num-139
+    140 -> node.num-140
+    141 -> node.num-141
+    142 -> node.num-142
+    143 -> node.num-143
+    144 -> node.num-144
+    145 -> node.num-145
+    146 -> node.num-146
+    147 -> node.num-147
+    148 -> node.num-148
+    149 -> node.num-149
+    150 -> node.num-150
+    151 -> node.num-151
+    152 -> node.num-152
+    153 -> node.num-153
+    154 -> node.num-154
+    155 -> node.num-155
+    156 -> node.num-156
+    157 -> node.num-157
+    158 -> node.num-158
+    159 -> node.num-159
+    160 -> node.num-160
+    161 -> node.num-161
+    162 -> node.num-162
+    163 -> node.num-163
+    164 -> node.num-164
+    165 -> node.num-165
+    166 -> node.num-166
+    167 -> node.num-167
+    168 -> node.num-168
+    169 -> node.num-169
+    170 -> node.num-170
+    171 -> node.num-171
+    172 -> node.num-172
+    173 -> node.num-173
+    174 -> node.num-174
+    175 -> node.num-175
+    176 -> node.num-176
+    177 -> node.num-177
+    178 -> node.num-178
+    179 -> node.num-179
+    180 -> node.num-180
+    181 -> node.num-181
+    182 -> node.num-182
+    183 -> node.num-183
+    184 -> node.num-184
+    185 -> node.num-185
+    186 -> node.num-186
+    187 -> node.num-187
+    188 -> node.num-188
+    189 -> node.num-189
+    190 -> node.num-190
+    191 -> node.num-191
+    192 -> node.num-192
+    193 -> node.num-193
+    194 -> node.num-194
+    195 -> node.num-195
+    196 -> node.num-196
+    197 -> node.num-197
+    198 -> node.num-198
+    199 -> node.num-199
+    200 -> node.num-200
+    201 -> node.num-201
+    202 -> node.num-202
+    203 -> node.num-203
+    204 -> node.num-204
+    205 -> node.num-205
+    206 -> node.num-206
+    207 -> node.num-207
+    208 -> node.num-208
+    209 -> node.num-209
+    210 -> node.num-210
+    211 -> node.num-211
+    212 -> node.num-212
+    213 -> node.num-213
+    214 -> node.num-214
+    215 -> node.num-215
+    216 -> node.num-216
+    217 -> node.num-217
+    218 -> node.num-218
+    219 -> node.num-219
+    220 -> node.num-220
+    221 -> node.num-221
+    222 -> node.num-222
+    223 -> node.num-223
+    224 -> node.num-224
+    225 -> node.num-225
+    226 -> node.num-226
+    227 -> node.num-227
+    228 -> node.num-228
+    229 -> node.num-229
+    230 -> node.num-230
+    231 -> node.num-231
+    232 -> node.num-232
+    233 -> node.num-233
+    234 -> node.num-234
+    235 -> node.num-235
+    236 -> node.num-236
+    237 -> node.num-237
+    238 -> node.num-238
+    239 -> node.num-239
+    240 -> node.num-240
+    241 -> node.num-241
+    242 -> node.num-242
+    243 -> node.num-243
+    244 -> node.num-244
+    245 -> node.num-245
+    246 -> node.num-246
+    247 -> node.num-247
+    248 -> node.num-248
+    249 -> node.num-249
+    250 -> node.num-250
+    251 -> node.num-251
+    252 -> node.num-252
+    253 -> node.num-253
+    254 -> node.num-254
+    255 -> node.num-255
+    _ -> std::panic "unreachable"
+  }
+}
+
+fn trie::node::put : int -> 'a -> trie::node-8 'a -> trie::node-8 'a
+fn trie::node::put hash value node {
+  match hash % 256 {
+    0   -> node with { num-0: some value }
+    1   -> node with { num-1: some value }
+    2   -> node with { num-2: some value }
+    3   -> node with { num-3: some value }
+    4   -> node with { num-4: some value }
+    5   -> node with { num-5: some value }
+    6   -> node with { num-6: some value }
+    7   -> node with { num-7: some value }
+    8   -> node with { num-8: some value }
+    9   -> node with { num-9: some value }
+    10  -> node with { num-10: some value }
+    11  -> node with { num-11: some value }
+    12  -> node with { num-12: some value }
+    13  -> node with { num-13: some value }
+    14  -> node with { num-14: some value }
+    15  -> node with { num-15: some value }
+    16  -> node with { num-16: some value }
+    17  -> node with { num-17: some value }
+    18  -> node with { num-18: some value }
+    19  -> node with { num-19: some value }
+    20  -> node with { num-20: some value }
+    21  -> node with { num-21: some value }
+    22  -> node with { num-22: some value }
+    23  -> node with { num-23: some value }
+    24  -> node with { num-24: some value }
+    25  -> node with { num-25: some value }
+    26  -> node with { num-26: some value }
+    27  -> node with { num-27: some value }
+    28  -> node with { num-28: some value }
+    29  -> node with { num-29: some value }
+    30  -> node with { num-30: some value }
+    31  -> node with { num-31: some value }
+    32  -> node with { num-32: some value }
+    33  -> node with { num-33: some value }
+    34  -> node with { num-34: some value }
+    35  -> node with { num-35: some value }
+    36  -> node with { num-36: some value }
+    37  -> node with { num-37: some value }
+    38  -> node with { num-38: some value }
+    39  -> node with { num-39: some value }
+    40  -> node with { num-40: some value }
+    41  -> node with { num-41: some value }
+    42  -> node with { num-42: some value }
+    43  -> node with { num-43: some value }
+    44  -> node with { num-44: some value }
+    45  -> node with { num-45: some value }
+    46  -> node with { num-46: some value }
+    47  -> node with { num-47: some value }
+    48  -> node with { num-48: some value }
+    49  -> node with { num-49: some value }
+    50  -> node with { num-50: some value }
+    51  -> node with { num-51: some value }
+    52  -> node with { num-52: some value }
+    53  -> node with { num-53: some value }
+    54  -> node with { num-54: some value }
+    55  -> node with { num-55: some value }
+    56  -> node with { num-56: some value }
+    57  -> node with { num-57: some value }
+    58  -> node with { num-58: some value }
+    59  -> node with { num-59: some value }
+    60  -> node with { num-60: some value }
+    61  -> node with { num-61: some value }
+    62  -> node with { num-62: some value }
+    63  -> node with { num-63: some value }
+    64  -> node with { num-64: some value }
+    65  -> node with { num-65: some value }
+    66  -> node with { num-66: some value }
+    67  -> node with { num-67: some value }
+    68  -> node with { num-68: some value }
+    69  -> node with { num-69: some value }
+    70  -> node with { num-70: some value }
+    71  -> node with { num-71: some value }
+    72  -> node with { num-72: some value }
+    73  -> node with { num-73: some value }
+    74  -> node with { num-74: some value }
+    75  -> node with { num-75: some value }
+    76  -> node with { num-76: some value }
+    77  -> node with { num-77: some value }
+    78  -> node with { num-78: some value }
+    79  -> node with { num-79: some value }
+    80  -> node with { num-80: some value }
+    81  -> node with { num-81: some value }
+    82  -> node with { num-82: some value }
+    83  -> node with { num-83: some value }
+    84  -> node with { num-84: some value }
+    85  -> node with { num-85: some value }
+    86  -> node with { num-86: some value }
+    87  -> node with { num-87: some value }
+    88  -> node with { num-88: some value }
+    89  -> node with { num-89: some value }
+    90  -> node with { num-90: some value }
+    91  -> node with { num-91: some value }
+    92  -> node with { num-92: some value }
+    93  -> node with { num-93: some value }
+    94  -> node with { num-94: some value }
+    95  -> node with { num-95: some value }
+    96  -> node with { num-96: some value }
+    97  -> node with { num-97: some value }
+    98  -> node with { num-98: some value }
+    99  -> node with { num-99: some value }
+    100 -> node with { num-100: some value }
+    101 -> node with { num-101: some value }
+    102 -> node with { num-102: some value }
+    103 -> node with { num-103: some value }
+    104 -> node with { num-104: some value }
+    105 -> node with { num-105: some value }
+    106 -> node with { num-106: some value }
+    107 -> node with { num-107: some value }
+    108 -> node with { num-108: some value }
+    109 -> node with { num-109: some value }
+    110 -> node with { num-110: some value }
+    111 -> node with { num-111: some value }
+    112 -> node with { num-112: some value }
+    113 -> node with { num-113: some value }
+    114 -> node with { num-114: some value }
+    115 -> node with { num-115: some value }
+    116 -> node with { num-116: some value }
+    117 -> node with { num-117: some value }
+    118 -> node with { num-118: some value }
+    119 -> node with { num-119: some value }
+    120 -> node with { num-120: some value }
+    121 -> node with { num-121: some value }
+    122 -> node with { num-122: some value }
+    123 -> node with { num-123: some value }
+    124 -> node with { num-124: some value }
+    125 -> node with { num-125: some value }
+    126 -> node with { num-126: some value }
+    127 -> node with { num-127: some value }
+    128 -> node with { num-128: some value }
+    129 -> node with { num-129: some value }
+    130 -> node with { num-130: some value }
+    131 -> node with { num-131: some value }
+    132 -> node with { num-132: some value }
+    133 -> node with { num-133: some value }
+    134 -> node with { num-134: some value }
+    135 -> node with { num-135: some value }
+    136 -> node with { num-136: some value }
+    137 -> node with { num-137: some value }
+    138 -> node with { num-138: some value }
+    139 -> node with { num-139: some value }
+    140 -> node with { num-140: some value }
+    141 -> node with { num-141: some value }
+    142 -> node with { num-142: some value }
+    143 -> node with { num-143: some value }
+    144 -> node with { num-144: some value }
+    145 -> node with { num-145: some value }
+    146 -> node with { num-146: some value }
+    147 -> node with { num-147: some value }
+    148 -> node with { num-148: some value }
+    149 -> node with { num-149: some value }
+    150 -> node with { num-150: some value }
+    151 -> node with { num-151: some value }
+    152 -> node with { num-152: some value }
+    153 -> node with { num-153: some value }
+    154 -> node with { num-154: some value }
+    155 -> node with { num-155: some value }
+    156 -> node with { num-156: some value }
+    157 -> node with { num-157: some value }
+    158 -> node with { num-158: some value }
+    159 -> node with { num-159: some value }
+    160 -> node with { num-160: some value }
+    161 -> node with { num-161: some value }
+    162 -> node with { num-162: some value }
+    163 -> node with { num-163: some value }
+    164 -> node with { num-164: some value }
+    165 -> node with { num-165: some value }
+    166 -> node with { num-166: some value }
+    167 -> node with { num-167: some value }
+    168 -> node with { num-168: some value }
+    169 -> node with { num-169: some value }
+    170 -> node with { num-170: some value }
+    171 -> node with { num-171: some value }
+    172 -> node with { num-172: some value }
+    173 -> node with { num-173: some value }
+    174 -> node with { num-174: some value }
+    175 -> node with { num-175: some value }
+    176 -> node with { num-176: some value }
+    177 -> node with { num-177: some value }
+    178 -> node with { num-178: some value }
+    179 -> node with { num-179: some value }
+    180 -> node with { num-180: some value }
+    181 -> node with { num-181: some value }
+    182 -> node with { num-182: some value }
+    183 -> node with { num-183: some value }
+    184 -> node with { num-184: some value }
+    185 -> node with { num-185: some value }
+    186 -> node with { num-186: some value }
+    187 -> node with { num-187: some value }
+    188 -> node with { num-188: some value }
+    189 -> node with { num-189: some value }
+    190 -> node with { num-190: some value }
+    191 -> node with { num-191: some value }
+    192 -> node with { num-192: some value }
+    193 -> node with { num-193: some value }
+    194 -> node with { num-194: some value }
+    195 -> node with { num-195: some value }
+    196 -> node with { num-196: some value }
+    197 -> node with { num-197: some value }
+    198 -> node with { num-198: some value }
+    199 -> node with { num-199: some value }
+    200 -> node with { num-200: some value }
+    201 -> node with { num-201: some value }
+    202 -> node with { num-202: some value }
+    203 -> node with { num-203: some value }
+    204 -> node with { num-204: some value }
+    205 -> node with { num-205: some value }
+    206 -> node with { num-206: some value }
+    207 -> node with { num-207: some value }
+    208 -> node with { num-208: some value }
+    209 -> node with { num-209: some value }
+    210 -> node with { num-210: some value }
+    211 -> node with { num-211: some value }
+    212 -> node with { num-212: some value }
+    213 -> node with { num-213: some value }
+    214 -> node with { num-214: some value }
+    215 -> node with { num-215: some value }
+    216 -> node with { num-216: some value }
+    217 -> node with { num-217: some value }
+    218 -> node with { num-218: some value }
+    219 -> node with { num-219: some value }
+    220 -> node with { num-220: some value }
+    221 -> node with { num-221: some value }
+    222 -> node with { num-222: some value }
+    223 -> node with { num-223: some value }
+    224 -> node with { num-224: some value }
+    225 -> node with { num-225: some value }
+    226 -> node with { num-226: some value }
+    227 -> node with { num-227: some value }
+    228 -> node with { num-228: some value }
+    229 -> node with { num-229: some value }
+    230 -> node with { num-230: some value }
+    231 -> node with { num-231: some value }
+    232 -> node with { num-232: some value }
+    233 -> node with { num-233: some value }
+    234 -> node with { num-234: some value }
+    235 -> node with { num-235: some value }
+    236 -> node with { num-236: some value }
+    237 -> node with { num-237: some value }
+    238 -> node with { num-238: some value }
+    239 -> node with { num-239: some value }
+    240 -> node with { num-240: some value }
+    241 -> node with { num-241: some value }
+    242 -> node with { num-242: some value }
+    243 -> node with { num-243: some value }
+    244 -> node with { num-244: some value }
+    245 -> node with { num-245: some value }
+    246 -> node with { num-246: some value }
+    247 -> node with { num-247: some value }
+    248 -> node with { num-248: some value }
+    249 -> node with { num-249: some value }
+    250 -> node with { num-250: some value }
+    251 -> node with { num-251: some value }
+    252 -> node with { num-252: some value }
+    253 -> node with { num-253: some value }
+    254 -> node with { num-254: some value }
+    255 -> node with { num-255: some value }
+    _ -> std::panic "unreachable"
+  }
 }

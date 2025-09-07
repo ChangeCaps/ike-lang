@@ -13,18 +13,23 @@ import ike::ir::tir
 fn codegen : tir::body::id -> tir::program -> str
 fn codegen entry tir {
   let codegen = codegen {
-    tir:   tir
-    temp:  0
-    types: []
-    funcs: []
-    impls: []
-    lines: []
-    lists: map
+    tir:     tir
+    temp:    0
+    types:   []
+    funcs:   []
+    impls:   []
+    lines:   []
+    tuples:  map
+    hashes:  map
+    equals:  map
+    formats: map
+    records: map
+    unions:  map
   }
 
   let codegen = tir.bodies
     |> map::list
-    |> list::foldl codegen |codegen body-id, body| {
+    |> list::lfold codegen |codegen body-id, body| {
       codegen::body body-id body codegen
     }
 
@@ -40,7 +45,23 @@ fn codegen entry tir {
     |> list::reverse
     |> string::join "\n\n"
 
-  "#include <ike/types.h>\n#include <ike/gc.h>\n\n{types}\n\n{funcs}\n\n{impls}"
+  string::join "\n" [
+    "#include <ike/types.h>"
+    "#include <ike/gc.h>"
+    "#include <ike/function.h>"
+    "#include <ike/string.h>"
+    "#include <ike/os.h>"
+    "#include <ike/hash.h>"
+    ""
+    "#include <stdio.h>"
+    types
+    "\n"
+    funcs
+    "\n"
+    impls
+    "\n"
+    "int main() {{ ike_body_0(); }}"
+  ]
 }
 
 type codegen = {
@@ -59,224 +80,310 @@ type codegen = {
 
   lines: [str]
 
-  /// List types
-  lists: map tir::type str
+  tuples:  map tir::type str
+  hashes:  map tir::type str
+  equals:  map tir::type str
+  formats: map tir::type str
+  records: map tir::record::id str
+  unions:  map tir::union::id str
 }
 
 fn codegen::body : int -> tir::body -> codegen -> codegen
-fn codegen::body body-id body codegen {
+fn codegen::body index body codegen {
   match body.expr {
-    some -> codegen::body::code body-id body codegen
-    none -> codegen::body::extern body-id body codegen
+    some expr -> codegen::body::code index body expr codegen
+    none      -> codegen::body::extern index body codegen
   }
 }
 
-fn codegen::body::extern body-id body codegen {
+fn codegen::body::extern index body codegen {
+  let inputs = |count| {
+    let inputs, output = list::repeat count {}
+      |> list::lfold ([], body.type) |inputs, output _| {
+        match output {
+          tir::type::function (input, output) -> [input; ..inputs], output
+          _ -> panic "unreachable"
+        }
+      }
+
+    list::reverse inputs, output
+  }
+
   match body.path {
     ["std"; "io"; "print"] -> {
-      let body-name = "ike_body_{body-id}"
-      let open = "{{"
+      let name = codegen::body::name index
+      
+      let contents = codegen::lines [
+        "printf(\"%s\", input->input_0->contents);"
+      ]
 
-      let codegen = codegen
-        |> codegen::with-type "typedef struct {body-name}_input {body-name}_input;"
-        |> codegen::with-type "struct {body-name}_input {open}\n  ike_string input_0;\n}};"
+      let inputs, output = inputs 1
 
-      let signature = "void {body-name}({body-name}_input *input, ike_unit *output)"
+      codegen::body::with-inputs
+        <| name
+        <| inputs
+        <| output
+        <| contents
+        <| codegen
+    }
 
-      let vtable-call = ".call = (typeof({body-name}_vtable.call)){body-name},"
+    ["std"; "string"; "prepend"] -> {
+      let name = codegen::body::name index
+      
+      let contents = codegen::lines [
+        "*output = ike_string_concat(input->input_0, input->input_1);"
+      ]
 
-      let vtable = "{body-name}_vtable = {open}\n  {vtable-call}\n}"
+      let inputs, output = inputs 2
 
-      codegen
-        |> codegen::with-func "{signature};"
-        |> codegen::with-func "static const ike_function_vtable {vtable};"
-        |> codegen::with-impl "{signature} {open} printf(\"%s\", input->input_0->contents); }}"
+      codegen::body::with-inputs
+        <| name
+        <| inputs
+        <| output
+        <| contents
+        <| codegen
+    }
+
+    ["std"; "os"; "exit"] -> {
+      let name = codegen::body::name index
+      
+      let contents = codegen::lines [
+        "ike_os_exit(input->input_0);"
+      ]
+
+      let inputs, output = inputs 1
+
+      codegen::body::with-inputs
+        <| name
+        <| inputs
+        <| output
+        <| contents
+        <| codegen
+    }
+
+    ["std"; "os"; "execute"] -> {
+      let name = codegen::body::name index
+      
+      let contents = codegen::lines [
+        "*output = (void *)ike_os_execute(input->input_0);"
+      ]
+
+      let inputs, output = inputs 1
+
+      codegen::body::with-inputs
+        <| name
+        <| inputs
+        <| output
+        <| contents
+        <| codegen
+    }
+
+    ["std"; "fs"; "read"] -> {
+      let name = codegen::body::name index
+      
+      let contents = codegen::lines [
+        "*output = (void *)ike_fs_read(input->input_0);"
+      ]
+
+      let inputs, output = inputs 1
+
+      codegen::body::with-inputs
+        <| name
+        <| inputs
+        <| output
+        <| contents
+        <| codegen
+    }
+
+    ["std"; "fs"; "write"] -> {
+      let name = codegen::body::name index
+      
+      let contents = codegen::lines [
+        "*output = (void *)ike_fs_write(input->input_0);"
+      ]
+
+      let inputs, output = inputs 2
+
+      codegen::body::with-inputs
+        <| name
+        <| inputs
+        <| output
+        <| contents
+        <| codegen
+    }
+
+    ["std"; "hash"] -> {
+      let name = codegen::body::name index
+      
+      let inputs, output = inputs 1
+      let input = list::first inputs
+        |> option::assert
+
+      let codegen, hash = codegen::hash input codegen
+
+      let contents = codegen::lines [
+        "*output = {hash}(input->input_0);"
+      ]
+
+      codegen::body::with-inputs
+        <| name
+        <| inputs
+        <| output
+        <| contents
+        <| codegen
     }
 
     _ -> panic "unimplemented {body.path}"
   }
 }
 
-fn codegen::body::code body-id body codegen {
-  let inputs, out, codegen = body.inputs
-    |> list::foldr ([], body.type, codegen) |_ inputs, type, codegen| {
-      let in, out = match type {
-        tir::type::function (in, out) -> in, out
+fn codegen::body::name index -> "ike_body_{index}"
+
+fn codegen::body::code index body expr codegen {
+  let name = codegen::body::name index
+
+  let inputs, output = body.inputs
+    |> list::lfold ([], body.type) |inputs, output _| {
+      match output {
+        tir::type::function (input, output) -> [input; ..inputs], output 
         _ -> panic "unreachable"
       }
-
-      let codegen, type = codegen::type in codegen
-      [type; ..inputs], out, codegen
     }
+
+  let inputs = list::reverse inputs
+
+  let codegen, locals = body.locals
+    |> map::list
+    |> list::lfold (codegen, []) |codegen, locals index, local| {
+      let codegen, type = codegen::type local.type codegen
+      let local = "    {type} local_{index}; // {local.name}"
+      codegen, [local; ..locals]
+    }
+
+  let locals = string::join "\n" locals
+
+  let codegen = body.inputs
+    |> list::enumerate
+    |> list::lfold codegen |codegen i, input| {
+      codegen::pattern::assign input "input->input_{i}" codegen
+    }
+  
+  let codegen, expr = codegen::expr expr codegen
+
+  let lines = codegen.lines
+    |> list::reverse
+    |> list::map |line| "    {line}"
+    |> string::join "\n"
+
+  let codegen = codegen with { lines: [] }
+
+  match inputs {
+    [] -> {
+      let codegen, output = codegen::type output codegen
+
+      let contents = string::join "\n" [
+        "    /* locals */"
+        locals
+        "    /* body */"
+        lines
+        "    /* return */"
+        "    return {expr};"
+      ]
+
+      codegen
+        |> codegen::with-func "{output} {name}();"
+        |> codegen::with-impl "{output} {name}() {{\n{contents}\n}}"
+    }
+
+    _ -> {
+      let contents = string::join "\n" [
+        "    /* locals */"
+        locals
+        "    /* body */"
+        lines
+        "    /* return */"
+        "    *output = {expr};"
+      ]
+
+      codegen::body::with-inputs
+        <| name
+        <| inputs
+        <| output
+        <| contents
+        <| codegen
+    }
+  }
+}
+
+fn codegen::body::with-inputs name inputs output contents codegen {
+  let vtable = vtable {
+    call: "{name}_call"
+  }
+
+  let codegen, input  = codegen::body::input  vtable.call inputs codegen
+
+  let codegen, signature = codegen::body::signature
+    <| vtable.call
+    <| input
+    <| output
+    <| codegen
+
+  let codegen = codegen
+    |> codegen::with-func "{signature};"
+    |> codegen::with-impl "{signature} {{\n{contents}\n}}"
+
+  let codegen, vtable = codegen::body::vtable vtable.call vtable codegen
+  let codegen, output = codegen::type output codegen
+
+  let init-contents = codegen::lines [
+    "ike_function function = ike_alloc(sizeof *function);"
+    ""
+    "function->vtable    = &{vtable};"
+    "function->remaining = {list::len inputs};"
+    "function->size      = 0;"
+    ""
+    "return function;"
+  ]
+
+  codegen
+    |> codegen::with-func "ike_function {name}();"
+    |> codegen::with-impl "ike_function {name}() {{\n{init-contents}\n}}"
+}
+
+type vtable = {
+  call: str
+}
+
+fn codegen::lines lines {
+  lines
+    |> list::map |line| "    {line}"
+    |> string::join "\n"
+}
+
+fn codegen::body::vtable name vtable codegen {
+  let call = "    .call = (ike_function_vtable_call){vtable.call},"
+  let vtable = "static const ike_function_vtable {name}_vtable = {{\n{call}\n}};"
+
+  codegen::with-func vtable codegen, "{name}_vtable"
+}
+
+fn codegen::body::input name inputs codegen {
+  let codegen, inputs = codegen::types inputs codegen
 
   let inputs = inputs
     |> list::enumerate
     |> list::map |i, type| "    {type} input_{i};"
     |> string::join "\n"
 
-  let body-name = "ike_body_{body-id}"
+  let struct = "typedef struct {{\n{inputs}\n}} {name}_input;"
 
-  let open = "{{"
-  let codegen = codegen
-    |> codegen::with-type "typedef struct {body-name}_input {body-name}_input;"
-    |> codegen::with-type "struct {body-name}_input {open}\n{inputs}\n}};"
-
-  let codegen, out = codegen::type out codegen
-
-  let locals, codegen = body.locals
-    |> map::list
-    |> list::foldr ([], codegen) |index, local locals, codegen| {
-      let codegen, type = codegen::type local.type codegen 
-      ["{type} local_{index};"; ..locals], codegen
-    }
-
-  let locals = locals
-    |> list::map |local| "  {local}"
-    |> string::join "\n"
-
-  let signature = "void {body-name}({body-name}_input *input, {out} *output)"
-
-  let codegen = body.inputs
-    |> list::enumerate
-    |> list::foldl codegen |codegen index, pattern| {
-      codegen::pattern::assign pattern "input->input_{index}" codegen
-    }
-
-  let codegen, expr = codegen::expr (option::assert body.expr) codegen
-  let codegen = codegen::with-line "*output = {expr};" codegen
-
-  let lines = codegen.lines
-    |> list::map |line| "  {line}"
-    |> list::reverse
-    |> string::join "\n"
-
-  let codegen = codegen with { lines: [] }
-
-  let vtable-call = ".call = (typeof({body-name}_vtable.call)){body-name},"
-
-  let vtable = "{body-name}_vtable = {open}\n  {vtable-call}\n}"
-
-  codegen
-    |> codegen::with-func "{signature};"
-    |> codegen::with-func "static const ike_function_vtable {vtable};"
-    |> codegen::with-impl "{signature} {open}\n{locals}\n\n{lines}\n}}"
+  codegen::with-func struct codegen, "{name}_input"
 }
 
-fn codegen::type : tir::type -> codegen -> codegen, str
-fn codegen::type type codegen {
-  match type {
-    tir::type::integer -> codegen, "ike_int"
-    tir::type::boolean -> codegen, "ike_bool"
-    tir::type::string  -> codegen, "ike_string"
-    tir::type::unit    -> codegen, "ike_unit"
+fn codegen::body::signature name input output codegen {
+  let codegen, output = codegen::type output codegen
 
-    tir::type::list item -> match map::get type codegen.lists {
-      some type -> codegen, type
-      none -> {
-        let codegen, item = codegen::type item codegen
-
-        let index = map::len codegen.lists
-        let list = "ike_list_{index}"
-
-        let decl = "typedef IKE_LIST({item}) {type}"
-        let codegen = codegen with {
-          lists: map::put type list codegen.lists
-        }
-
-        codegen::with-impl decl codegen, list
-      }
-    }
-
-    tir::type::function -> codegen, "ike_function"
-    
-    _ -> todo "{type}"
-  }
-}
-
-fn codegen::pattern::assign : tir::pattern -> str -> codegen -> codegen
-fn codegen::pattern::assign pattern value codegen {
-  match pattern.kind {
-    ir::pattern::wildcard -> codegen
-
-    ir::pattern::binding local-id -> {
-      codegen::with-line "local_{local-id.index} = {value};" codegen
-    }
-
-    _ -> todo "{pattern.kind}"
-  }
-}
-
-fn codegen::expr : tir::expr -> codegen -> codegen, str
-fn codegen::expr expr codegen {
-  match expr.kind {
-    ir::expr::integer value -> codegen, "{value}"
-    ir::expr::boolean value -> codegen, "{value}"
-    ir::expr::string value -> codegen, "ike_string_new(\"{value}\")"
-
-    ir::expr::local local-id -> codegen, "local_{local-id.index}"
-
-    ir::expr::body body-id -> {
-      let body = tir::body body-id codegen.tir
-
-      match list::len body.inputs {
-        0 -> {
-          let codegen, output = codegen::temp expr.type codegen
-          let codegen = codegen
-            |> codegen::with-line "ike_body_{body-id.index}(NULL, &{output});"
-
-          codegen, output
-        }
-
-        _ -> {
-          let codegen, function = codegen::temp expr.type codegen
-
-          let input-size = "sizeof(ike_body_{body-id.index}_input)"
-          let size = "(sizeof *{function}) + {input-size}"
-
-          let codegen = codegen
-            |> codegen::with-line "// initialize function `{body.path}`"
-            |> codegen::with-line "{function} = ike_alloc({size});"
-            |> codegen::with-line "{function}->vtable = &ike_body_{body-id.index}_vtable;"
-            |> codegen::with-line "{function}->remaining = {list::len body.inputs};"
-            |> codegen::with-line "{function}->end = {function}->input + {input-size};"
-
-          codegen, "{function}"
-        }
-      }
-    }
-
-    ir::expr::let_ (pattern, value) -> {
-      let codegen, value = codegen::expr value codegen
-      let codegen = codegen::pattern::assign pattern value codegen
-      codegen, "((ike_unit) {{}})"
-    }
-
-    ir::expr::call (callee, value) -> {
-      let codegen, output = codegen::temp expr.type codegen
-      let codegen, input = codegen::temp value.type codegen
-
-      let codegen, callee = codegen::expr callee codegen
-      let codegen, value = codegen::expr value codegen
-
-      let codegen = codegen
-        |> codegen::with-line "{input} = {value};" 
-        |> codegen::with-line "ike_call({callee}, &{input}, (sizeof {input}), &{output});" 
-
-      codegen, "{output}"
-    }
-
-    ir::expr::block exprs -> {
-      let value, codegen = exprs
-        |> list::foldl (none, codegen) |value, codegen expr| {
-          let codegen, expr = codegen::expr expr codegen
-          some expr, codegen
-        }
-
-      codegen, option::some-or "((ike_unit) {{}})" value
-    }
-
-    _ -> todo "{expr.kind}"
-  }
+  codegen, "void {name}({input} *input, {output} *output)"
 }
 
 fn codegen::temp type codegen {

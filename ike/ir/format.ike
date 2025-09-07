@@ -130,6 +130,8 @@ fn expr::debug-format indent expr {
         expr::mul  -> "*"
         expr::div  -> "/"
         expr::mod  -> "%"
+        expr::shl  -> "<<"
+        expr::shr  -> ">>"
         expr::and_ -> "and"
         expr::or_  -> "or"
         expr::gt   -> ">"

@@ -1,4 +1,5 @@
-extern debug::format : 'a -> str
+fn debug::format : 'a -> str
+fn debug::format value -> "{value}"
 
 fn debug::print : 'a -> 'a
 fn debug::print value {

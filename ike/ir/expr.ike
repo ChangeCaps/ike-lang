@@ -31,6 +31,8 @@ type expr::binop = add
                  | mul
                  | div
                  | mod
+                 | shl
+                 | shr
                  | and_
                  | or_
                  | gt

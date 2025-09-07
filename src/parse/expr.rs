@@ -1,3 +1,5 @@
+use std::mem;
+
 use crate::{
     ast::{Arm, BinOp, Expr, ExprKind},
     diagnostic::Diagnostic,
@@ -52,6 +54,7 @@ fn parse_list_expr(tokens: &mut TokenStream) -> Result<Expr, Diagnostic> {
         if tokens.is(&Token::DotDot) {
             tokens.consume();
             let rest_expr = parse_expr_impl(tokens, Options::default())?;
+            consume_newlines(tokens);
             rest = Some(Box::new(rest_expr));
             break;
         }
@@ -194,10 +197,12 @@ fn parse_term_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, D
             tokens.consume();
 
             let mut rest = value.as_str();
+            let mut part = String::new();
             let mut parts = Vec::new();
 
             while let Some(idx) = rest.find("{") {
                 if rest[idx..].starts_with("{{") {
+                    part.push_str(&rest[..idx + 1]);
                     rest = &rest[idx + 2..];
                     continue;
                 }
@@ -209,8 +214,9 @@ fn parse_term_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, D
                     return Err(diagnostic);
                 };
 
-                let lit = rest[..idx].replace("{{", "{").replace("}}", "}");
-                let lit = ExprKind::String(lit).with_span(span);
+                part.push_str(&rest[..idx].replace("}}", "}"));
+
+                let lit = ExprKind::String(mem::take(&mut part)).with_span(span);
                 parts.push(lit);
 
                 let mut emitter = Vec::new();
@@ -223,13 +229,13 @@ fn parse_term_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, D
                 rest = &rest[idx + end + 1..];
             }
 
+            part.push_str(&rest.replace("}}", "}"));
+
             if parts.is_empty() {
-                let lit = value.replace("{{", "{").replace("}}", "}");
-                return Ok(ExprKind::String(lit).with_span(span));
+                return Ok(ExprKind::String(part).with_span(span));
             }
 
-            let lit = rest.replace("{{", "{").replace("}}", "}");
-            let lit = ExprKind::String(lit).with_span(span);
+            let lit = ExprKind::String(part).with_span(span);
             parts.push(lit);
 
             Ok(ExprKind::Format(parts).with_span(span))
@@ -385,15 +391,41 @@ fn parse_add_sub_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr
     Ok(lhs)
 }
 
-fn parse_cmp_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, Diagnostic> {
+fn parse_shl_shr_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, Diagnostic> {
     let mut lhs = parse_add_sub_expr(tokens, options)?;
+
+    let (mut token, op_span) = tokens.peek();
+
+    while matches!(token, Token::LtLt | Token::GtGt) {
+        tokens.consume();
+
+        let rhs = parse_add_sub_expr(tokens, options)?;
+
+        let op = match token {
+            Token::LtLt => BinOp::Shl,
+            Token::GtGt => BinOp::Shr,
+            _ => unreachable!(),
+        };
+
+        let span = lhs.span.join(rhs.span);
+        let kind = ExprKind::Binary(op, op_span, Box::new(lhs), Box::new(rhs));
+        lhs = kind.with_span(span);
+
+        (token, _) = tokens.peek();
+    }
+
+    Ok(lhs)
+}
+
+fn parse_cmp_expr(tokens: &mut TokenStream, options: Options) -> Result<Expr, Diagnostic> {
+    let mut lhs = parse_shl_shr_expr(tokens, options)?;
 
     let (mut token, op_span) = tokens.peek();
 
     while matches!(token, Token::Gt | Token::Lt | Token::GtEq | Token::LtEq) {
         tokens.consume();
 
-        let rhs = parse_add_sub_expr(tokens, options)?;
+        let rhs = parse_shl_shr_expr(tokens, options)?;
 
         let op = match token {
             Token::Gt => BinOp::Gt,

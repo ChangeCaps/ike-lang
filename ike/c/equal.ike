@@ -1,0 +1,147 @@
+fn codegen::equal : tir::type -> codegen -> codegen, str
+fn codegen::equal type codegen {
+  match map::get type codegen.equals {
+    some equal -> codegen, equal
+    none -> {
+      let index = map::len codegen.equals
+      let name = "ike_equal_{index}"
+
+      let codegen = codegen with {
+        equals: map::put type name codegen.equals
+      }
+
+      let codegen, contents = match type {
+        tir::type::integer -> {
+          let lines = [
+            "return lhs == rhs;"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::boolean -> {
+          let lines = [
+            "return lhs == rhs;"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::string -> {
+          let lines = [
+            "return strcmp(lhs->contents, rhs->contents) == 0;"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::unit -> {
+          let lines = [
+            "return true;"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::function -> {
+          let lines = [
+            "return lhs->vtable == rhs->vtable;"
+          ]
+
+          codegen, lines
+        }
+        
+        tir::type::list item -> {
+          let codegen, equal = codegen::equal item codegen
+          let codegen, type = codegen::type item codegen
+
+          let lines = [
+            "while (lhs != NULL && rhs != NULL) {{"
+            "    if (!{equal}(*({type} *)lhs->head, *({type} *)rhs->head)) return false;"
+            "    lhs = lhs->tail;"
+            "    rhs = rhs->tail;"
+            "}}"
+            ""
+            "return lhs == rhs;"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::tuple items -> {
+          let codegen, items = items
+            |> list::enumerate
+            |> list::rfold (codegen, []) |index, item codegen, items| {
+              let codegen, equal = codegen::equal item codegen
+
+              codegen, ["{equal}(lhs->item_{index}, rhs->item_{index})"; ..items]
+            } 
+
+          let items = string::join " && " items
+
+          let lines = [
+            "return {items};"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::record id -> {
+          let record = tir::record id codegen.tir
+          
+          let codegen, fields = record.fields
+            |> list::enumerate
+            |> list::rfold (codegen, []) |i, (_, type) codegen, fields| {
+              let codegen, equal = codegen::equal type codegen
+
+              codegen, ["{equal}(lhs->field_{i}, rhs->field_{i})"; ..fields]
+            }
+
+          let fields = string::join " && " fields
+          
+          let lines = [
+            "return {fields};"
+          ]
+
+          codegen, lines
+        }
+
+        tir::type::union id -> {
+          let union = tir::union id codegen.tir
+
+          let codegen, variants = union.variants
+            |> list::enumerate
+            |> list::rfold (codegen, []) |i, variant codegen, variants| {
+              match variant.body {
+                some body -> {
+                  let codegen, equal = codegen::equal body codegen 
+                  codegen, ["  case {i}: return {equal}(lhs->variant_{i}, rhs->variant_{i});"; ..variants]
+                }
+
+                none -> codegen, variants
+              }
+            }
+
+          let lines = [
+            "if (lhs->discriminant != rhs->discriminant) return false;"
+            "switch (lhs->discriminant) {{"
+          ]
+            |> list::append variants
+            |> list::append ["  default: return true;"]
+            |> list::append ["}}"]
+
+          codegen, lines
+        }
+      }
+
+      let contents = codegen::lines contents
+
+      let codegen, type = codegen::type type codegen
+      let codegen = codegen
+        |> codegen::with-func "ike_bool {name}({type} lhs, {type} rhs);"
+        |> codegen::with-impl "ike_bool {name}({type} lhs, {type} rhs) {{\n{contents}\n}}"
+
+      codegen, name
+    }
+  }
+}

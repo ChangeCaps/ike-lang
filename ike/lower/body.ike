@@ -34,7 +34,7 @@ fn lower::body body-id lcx {
       }
 
       let types, inputs, elcx = info.inputs
-        |> list::foldl ([], [], elcx) |types, inputs, elcx input| {
+        |> list::lfold ([], [], elcx) |types, inputs, elcx input| {
           let type, elcx = elcx::infer-type input.span elcx
           let input, elcx = elcx::lower-pattern input type elcx
 
@@ -54,7 +54,7 @@ fn lower::body body-id lcx {
       let expr, elcx = elcx::lower-expr info.body elcx
 
       let type = types
-        |> list::foldl expr.type |out in| {
+        |> list::lfold expr.type |out in| {
           uir::type::function in out out.span
         }
 
@@ -169,7 +169,7 @@ fn elcx::with-diagnostic diagnostic elcx {
 
 fn elcx::infer-generics generics elcx {
   generics
-    |> list::foldr ([], map, elcx) |_, var, span generics, subst, elcx| {
+    |> list::rfold ([], map, elcx) |_, var, span generics, subst, elcx| {
       let type, elcx = elcx::infer-type span elcx
       [type; ..generics], map::put var type subst, elcx
     }

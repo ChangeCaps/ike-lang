@@ -1308,6 +1308,8 @@ impl ExprLowerer<'_, '_> {
                     ast::BinOp::Div => ir::BinOp::Div,
                     ast::BinOp::Mod => ir::BinOp::Mod,
                     ast::BinOp::And => ir::BinOp::And,
+                    ast::BinOp::Shl => ir::BinOp::Shl,
+                    ast::BinOp::Shr => ir::BinOp::Shr,
                     ast::BinOp::Or => ir::BinOp::Or,
                     ast::BinOp::Gt => ir::BinOp::Gt,
                     ast::BinOp::Lt => ir::BinOp::Lt,
@@ -1325,7 +1327,9 @@ impl ExprLowerer<'_, '_> {
                     | ir::BinOp::Sub
                     | ir::BinOp::Mul
                     | ir::BinOp::Div
-                    | ir::BinOp::Mod => {
+                    | ir::BinOp::Mod
+                    | ir::BinOp::Shl
+                    | ir::BinOp::Shr => {
                         self.unify(lhs.ty.clone(), rhs.ty.clone(), ast.span);
                         self.number(lhs.ty.clone(), op_span);
 

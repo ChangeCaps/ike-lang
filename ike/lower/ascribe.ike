@@ -1,6 +1,6 @@
 fn lower::ascriptions lcx {
   lcx.ascriptions
-    |> list::foldl lcx |lcx info| {
+    |> list::lfold lcx |lcx info| {
       let tlcx = tlcx {
         lcx:                lcx
         mod:                info.module
