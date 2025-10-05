@@ -12,6 +12,8 @@ pub struct SourceId {
 }
 
 impl SourceId {
+    pub const DUMMY: Self = Self { index: u32::MAX };
+
     pub const fn index(self) -> u32 {
         self.index
     }

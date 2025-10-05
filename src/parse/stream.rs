@@ -2,17 +2,21 @@ use crate::parse::Token;
 
 #[derive(Clone, Debug)]
 pub struct TokenStream<'a> {
-    source: &'a str,
+    input:  &'a str,
     offset: usize,
 }
 
 impl<'a> TokenStream<'a> {
-    pub fn new(source: &'a str) -> Self {
-        Self { source, offset: 0 }
+    pub fn new(input: &'a str) -> Self {
+        Self { input, offset: 0 }
+    }
+
+    pub fn input(&self) -> &'a str {
+        self.input
     }
 
     fn remaining(&self) -> &'a str {
-        &self.source[self.offset..]
+        &self.input[self.offset..]
     }
 
     fn advance(&mut self, n: usize) {
@@ -78,7 +82,7 @@ impl<'a> TokenStream<'a> {
         self.advance_while(Self::is_ident_continue);
         let end = self.offset;
 
-        match &self.source[start..end] {
+        match &self.input[start..end] {
             "let" => Token::Let,
             "fn" => Token::Fn,
             "type" => Token::Type,
