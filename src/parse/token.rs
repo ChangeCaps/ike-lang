@@ -1,4 +1,4 @@
-use std::fmt::{self, write};
+use std::fmt;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Token {
@@ -17,20 +17,38 @@ pub enum Token {
     String,
 
     /* keywords */
-    Let,
-    Fn,
-    Type,
-    Int,
-    Float,
     Bool,
+    False,
+    Float,
+    Fn,
+    Int,
+    Let,
+    Str,
+    True,
+    Type,
 
     /* two character symbols */
+    ColonColon,
     DotDot,
     EqEq,
+    Arrow,
 
     /* one character symbols */
+    LParen,
+    RParen,
+    LBrace,
+    RBrace,
+    LBracket,
+    RBracket,
+    Quote,
+    Colon,
+    Semi,
+    Comma,
     Dot,
+    Pipe,
     Eq,
+    Lt,
+    Gt,
 }
 
 impl Token {
@@ -59,20 +77,38 @@ impl fmt::Display for Token {
             Token::String => write!(f, "string"),
 
             /* keywords */
-            Token::Let => write!(f, "let"),
-            Token::Fn => write!(f, "fn"),
-            Token::Type => write!(f, "type"),
-            Token::Int => write!(f, "int"),
-            Token::Float => write!(f, "float"),
             Token::Bool => write!(f, "bool"),
+            Token::False => write!(f, "false"),
+            Token::Float => write!(f, "float"),
+            Token::Fn => write!(f, "fn"),
+            Token::Int => write!(f, "int"),
+            Token::Let => write!(f, "let"),
+            Token::Str => write!(f, "str"),
+            Token::True => write!(f, "true"),
+            Token::Type => write!(f, "type"),
 
             /* two character symbols */
+            Token::ColonColon => write!(f, "::"),
             Token::DotDot => write!(f, ".."),
             Token::EqEq => write!(f, "=="),
+            Token::Arrow => write!(f, "->"),
 
             /* one character symbols */
+            Token::LParen => write!(f, "("),
+            Token::RParen => write!(f, ")"),
+            Token::LBrace => write!(f, "{{"),
+            Token::RBrace => write!(f, "}}"),
+            Token::LBracket => write!(f, "["),
+            Token::RBracket => write!(f, "]"),
+            Token::Quote => write!(f, "'"),
+            Token::Colon => write!(f, ":"),
+            Token::Semi => write!(f, ";"),
+            Token::Comma => write!(f, ","),
             Token::Dot => write!(f, "."),
+            Token::Pipe => write!(f, "|"),
             Token::Eq => write!(f, "="),
+            Token::Lt => write!(f, "<"),
+            Token::Gt => write!(f, ">"),
         }
     }
 }

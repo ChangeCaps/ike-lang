@@ -85,6 +85,10 @@ impl<'a> Parser<'a> {
         }
     }
 
+    pub fn is(&mut self, token: Token) -> bool {
+        self.peek(0) == token
+    }
+
     /// Advance the parser by `n` tokens and return the combined span.
     pub fn advance(&mut self, mut n: usize) -> Span {
         assert!(n > 0);
@@ -202,6 +206,59 @@ impl<'a> Parser<'a> {
         self.emitter.emit(diagnostic);
     }
 }
+
+// WARNING: here be dragons
+#[cfg(test)]
+macro_rules! test_parser {
+    ($parser:path : $input:expr => $($tt:tt)*) => {
+        let mut emitter = Vec::new();
+        let mut parser = $crate::parse::Parser::new(
+            &mut emitter,
+            $input, // input
+            $crate::diagnostic::SourceId::DUMMY,
+        );
+
+        parser.open($crate::ast::Kind::Error);
+
+        $parser(&mut parser);
+
+        let node = parser.finish();
+
+        $crate::parse::test_parser!(@check node[0] $($tt)*);
+    };
+
+    (@check $node:ident[$n:expr] $kind:path { $($content:tt)* } $(, $($rest:tt)* )?) => {
+        let node = $node.node($n);
+
+        assert_eq!(node.kind, $kind);
+
+        $crate::parse::test_parser!(@check node[0] $($content)*);
+
+        $(
+            $crate::parse::test_parser!(@check $node[$n + 1] $($rest)*);
+        )?
+    };
+
+    (@check $node:ident[$n:expr] $token:path $(, $($rest:tt)* )?) => {
+        let token = $node.token($n).unwrap();
+
+        assert_eq!(token, $token);
+
+        $(
+            $crate::parse::test_parser!(@check $node[$n + 1] $($rest)*);
+        )?
+    };
+
+    (@check $node:ident[$n:expr]) => {
+        assert_eq!(
+            $node.semantic_children().count(), $n,
+            "ast node has the wrong number of semantically relevant children",
+        );
+    };
+}
+
+#[cfg(test)]
+pub(crate) use test_parser;
 
 #[cfg(test)]
 mod tests {

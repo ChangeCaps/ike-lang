@@ -11,27 +11,38 @@ pub struct Node {
 pub enum Kind {
     Error,
 
+    /* misc */
     Path,
     PathSegment,
+    Param,
+    Params,
+    Field,
 
     /* expressions */
     IntExpr,
     FloatExpr,
     StrExpr,
-    BoolExpr,
+    TrueExpr,
+    FalseExpr,
     LetExpr,
+    PathExpr,
+    BlockExpr,
+    ParenExpr,
 
     /* types */
     IntType,
     FloatType,
     StrType,
     BoolType,
+    PathType,
+    FnType,
     RecordType,
     UnionType,
+    GenericType,
 
-    /* declarations */
-    FnDecl,
-    TypeDecl,
+    /* items */
+    FnItem,
+    TypeItem,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -46,11 +57,20 @@ impl Node {
     }
 
     pub fn node(&self, i: usize) -> &Node {
-        let child = self.semantic_children().nth(0).unwrap();
+        let child = self.semantic_children().nth(i).unwrap();
 
         match child {
             Child::Token(_, s) => panic!("expected child at [{i}], but found token `{s}`"),
             Child::Node(node) => node,
+        }
+    }
+
+    pub fn token(&self, i: usize) -> Option<Token> {
+        let child = self.semantic_children().nth(i).unwrap();
+
+        match child {
+            Child::Token(token, _) => Some(*token),
+            Child::Node(_) => None,
         }
     }
 }

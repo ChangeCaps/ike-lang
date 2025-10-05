@@ -51,8 +51,11 @@ impl<'a> TokenStream<'a> {
         }
 
         let token = match &self.remaining()[..2] {
+            "::" => Token::ColonColon,
             ".." => Token::DotDot,
             "==" => Token::EqEq,
+            "->" => Token::Arrow,
+
             _ => return None,
         };
 
@@ -67,8 +70,22 @@ impl<'a> TokenStream<'a> {
         }
 
         let token = match &self.remaining()[..1] {
+            "(" => Token::LParen,
+            ")" => Token::RParen,
+            "{" => Token::LBrace,
+            "}" => Token::RBrace,
+            "[" => Token::LBracket,
+            "]" => Token::RBracket,
+            "'" => Token::Quote,
+            ":" => Token::Colon,
+            ";" => Token::Semi,
+            "," => Token::Comma,
             "." => Token::Dot,
+            "|" => Token::Pipe,
             "=" => Token::Eq,
+            "<" => Token::Lt,
+            ">" => Token::Gt,
+
             _ => return None,
         };
 
@@ -83,12 +100,16 @@ impl<'a> TokenStream<'a> {
         let end = self.offset;
 
         match &self.input[start..end] {
-            "let" => Token::Let,
-            "fn" => Token::Fn,
-            "type" => Token::Type,
-            "int" => Token::Int,
-            "float" => Token::Float,
             "bool" => Token::Bool,
+            "false" => Token::False,
+            "float" => Token::Float,
+            "fn" => Token::Fn,
+            "int" => Token::Int,
+            "let" => Token::Let,
+            "str" => Token::Str,
+            "true" => Token::True,
+            "type" => Token::Type,
+
             _ => Token::Ident,
         }
     }
