@@ -2,4 +2,5 @@
 
 mod ast;
 mod diagnostic;
+mod ir;
 mod parse;

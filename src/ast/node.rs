@@ -18,6 +18,10 @@ pub enum Kind {
     Params,
     Field,
 
+    /* patterns */
+    WildcardPattern,
+    BindingPattern,
+
     /* expressions */
     IntExpr,
     FloatExpr,

@@ -77,7 +77,6 @@ pub(crate) fn parse_block_expr(parser: &mut Parser<'_>) {
 
     while !BREAK.contains(&parser.peek(0)) {
         parse_expr(parser);
-
         parse_newlines(parser);
     }
 
