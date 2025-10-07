@@ -2,6 +2,7 @@ use crate::ir::{Expr, Pattern, Type};
 
 #[derive(Clone, Debug)]
 pub struct Body {
+    pub name:   Option<String>,
     pub locals: Vec<Local>,
     pub params: Vec<Parameter>,
     pub ty:     Type,
@@ -16,7 +17,8 @@ pub struct Parameter {
 
 #[derive(Clone, Debug)]
 pub struct Local {
-    pub ty: Type,
+    pub name: Option<String>,
+    pub ty:   Type,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
