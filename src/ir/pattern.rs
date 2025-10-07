@@ -1,4 +1,4 @@
-use crate::{diagnostic::Span, ir::LocalId};
+use crate::diagnostic::Span;
 
 #[derive(Clone, Debug)]
 pub struct Pattern {
@@ -9,5 +9,5 @@ pub struct Pattern {
 #[derive(Clone, Debug)]
 pub enum PatternKind {
     Wildcard,
-    Binding(LocalId),
+    Binding(usize),
 }

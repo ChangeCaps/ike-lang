@@ -1,4 +1,4 @@
-use crate::{diagnostic::Span, ir::LocalId};
+use crate::diagnostic::Span;
 
 #[derive(Clone, Debug)]
 pub struct Expr {
@@ -12,5 +12,5 @@ pub enum ExprKind {
     Float(f64),
     Str(String),
     Bool(bool),
-    Local(LocalId),
+    Local(usize),
 }

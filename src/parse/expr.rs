@@ -4,7 +4,7 @@ use crate::{
     parse::{Parser, Token, parse_newlines, parse_path},
 };
 
-pub(crate) fn parse_expr(parser: &mut Parser<'_>) {
+pub fn parse_expr(parser: &mut Parser<'_>) {
     parse_term_expr(parser);
 }
 
@@ -67,17 +67,26 @@ fn parse_paren_expr(parser: &mut Parser<'_>) {
     parser.close();
 }
 
-pub(crate) fn parse_block_expr(parser: &mut Parser<'_>) {
+pub fn parse_block_expr(parser: &mut Parser<'_>) {
     const BREAK: &[Token] = &[Token::RBrace, Token::Type, Token::Eof];
 
     parser.open(ast::Kind::BlockExpr);
     parser.expect(Token::LBrace);
 
-    parse_newlines(parser);
-
-    while !BREAK.contains(&parser.peek(0)) {
-        parse_expr(parser);
+    if parser.is(Token::Newline) {
         parse_newlines(parser);
+
+        while !BREAK.contains(&parser.peek(0)) {
+            parse_expr(parser);
+
+            if !parser.is(Token::RBrace) {
+                parser.expect(Token::Newline);
+            }
+
+            parse_newlines(parser);
+        }
+    } else if !parser.is(Token::RBrace) {
+        parse_expr(parser);
     }
 
     parser.expect(Token::RBrace);
@@ -145,6 +154,14 @@ mod tests {
 
     #[test]
     fn block() {
+        test_parser! {
+            parse_expr : "{}" =>
+            ast::Kind::BlockExpr {
+                Token::LBrace,
+                Token::RBrace,
+            },
+        }
+
         test_parser! {
             parse_expr : "{ 0 }" =>
             ast::Kind::BlockExpr {

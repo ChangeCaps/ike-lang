@@ -34,13 +34,17 @@ fn is_variant(parser: &mut Parser<'_>) -> bool {
 
 fn parse_term_type(parser: &mut Parser<'_>) {
     match parser.peek(0) {
+        Token::Nat => parse_nat_type(parser),
         Token::Int => parse_int_type(parser),
-        Token::Float => parse_float_type(parser),
+        Token::Num => parse_num_type(parser),
         Token::Str => parse_str_type(parser),
         Token::Bool => parse_bool_type(parser),
+        Token::None => parse_none_type(parser),
+        Token::Bang => parse_never_type(parser),
         Token::Ident => parse_path_type(parser),
         Token::Quote => parse_generic_type(parser),
         Token::LBrace => parse_record_type(parser),
+        Token::LParen => parse_paren_type(parser),
 
         token => {
             let diagnostic = Diagnostic::error(format!("expected type found `{token}`"))
@@ -51,15 +55,21 @@ fn parse_term_type(parser: &mut Parser<'_>) {
     }
 }
 
+fn parse_nat_type(parser: &mut Parser<'_>) {
+    parser.open(ast::Kind::NatType);
+    parser.expect(Token::Nat);
+    parser.close();
+}
+
 fn parse_int_type(parser: &mut Parser<'_>) {
     parser.open(ast::Kind::IntType);
     parser.expect(Token::Int);
     parser.close();
 }
 
-fn parse_float_type(parser: &mut Parser<'_>) {
-    parser.open(ast::Kind::FloatType);
-    parser.expect(Token::Float);
+fn parse_num_type(parser: &mut Parser<'_>) {
+    parser.open(ast::Kind::NumType);
+    parser.expect(Token::Num);
     parser.close();
 }
 
@@ -72,6 +82,18 @@ fn parse_str_type(parser: &mut Parser<'_>) {
 fn parse_bool_type(parser: &mut Parser<'_>) {
     parser.open(ast::Kind::BoolType);
     parser.expect(Token::Bool);
+    parser.close();
+}
+
+fn parse_none_type(parser: &mut Parser<'_>) {
+    parser.open(ast::Kind::NoneType);
+    parser.expect(Token::None);
+    parser.close();
+}
+
+fn parse_never_type(parser: &mut Parser<'_>) {
+    parser.open(ast::Kind::NeverType);
+    parser.expect(Token::Bang);
     parser.close();
 }
 
@@ -122,9 +144,29 @@ fn parse_field(parser: &mut Parser<'_>) {
     parser.close();
 }
 
+fn parse_paren_type(parser: &mut Parser<'_>) {
+    parser.open(ast::Kind::ParenType);
+
+    parser.expect(Token::LParen);
+    parse_type(parser);
+    parser.expect(Token::RParen);
+
+    parser.close();
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{ast, parse::*};
+
+    #[test]
+    fn nat() {
+        test_parser! {
+            parse_type : "nat" =>
+            ast::Kind::NatType {
+                Token::Nat,
+            },
+        }
+    }
 
     #[test]
     fn int() {
@@ -137,11 +179,11 @@ mod tests {
     }
 
     #[test]
-    fn float() {
+    fn num() {
         test_parser! {
-            parse_type : "float" =>
-            ast::Kind::FloatType {
-                Token::Float,
+            parse_type : "num" =>
+            ast::Kind::NumType {
+                Token::Num,
             },
         }
     }

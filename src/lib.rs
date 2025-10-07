@@ -1,7 +1,7 @@
 #![allow(clippy::module_inception)]
 
-mod ast;
-mod diagnostic;
-mod ir;
-mod lower;
-mod parse;
+pub mod ast;
+pub mod diagnostic;
+pub mod ir;
+pub mod lower;
+pub mod parse;

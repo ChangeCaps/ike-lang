@@ -82,6 +82,7 @@ impl<'a> TokenStream<'a> {
             "," => Token::Comma,
             "." => Token::Dot,
             "|" => Token::Pipe,
+            "!" => Token::Bang,
             "=" => Token::Eq,
             "<" => Token::Lt,
             ">" => Token::Gt,
@@ -100,12 +101,15 @@ impl<'a> TokenStream<'a> {
         let end = self.offset;
 
         match &self.input[start..end] {
+            "alias" => Token::Alias,
             "bool" => Token::Bool,
             "false" => Token::False,
-            "float" => Token::Float,
             "fn" => Token::Fn,
             "int" => Token::Int,
             "let" => Token::Let,
+            "nat" => Token::Nat,
+            "none" => Token::None,
+            "num" => Token::Num,
             "str" => Token::Str,
             "true" => Token::True,
             "type" => Token::Type,

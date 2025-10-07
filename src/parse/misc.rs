@@ -3,13 +3,13 @@ use crate::{
     parse::{Parser, Token, parse_type},
 };
 
-pub(crate) fn parse_newlines(parser: &mut Parser<'_>) {
+pub fn parse_newlines(parser: &mut Parser<'_>) {
     while parser.is(Token::Newline) {
         parser.expect(Token::Newline);
     }
 }
 
-pub(crate) fn parse_path(parser: &mut Parser<'_>) {
+pub fn parse_path(parser: &mut Parser<'_>) {
     parser.open(ast::Kind::Path);
 
     parser.expect(Token::Ident);
@@ -22,7 +22,7 @@ pub(crate) fn parse_path(parser: &mut Parser<'_>) {
     parser.close();
 }
 
-pub(crate) fn parse_param(parser: &mut Parser<'_>) {
+pub fn parse_param(parser: &mut Parser<'_>) {
     parser.open(ast::Kind::Param);
 
     parser.expect(Token::Ident);
@@ -32,7 +32,7 @@ pub(crate) fn parse_param(parser: &mut Parser<'_>) {
     parser.close();
 }
 
-pub(crate) fn parse_params(parser: &mut Parser<'_>) {
+pub fn parse_params(parser: &mut Parser<'_>) {
     parser.open(ast::Kind::Params);
 
     parser.expect(Token::LParen);

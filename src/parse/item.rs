@@ -6,8 +6,9 @@ use crate::{
 
 use super::Token;
 
-pub(crate) fn parse_item(parser: &mut Parser<'_>) {
+pub fn parse_item(parser: &mut Parser<'_>) {
     match parser.peek(0) {
+        Token::Alias => parse_alias_item(parser),
         Token::Type => parse_type_item(parser),
         Token::Fn => parse_fn_item(parser),
 
@@ -18,6 +19,17 @@ pub(crate) fn parse_item(parser: &mut Parser<'_>) {
             parser.error(diagnostic);
         }
     }
+}
+
+fn parse_alias_item(parser: &mut Parser<'_>) {
+    parser.open(ast::Kind::AliasItem);
+
+    parser.expect(Token::Alias);
+    parser.expect(Token::Ident);
+    parser.expect(Token::Eq);
+    parse_type(parser);
+
+    parser.close();
 }
 
 fn parse_type_item(parser: &mut Parser<'_>) {
@@ -78,7 +90,7 @@ mod tests {
     #[test]
     fn r#fn() {
         test_parser! {
-            parse_item : "fn foo(a: int, b: float) -> bool {}" =>
+            parse_item : "fn foo(a: int, b: num) -> bool {}" =>
             ast::Kind::FnItem {
                 Token::Fn,
                 Token::Ident,
@@ -95,8 +107,8 @@ mod tests {
                     ast::Kind::Param {
                         Token::Ident,
                         Token::Colon,
-                        ast::Kind::FloatType {
-                            Token::Float,
+                        ast::Kind::NumType {
+                            Token::Num,
                         },
                     },
                     Token::RParen,

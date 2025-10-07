@@ -6,7 +6,7 @@ pub struct Body {
     pub locals: Vec<Local>,
     pub params: Vec<Parameter>,
     pub ty:     Type,
-    pub expr:   Expr,
+    pub expr:   Option<Expr>,
 }
 
 #[derive(Clone, Debug)]
@@ -19,14 +19,4 @@ pub struct Parameter {
 pub struct Local {
     pub name: Option<String>,
     pub ty:   Type,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct BodyId {
-    index: u32,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct LocalId {
-    index: u32,
 }

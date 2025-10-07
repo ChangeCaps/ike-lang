@@ -6,10 +6,34 @@ mod stream;
 mod token;
 mod r#type;
 
-pub use expr::*;
-pub use item::*;
-pub use misc::*;
+use expr::*;
+use item::*;
+use misc::*;
+use r#type::*;
+
 pub use parser::*;
 pub use stream::*;
 pub use token::*;
-pub use r#type::*;
+
+use crate::{
+    ast,
+    diagnostic::{self, SourceId},
+};
+
+pub fn parse_file(
+    emitter: &mut dyn diagnostic::Emitter,
+    input: &str,
+    source: SourceId,
+) -> ast::Node {
+    let mut parser = Parser::new(emitter, input, source);
+    parser.open(ast::Kind::File);
+
+    parse_newlines(&mut parser);
+
+    while !parser.is(Token::Eof) {
+        parse_item(&mut parser);
+        parse_newlines(&mut parser);
+    }
+
+    parser.finish()
+}
