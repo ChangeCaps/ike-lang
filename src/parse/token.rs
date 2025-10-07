@@ -50,6 +50,11 @@ pub enum Token {
     Dot,
     Pipe,
     Bang,
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    Percent,
     Eq,
     Lt,
     Gt,
@@ -67,7 +72,7 @@ impl Token {
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Token::Error => write!(f, "error"),
+            Token::Error => write!(f, "invalid character"),
             Token::Comment => write!(f, "comment"),
             Token::Eof => write!(f, "end of file"),
 
@@ -114,6 +119,11 @@ impl fmt::Display for Token {
             Token::Dot => write!(f, "."),
             Token::Pipe => write!(f, "|"),
             Token::Bang => write!(f, "!"),
+            Token::Plus => write!(f, "+"),
+            Token::Minus => write!(f, "-"),
+            Token::Star => write!(f, "*"),
+            Token::Slash => write!(f, "/"),
+            Token::Percent => write!(f, "%"),
             Token::Eq => write!(f, "="),
             Token::Lt => write!(f, "<"),
             Token::Gt => write!(f, ">"),

@@ -1,11 +1,80 @@
 use crate::{
     ast,
     diagnostic::Diagnostic,
-    parse::{Parser, Token, parse_newlines, parse_path},
+    parse::{
+        Parser, Token, parse_newlines, parse_path, pattern::parse_pattern, r#type::parse_type,
+    },
 };
 
 pub fn parse_expr(parser: &mut Parser<'_>) {
+    match parser.peek(0) {
+        Token::Let => parse_let_expr(parser),
+        _ => parse_add_sub_expr(parser),
+    }
+}
+
+fn parse_let_expr(parser: &mut Parser<'_>) {
+    parser.open(ast::Kind::LetExpr);
+
+    parser.expect(Token::Let);
+
+    parse_pattern(parser);
+
+    if parser.is(Token::Colon) {
+        parser.expect(Token::Colon);
+        parse_type(parser);
+    }
+
+    parser.expect(Token::Eq);
+
+    parse_expr(parser);
+
+    parser.close();
+}
+
+fn parse_add_sub_expr(parser: &mut Parser<'_>) {
+    parse_binary(parser, parse_mul_div_mod_expr, &[Token::Plus, Token::Minus]);
+}
+
+fn parse_mul_div_mod_expr(parser: &mut Parser<'_>) {
+    parse_binary(
+        parser,
+        parse_call_expr,
+        &[Token::Star, Token::Slash, Token::Percent],
+    );
+}
+
+fn parse_binary(parser: &mut Parser<'_>, parse_fn: impl Fn(&mut Parser<'_>), infixes: &[Token]) {
+    parse_fn(parser);
+
+    while infixes.contains(&parser.peek(0)) {
+        parser.open_before(ast::Kind::BinaryExpr);
+        parser.advance(1);
+        parse_fn(parser);
+        parser.close();
+    }
+}
+
+fn parse_call_expr(parser: &mut Parser<'_>) {
+    const BREAK: &[Token] = &[Token::RParen, Token::Type, Token::Eof];
+
     parse_term_expr(parser);
+
+    if parser.is(Token::LParen) {
+        parser.open_before(ast::Kind::CallExpr);
+        parser.expect(Token::LParen);
+
+        while !BREAK.contains(&parser.peek(0)) {
+            parse_expr(parser);
+
+            if !parser.is(Token::RParen) {
+                parser.expect(Token::Comma);
+            }
+        }
+
+        parser.expect(Token::RParen);
+        parser.close();
+    }
 }
 
 fn parse_term_expr(parser: &mut Parser<'_>) {

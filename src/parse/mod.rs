@@ -2,6 +2,7 @@ mod expr;
 mod item;
 mod misc;
 mod parser;
+mod pattern;
 mod stream;
 mod token;
 mod r#type;

@@ -1,10 +1,29 @@
-use std::mem;
+use std::{
+    mem,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use crate::ir::{BodyId, Unit};
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Generic {
     index: u64,
+}
+
+impl Default for Generic {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Generic {
+    pub fn new() -> Self {
+        static NEXT_INDEX: AtomicU64 = AtomicU64::new(0);
+
+        Self {
+            index: NEXT_INDEX.fetch_add(1, Ordering::SeqCst),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -32,7 +51,7 @@ pub enum Type {
 
     /// The type of a specific [`Body`], specialized with `generics`.
     Body {
-        body:     BodyId,
+        body_id:  BodyId,
         generics: Vec<Type>,
     },
 
@@ -50,7 +69,11 @@ pub enum Type {
         generic: Generic,
     },
 
+    /// A type that is not known.
     Unknown,
+
+    /// An type resulting from a compilation error.
+    /// This type is never present in a valid program.
     Error,
 }
 
@@ -60,10 +83,34 @@ pub struct Field {
     pub ty:   Type,
 }
 
+impl Type {
+    pub fn is_known(&self) -> bool {
+        match self {
+            Type::Nat
+            | Type::Int
+            | Type::Num
+            | Type::Str
+            | Type::Bool
+            | Type::None
+            | Type::Never
+            | Type::Error
+            | Type::Generic { .. } => true,
+
+            Type::Unknown => false,
+
+            Type::Body { generics, .. } => generics.iter().all(Type::is_known),
+            Type::Record { fields } => fields.iter().all(|f| f.ty.is_known()),
+            Type::Union { variants } => variants.iter().all(Type::is_known),
+        }
+    }
+}
+
 impl Unit {
     pub fn is_subtype_of(&self, sub_type: &Type, super_type: &Type) -> bool {
         match (sub_type, super_type) {
             (Type::Never, _) => true,
+            (_, Type::Error) => true,
+            (_, Type::Unknown) => true,
 
             (Type::Nat, Type::Int) => true,
             (Type::Nat, Type::Num) => true,
@@ -135,8 +182,10 @@ impl Unit {
                     variants.push(curr);
                 }
 
-                if variants.len() == 1 {
-                    *ty = variants.pop().unwrap();
+                match variants.len() {
+                    0 => *ty = Type::Never,
+                    1 => *ty = variants.pop().unwrap(),
+                    _ => {}
                 }
             }
         }

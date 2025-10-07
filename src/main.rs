@@ -17,7 +17,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("{diagnostic:?}");
     }
 
-    println!("{unit:#?}");
+    //println!("{unit:#?}");
 
     Ok(())
 }

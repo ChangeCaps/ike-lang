@@ -18,6 +18,8 @@ pub enum Kind {
     Param,
     Params,
     Field,
+    GenericParameters,
+    GenericParameter,
 
     /* patterns */
     WildcardPattern,
@@ -31,6 +33,8 @@ pub enum Kind {
     FalseExpr,
     LetExpr,
     PathExpr,
+    CallExpr,
+    BinaryExpr,
     BlockExpr,
     ParenExpr,
 

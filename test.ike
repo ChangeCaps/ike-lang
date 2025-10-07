@@ -1,3 +1,6 @@
-fn foo(x: num) -> num {
-  0
+fn foo<'a>(x: 'a) -> 'a | none {}
+
+fn main() {
+  let x = foo
+  let y = x(0)
 }

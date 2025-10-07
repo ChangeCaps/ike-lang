@@ -4,8 +4,8 @@ use crate::{
     ast,
     diagnostic::{self, Diagnostic},
     ir::{
-        Alias, AliasId, Body, BodyId, Expr, Local, ModuleId, Newtype, NewtypeId, Parameter,
-        Pattern, PatternKind, Type, Unit,
+        Alias, AliasId, Body, BodyId, Generic, GenericParameter, ModuleId, Newtype, NewtypeId,
+        Parameter, Pattern, PatternKind, Type, Unit,
     },
     lower::{body::BodyLowerer, r#type::TypeLowerer},
 };
@@ -51,6 +51,7 @@ impl<'a> Lowerer<'a> {
 
     pub fn finish(mut self) -> Unit {
         self.lower_types();
+        self.lower_fns();
 
         self.unit
     }
@@ -107,7 +108,7 @@ impl<'a> Lowerer<'a> {
             ))
             .label(ast.span(1), "here");
 
-            self.emit(diagnostic);
+            self.error(diagnostic);
         }
 
         let alias = Alias {
@@ -141,7 +142,7 @@ impl<'a> Lowerer<'a> {
             ))
             .label(ast.span(1), "here");
 
-            self.emit(diagnostic);
+            self.error(diagnostic);
         }
 
         let newtype = Newtype {
@@ -175,15 +176,16 @@ impl<'a> Lowerer<'a> {
             ))
             .label(ast.span(1), "here");
 
-            self.emit(diagnostic);
+            self.error(diagnostic);
         }
 
         let body = Body {
-            name:   Some(name.into()),
-            locals: Vec::new(),
-            params: Vec::new(),
-            ty:     Type::Unknown,
-            expr:   None,
+            name:     Some(name.into()),
+            generics: Vec::new(),
+            locals:   Vec::new(),
+            params:   Vec::new(),
+            ty:       Type::Unknown,
+            expr:     None,
         };
 
         // generate the id of the body
@@ -201,58 +203,97 @@ impl<'a> Lowerer<'a> {
         self.fns.push(desc);
     }
 
-    fn emit(&mut self, diagnostic: Diagnostic) {
+    pub(super) fn error(&mut self, diagnostic: Diagnostic) {
         self.emitter.emit(diagnostic);
     }
 
     fn lower_types(&mut self) {
         for desc in mem::take(&mut self.aliases) {
-            let type_lowerer = TypeLowerer::new(self, desc.module_id);
+            let mut type_lowerer = TypeLowerer::new(self, &[], desc.module_id);
 
             let ty = type_lowerer.lower_type(desc.ast.node(3));
             self.unit[desc.alias_id].ty = ty;
         }
 
         for desc in mem::take(&mut self.newtypes) {
-            let type_lowerer = TypeLowerer::new(self, desc.module_id);
+            let mut type_lowerer = TypeLowerer::new(self, &[], desc.module_id);
 
             let ty = type_lowerer.lower_type(desc.ast.node(3));
             self.unit[desc.newtype_id].ty = ty;
         }
-
-        let fns = mem::take(&mut self.fns);
-        for desc in &fns {
-            let mut lowerer = BodyLowerer::new(self, desc.module_id, desc.body_id);
-
-            for param in desc.ast.node(2).nodes() {
-                let ty = lowerer.lower_type(param.node(2));
-
-                let param = Parameter {
-                    pattern: Pattern {
-                        kind: PatternKind::Wildcard,
-                        span: param.span,
-                    },
-                    ty,
-                };
-
-                lowerer.body_mut().params.push(param);
-            }
-
-            match desc.ast.semantic_children().count() {
-                4 => {
-                    lowerer.body_mut().ty = Type::None;
-                }
-
-                6 => {
-                    let ty = lowerer.lower_type(desc.ast.node(4));
-                    lowerer.body_mut().ty = ty;
-                }
-
-                _ => unreachable!(),
-            }
-        }
-        self.fns = fns;
     }
 
-    fn lower_fns(&mut self) {}
+    fn lower_fns(&mut self) {
+        let fns = mem::take(&mut self.fns);
+
+        for desc in &fns {
+            self.lower_fn_signature(desc);
+        }
+
+        for desc in fns {
+            self.lower_fn_body(desc);
+        }
+    }
+
+    fn lower_fn_signature(&mut self, desc: &FnDesc) {
+        let mut lowerer = BodyLowerer::new(self, desc.module_id, desc.body_id);
+
+        for param in desc.ast.node(2).nodes() {
+            let Some(name) = param.string(1) else {
+                continue;
+            };
+
+            let param = GenericParameter {
+                name:    Some(name.into()),
+                generic: Generic::new(),
+            };
+
+            lowerer.body_mut().generics.push(param);
+        }
+
+        for param in desc.ast.node(3).nodes() {
+            let ty = lowerer.lower_type(param.node(2));
+
+            let param = Parameter {
+                pattern: Pattern {
+                    kind: PatternKind::Wildcard,
+                    span: param.span,
+                },
+                ty,
+            };
+
+            lowerer.body_mut().params.push(param);
+        }
+
+        match desc.ast.semantic_children().count() {
+            5 => {
+                lowerer.body_mut().ty = Type::None;
+            }
+
+            7 => {
+                let ty = lowerer.lower_type(desc.ast.node(5));
+                lowerer.body_mut().ty = ty;
+            }
+
+            _ => unreachable!(),
+        }
+    }
+
+    fn lower_fn_body(&mut self, desc: FnDesc) {
+        let mut lowerer = BodyLowerer::new(self, desc.module_id, desc.body_id);
+
+        for (i, node) in desc.ast.node(3).nodes().enumerate() {
+            let ty = lowerer.body().params[i].ty.clone();
+            let pattern = lowerer.lower_pattern(node.node(0), &ty);
+            lowerer.body_mut().params[i].pattern = pattern;
+        }
+
+        let expr = match desc.ast.semantic_children().count() {
+            5 => lowerer.lower_expr(desc.ast.node(4), &lowerer.body().ty.clone()),
+            7 => lowerer.lower_expr(desc.ast.node(6), &lowerer.body().ty.clone()),
+            _ => unreachable!(),
+        };
+
+        lowerer.body_mut().expr = Some(expr);
+    }
 }

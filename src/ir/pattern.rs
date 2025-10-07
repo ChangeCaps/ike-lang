@@ -11,3 +11,11 @@ pub enum PatternKind {
     Wildcard,
     Binding(usize),
 }
+
+impl Pattern {
+    pub fn is_refutable(&self) -> bool {
+        match self.kind {
+            PatternKind::Wildcard | PatternKind::Binding(_) => false,
+        }
+    }
+}

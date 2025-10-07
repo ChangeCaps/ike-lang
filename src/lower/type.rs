@@ -1,22 +1,32 @@
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 use crate::{
     ast,
-    ir::{ModuleId, Type},
+    diagnostic::Diagnostic,
+    ir::{GenericParameter, ModuleId, Type},
     lower::Lowerer,
 };
 
 pub struct TypeLowerer<'a, 'b> {
-    lowerer: &'a Lowerer<'b>,
-    module:  ModuleId,
+    lowerer:  &'a mut Lowerer<'b>,
+    generics: &'a [GenericParameter],
+    module:   ModuleId,
 }
 
 impl<'a, 'b> TypeLowerer<'a, 'b> {
-    pub fn new(lowerer: &'a Lowerer<'b>, module: ModuleId) -> Self {
-        Self { lowerer, module }
+    pub fn new(
+        lowerer: &'a mut Lowerer<'b>,
+        generics: &'a [GenericParameter],
+        module: ModuleId,
+    ) -> Self {
+        Self {
+            lowerer,
+            generics,
+            module,
+        }
     }
 
-    pub fn lower_type(&self, ast: &ast::Node) -> Type {
+    pub fn lower_type(&mut self, ast: &ast::Node) -> Type {
         let mut ty = match ast.kind {
             ast::Kind::NatType => Type::Nat,
             ast::Kind::IntType => Type::Int,
@@ -34,6 +44,25 @@ impl<'a, 'b> TypeLowerer<'a, 'b> {
 
             ast::Kind::ParenType => self.lower_type(ast.node(1)),
 
+            ast::Kind::GenericType => match ast.string(1) {
+                Some(name) => {
+                    match (self.generics.iter()).find(|p| p.name.as_deref() == Some(name)) {
+                        Some(p) => Type::Generic { generic: p.generic },
+                        None => {
+                            let diagnostic =
+                                Diagnostic::error(format!("generic type `'{name}` not found"))
+                                    .label(ast.span, "here");
+
+                            self.error(diagnostic);
+
+                            Type::Error
+                        }
+                    }
+                }
+
+                None => Type::Error,
+            },
+
             ast::Kind::Error => Type::Error,
 
             _ => unreachable!("{:?}", ast.kind),
@@ -49,6 +78,12 @@ impl<'a> Deref for TypeLowerer<'_, 'a> {
     type Target = Lowerer<'a>;
 
     fn deref(&self) -> &Self::Target {
+        self.lowerer
+    }
+}
+
+impl DerefMut for TypeLowerer<'_, '_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
         self.lowerer
     }
 }
