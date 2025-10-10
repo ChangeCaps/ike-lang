@@ -1,9 +1,10 @@
 use std::{
+    collections::HashMap,
     mem,
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use crate::ir::{BodyId, Unit};
+use crate::ir::{AliasId, BodyId, GenericParameter, NewtypeId, Unit};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Generic {
@@ -55,19 +56,24 @@ pub enum Type {
         generics: Vec<Type>,
     },
 
-    /// An record type.
-    Record {
-        fields: Vec<Field>,
+    Alias {
+        alias_id: AliasId,
+        generics: Vec<Type>,
     },
+
+    Newtype {
+        newtype_id: NewtypeId,
+        generics:   Vec<Type>,
+    },
+
+    /// An record type.
+    Record(Vec<TypeField>),
 
     /// A union type, e.g. `int | float`.
-    Union {
-        variants: Vec<Type>,
-    },
+    Union(Vec<Type>),
 
-    Generic {
-        generic: Generic,
-    },
+    /// A generic type.
+    Generic(Generic),
 
     /// A type that is not known.
     Unknown,
@@ -78,9 +84,23 @@ pub enum Type {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Field {
+pub struct TypeField {
     pub name: String,
     pub ty:   Type,
+}
+
+#[derive(Clone, Debug)]
+pub struct Alias {
+    pub name:     Option<String>,
+    pub generics: Vec<GenericParameter>,
+    pub ty:       Type,
+}
+
+#[derive(Clone, Debug)]
+pub struct Newtype {
+    pub name:     Option<String>,
+    pub generics: Vec<GenericParameter>,
+    pub ty:       Type,
 }
 
 impl Type {
@@ -94,37 +114,235 @@ impl Type {
             | Type::None
             | Type::Never
             | Type::Error
-            | Type::Generic { .. } => true,
+            | Type::Generic(..) => true,
 
             Type::Unknown => false,
 
-            Type::Body { generics, .. } => generics.iter().all(Type::is_known),
-            Type::Record { fields } => fields.iter().all(|f| f.ty.is_known()),
-            Type::Union { variants } => variants.iter().all(Type::is_known),
+            Type::Body { generics, .. }
+            | Type::Alias { generics, .. }
+            | Type::Newtype { generics, .. } => generics.iter().all(Type::is_known),
+            Type::Record(fields) => fields.iter().all(|f| f.ty.is_known()),
+            Type::Union(variants) => variants.iter().all(Type::is_known),
+        }
+    }
+
+    pub fn instantiate(&mut self, map: &HashMap<Generic, Type>) {
+        match self {
+            Type::Nat
+            | Type::Int
+            | Type::Num
+            | Type::Str
+            | Type::Bool
+            | Type::None
+            | Type::Never
+            | Type::Unknown
+            | Type::Error => {}
+
+            Type::Body { generics, .. }
+            | Type::Alias { generics, .. }
+            | Type::Newtype { generics, .. } => {
+                for generic in generics {
+                    generic.instantiate(map);
+                }
+            }
+
+            Type::Record(fields) => {
+                for field in fields {
+                    field.ty.instantiate(map);
+                }
+            }
+
+            Type::Union(variants) => {
+                for variant in variants {
+                    variant.instantiate(map);
+                }
+            }
+
+            Type::Generic(generic) => match map.get(generic) {
+                Some(s) => *self = s.clone(),
+                None => *self = Type::Unknown,
+            },
         }
     }
 }
 
 impl Unit {
+    pub fn format_type(&self, ty: &Type) -> String {
+        match ty {
+            Type::Nat => String::from("nat"),
+            Type::Int => String::from("int"),
+            Type::Num => String::from("num"),
+            Type::Str => String::from("str"),
+            Type::Bool => String::from("bool"),
+            Type::None => String::from("none"),
+            Type::Never => String::from("!"),
+            Type::Unknown => String::from("unknown"),
+            Type::Error => String::from("error"),
+
+            Type::Body { body_id, generics } => {
+                let generics = self.format_generics(generics);
+
+                match self[*body_id].name {
+                    Some(ref name) => format!("{{{name}}}{generics}"),
+                    None => format!("{{fn}}{generics}"),
+                }
+            }
+
+            Type::Alias { alias_id, generics } => {
+                let generics = self.format_generics(generics);
+
+                match self[*alias_id].name {
+                    Some(ref name) => format!("{name}{generics}"),
+                    None => format!("{{alias}}{generics}"),
+                }
+            }
+
+            Type::Newtype {
+                newtype_id,
+                generics,
+            } => {
+                let generics = self.format_generics(generics);
+
+                match self[*newtype_id].name {
+                    Some(ref name) => format!("{name}{generics}"),
+                    None => format!("{{type}}{generics}"),
+                }
+            }
+
+            Type::Record(fields) => {
+                let fields = fields
+                    .iter()
+                    .map(|f| {
+                        let ty = self.format_type(&f.ty);
+                        format!("{}: {ty}", f.name)
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                match fields.is_empty() {
+                    true => String::from("{}"),
+                    false => format!("{{ {fields} }}"),
+                }
+            }
+
+            Type::Union(items) => items
+                .iter()
+                .map(|t| self.format_type(t))
+                .collect::<Vec<_>>()
+                .join(" | "),
+
+            Type::Generic(..) => String::from("'_"),
+        }
+    }
+
+    fn format_generics(&self, generics: &[Type]) -> String {
+        let generics = generics
+            .iter()
+            .map(|t| self.format_type(t))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        match generics.is_empty() {
+            true => String::new(),
+            false => format!("<{generics}>"),
+        }
+    }
+
+    pub fn instantiate_alias(&self, alias_id: AliasId, generics: &[Type]) -> Type {
+        assert_eq!(self[alias_id].generics.len(), generics.len());
+
+        let map = self[alias_id]
+            .generics
+            .iter()
+            .map(|p| p.generic)
+            .zip(generics.iter().cloned())
+            .collect();
+
+        let mut ty = self[alias_id].ty.clone();
+        ty.instantiate(&map);
+        ty
+    }
+
+    pub fn instantiate_newtype(&self, newtype_id: NewtypeId, generics: &[Type]) -> Type {
+        assert_eq!(self[newtype_id].generics.len(), generics.len());
+
+        let map = self[newtype_id]
+            .generics
+            .iter()
+            .map(|p| p.generic)
+            .zip(generics.iter().cloned())
+            .collect();
+
+        let mut ty = self[newtype_id].ty.clone();
+        ty.instantiate(&map);
+        ty
+    }
+
     pub fn is_subtype_of(&self, sub_type: &Type, super_type: &Type) -> bool {
+        if sub_type == super_type {
+            return true;
+        }
+
         match (sub_type, super_type) {
             (Type::Never, _) => true,
-            (_, Type::Error) => true,
             (_, Type::Unknown) => true,
+            (Type::Error, _) | (_, Type::Error) => true,
 
             (Type::Nat, Type::Int) => true,
             (Type::Nat, Type::Num) => true,
             (Type::Int, Type::Num) => true,
 
-            (Type::Union { variants }, sup) => {
-                variants.iter().all(|sub| self.is_subtype_of(sub, sup))
+            (Type::Union(variants), sup) => variants.iter().all(|sub| self.is_subtype_of(sub, sup)),
+
+            (sub, Type::Union(variants)) => variants.iter().any(|sup| self.is_subtype_of(sub, sup)),
+
+            (Type::Record(sub_fields), Type::Record(super_fields)) => {
+                super_fields.iter().all(|super_field| {
+                    sub_fields.iter().any(|sub_field| {
+                        sub_field.name == super_field.name
+                            && self.is_subtype_of(&sub_field.ty, &super_field.ty)
+                    })
+                })
             }
 
-            (sub, Type::Union { variants }) => {
-                variants.iter().any(|sup| self.is_subtype_of(sub, sup))
+            (Type::Alias { alias_id, generics }, super_type) => {
+                let sub_type = self.instantiate_alias(*alias_id, generics);
+                self.is_subtype_of(&sub_type, super_type)
             }
 
-            (_, _) => sub_type == super_type,
+            (sub_type, Type::Alias { alias_id, generics }) => {
+                let super_type = self.instantiate_alias(*alias_id, generics);
+                self.is_subtype_of(sub_type, &super_type)
+            }
+
+            (
+                Type::Newtype {
+                    newtype_id: sub_id,
+                    generics: sub_generics,
+                },
+                Type::Newtype {
+                    newtype_id: super_id,
+                    generics: super_generics,
+                },
+            ) if sub_id == super_id => {
+                let sub_type = self.instantiate_newtype(*sub_id, sub_generics);
+                let super_type = self.instantiate_newtype(*super_id, super_generics);
+
+                self.is_subtype_of(&sub_type, &super_type)
+            }
+
+            (
+                Type::Newtype {
+                    newtype_id,
+                    generics,
+                },
+                super_type,
+            ) => {
+                let sub_type = self.instantiate_newtype(*newtype_id, generics);
+                self.is_subtype_of(&sub_type, super_type)
+            }
+
+            (_, _) => false,
         }
     }
 
@@ -137,24 +355,26 @@ impl Unit {
             | Type::Bool
             | Type::None
             | Type::Never
-            | Type::Generic { .. }
+            | Type::Generic(..)
             | Type::Unknown
             | Type::Error => {}
 
-            Type::Body { generics, .. } => {
+            Type::Body { generics, .. }
+            | Type::Alias { generics, .. }
+            | Type::Newtype { generics, .. } => {
                 for generic in generics {
                     self.normalize_type(generic);
                 }
             }
 
-            Type::Record { fields } => {
+            Type::Record(fields) => {
                 for field in fields {
                     self.normalize_type(&mut field.ty);
                 }
             }
 
-            Type::Union { variants } => {
-                // simplifying unions is a little complicated, but essentially does two things
+            Type::Union(variants) => {
+                // normalizing unions is a little complicated, but essentially does two things
                 //  1. remove all variants that are a subtype of another variant
                 //  2. if only one variant is left, unwrap it
 
@@ -163,7 +383,7 @@ impl Unit {
                 'outer: while let Some(mut curr) = stack.pop() {
                     self.normalize_type(&mut curr);
 
-                    if let Type::Union { variants } = curr {
+                    if let Type::Union(variants) = curr {
                         stack.extend(variants);
                         continue;
                     }

@@ -50,6 +50,26 @@ impl Unit {
         self.newtypes.push(newtype);
         NewtypeId { index }
     }
+
+    pub fn find_module<I>(&self, mut current: ModuleId, segments: I) -> Result<ModuleId, I::Item>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let segments = segments.into_iter();
+
+        let len = segments.len() - 1;
+        for segment in segments.take(len) {
+            let Some(&module_id) = self[current].modules.get(segment.as_ref()) else {
+                return Err(segment);
+            };
+
+            current = module_id;
+        }
+
+        Ok(current)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]

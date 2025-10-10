@@ -34,6 +34,9 @@ pub enum Token {
     ColonColon,
     DotDot,
     EqEq,
+    BangEq,
+    LtEq,
+    GtEq,
     Arrow,
 
     /* one character symbols */
@@ -50,6 +53,7 @@ pub enum Token {
     Dot,
     Pipe,
     Bang,
+    Pound,
     Plus,
     Minus,
     Star,
@@ -103,6 +107,9 @@ impl fmt::Display for Token {
             Token::ColonColon => write!(f, "::"),
             Token::DotDot => write!(f, ".."),
             Token::EqEq => write!(f, "=="),
+            Token::BangEq => write!(f, "!="),
+            Token::LtEq => write!(f, "<="),
+            Token::GtEq => write!(f, ">="),
             Token::Arrow => write!(f, "->"),
 
             /* one character symbols */
@@ -119,6 +126,7 @@ impl fmt::Display for Token {
             Token::Dot => write!(f, "."),
             Token::Pipe => write!(f, "|"),
             Token::Bang => write!(f, "!"),
+            Token::Pound => write!(f, "#"),
             Token::Plus => write!(f, "+"),
             Token::Minus => write!(f, "-"),
             Token::Star => write!(f, "*"),

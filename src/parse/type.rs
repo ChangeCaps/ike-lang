@@ -1,8 +1,25 @@
 use crate::{
     ast,
     diagnostic::Diagnostic,
-    parse::{Parser, Token, parse_newlines, parse_path},
+    parse::{Parser, Token, misc::parse_generics, parse_newlines, parse_path},
 };
+
+pub fn is_type(parser: &mut Parser<'_>) -> bool {
+    matches!(
+        parser.peek(0),
+        Token::Nat
+            | Token::Int
+            | Token::Num
+            | Token::Str
+            | Token::Bool
+            | Token::None
+            | Token::Bang
+            | Token::Ident
+            | Token::Quote
+            | Token::LBrace
+            | Token::LParen
+    )
+}
 
 pub fn parse_type(parser: &mut Parser<'_>) {
     parse_term_type(parser);
@@ -100,6 +117,7 @@ fn parse_never_type(parser: &mut Parser<'_>) {
 fn parse_path_type(parser: &mut Parser<'_>) {
     parser.open(ast::Kind::PathType);
     parse_path(parser);
+    parse_generics(parser);
     parser.close();
 }
 

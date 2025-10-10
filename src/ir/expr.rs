@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::{
     diagnostic::Span,
-    ir::{BodyId, Pattern, Type},
+    ir::{BodyId, NewtypeId, Pattern, Type},
 };
 
 #[derive(Clone, Debug)]
@@ -18,13 +18,22 @@ pub enum ExprKind {
     Float(f64),
     Str(String),
     Bool(bool),
+    None,
     Body(BodyId),
     Let(Pattern, Box<Expr>),
     Local(usize),
+    Promote(NewtypeId, Box<Expr>),
     CallBody(BodyId, Vec<Type>, Vec<Expr>),
     Binary(BinOp, Box<Expr>, Box<Expr>),
+    Record(Vec<ExprField>),
     Block(Vec<Expr>),
     Error,
+}
+
+#[derive(Clone, Debug)]
+pub struct ExprField {
+    pub name: String,
+    pub expr: Expr,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -34,6 +43,12 @@ pub enum BinOp {
     Mul,
     Div,
     Mod,
+    Lt,
+    Gt,
+    Le,
+    Ge,
+    Eq,
+    Ne,
 }
 
 impl fmt::Display for BinOp {
@@ -44,6 +59,12 @@ impl fmt::Display for BinOp {
             BinOp::Mul => write!(f, "mul"),
             BinOp::Div => write!(f, "div"),
             BinOp::Mod => write!(f, "mod"),
+            BinOp::Lt => write!(f, "<"),
+            BinOp::Gt => write!(f, ">"),
+            BinOp::Le => write!(f, "<="),
+            BinOp::Ge => write!(f, ">="),
+            BinOp::Eq => write!(f, "=="),
+            BinOp::Ne => write!(f, "!="),
         }
     }
 }

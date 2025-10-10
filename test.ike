@@ -1,6 +1,15 @@
-fn foo<'a>(x: 'a) -> 'a | none {}
+type foo<'a> = {
+  foo: 'a
+  bar: bool
+}
 
-fn main() {
-  let x = foo
-  let y = x(0)
+alias bar = foo<num> | foo<bool>
+
+fn main() -> foo<num | bool> { 
+  let x: bar = foo {
+    foo: true
+    bar: true
+  }
+
+  x
 }

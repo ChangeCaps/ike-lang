@@ -18,6 +18,7 @@ pub enum Kind {
     Param,
     Params,
     Field,
+    Generics,
     GenericParameters,
     GenericParameter,
 
@@ -31,10 +32,13 @@ pub enum Kind {
     StrExpr,
     TrueExpr,
     FalseExpr,
+    NoneExpr,
     LetExpr,
     PathExpr,
     CallExpr,
+    PromoteExpr,
     BinaryExpr,
+    RecordExpr,
     BlockExpr,
     ParenExpr,
 
@@ -106,6 +110,13 @@ impl Node {
             Child::Token(_, s) => Some(s),
             Child::Node(_) => None,
         }
+    }
+
+    pub fn idents(&self) -> impl Iterator<Item = &str> {
+        self.children.iter().filter_map(|c| match c {
+            Child::Token(Token::Ident, s) => Some(s.as_str()),
+            _ => None,
+        })
     }
 
     pub fn span(&self, i: usize) -> Span {

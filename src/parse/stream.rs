@@ -54,6 +54,9 @@ impl<'a> TokenStream<'a> {
             "::" => Token::ColonColon,
             ".." => Token::DotDot,
             "==" => Token::EqEq,
+            "!=" => Token::BangEq,
+            "<=" => Token::LtEq,
+            ">=" => Token::GtEq,
             "->" => Token::Arrow,
 
             _ => return None,
@@ -83,6 +86,7 @@ impl<'a> TokenStream<'a> {
             "." => Token::Dot,
             "|" => Token::Pipe,
             "!" => Token::Bang,
+            "#" => Token::Pound,
             "+" => Token::Plus,
             "-" => Token::Minus,
             "*" => Token::Star,

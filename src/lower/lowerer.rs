@@ -111,9 +111,25 @@ impl<'a> Lowerer<'a> {
             self.error(diagnostic);
         }
 
+        let mut generics = Vec::new();
+
+        for param in ast.node(2).nodes() {
+            let Some(name) = param.string(1) else {
+                continue;
+            };
+
+            let param = GenericParameter {
+                name:    Some(name.into()),
+                generic: Generic::new(),
+            };
+
+            generics.push(param);
+        }
+
         let alias = Alias {
-            generics: Vec::new(),
-            ty:       Type::Unknown,
+            name: Some(name.into()),
+            generics,
+            ty: Type::Unknown,
         };
 
         let alias_id = self.unit.add_alias(alias);
@@ -145,9 +161,25 @@ impl<'a> Lowerer<'a> {
             self.error(diagnostic);
         }
 
+        let mut generics = Vec::new();
+
+        for param in ast.node(2).nodes() {
+            let Some(name) = param.string(1) else {
+                continue;
+            };
+
+            let param = GenericParameter {
+                name:    Some(name.into()),
+                generic: Generic::new(),
+            };
+
+            generics.push(param);
+        }
+
         let newtype = Newtype {
-            generics: Vec::new(),
-            ty:       Type::Unknown,
+            name: Some(name.into()),
+            generics,
+            ty: Type::Unknown,
         };
 
         let newtype_id = self.unit.add_newtype(newtype);
@@ -209,16 +241,18 @@ impl<'a> Lowerer<'a> {
 
     fn lower_types(&mut self) {
         for desc in mem::take(&mut self.aliases) {
-            let mut type_lowerer = TypeLowerer::new(self, &[], desc.module_id);
+            let generics = self.unit[desc.alias_id].generics.clone();
+            let mut type_lowerer = TypeLowerer::new(self, &generics, desc.module_id);
 
-            let ty = type_lowerer.lower_type(desc.ast.node(3));
+            let ty = type_lowerer.lower_type(desc.ast.node(4));
             self.unit[desc.alias_id].ty = ty;
         }
 
         for desc in mem::take(&mut self.newtypes) {
-            let mut type_lowerer = TypeLowerer::new(self, &[], desc.module_id);
+            let generics = self.unit[desc.newtype_id].generics.clone();
+            let mut type_lowerer = TypeLowerer::new(self, &generics, desc.module_id);
 
-            let ty = type_lowerer.lower_type(desc.ast.node(3));
+            let ty = type_lowerer.lower_type(desc.ast.node(4));
             self.unit[desc.newtype_id].ty = ty;
         }
     }

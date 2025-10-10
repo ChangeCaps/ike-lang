@@ -6,10 +6,25 @@ use crate::{
     },
 };
 
+fn is_expr(parser: &mut Parser<'_>) -> bool {
+    matches!(
+        parser.peek(0),
+        Token::Let
+            | Token::Integer
+            | Token::String
+            | Token::True
+            | Token::False
+            | Token::None
+            | Token::Ident
+            | Token::LParen
+            | Token::LBrace
+    )
+}
+
 pub fn parse_expr(parser: &mut Parser<'_>) {
     match parser.peek(0) {
         Token::Let => parse_let_expr(parser),
-        _ => parse_add_sub_expr(parser),
+        _ => parse_eq_expr(parser),
     }
 }
 
@@ -30,6 +45,18 @@ fn parse_let_expr(parser: &mut Parser<'_>) {
     parse_expr(parser);
 
     parser.close();
+}
+
+fn parse_eq_expr(parser: &mut Parser<'_>) {
+    parse_binary(parser, parse_cmp_expr, &[Token::EqEq, Token::BangEq]);
+}
+
+fn parse_cmp_expr(parser: &mut Parser<'_>) {
+    parse_binary(
+        parser,
+        parse_add_sub_expr,
+        &[Token::LtEq, Token::GtEq, Token::Lt, Token::Gt],
+    );
 }
 
 fn parse_add_sub_expr(parser: &mut Parser<'_>) {
@@ -83,9 +110,10 @@ fn parse_term_expr(parser: &mut Parser<'_>) {
         Token::String => parse_str_expr(parser),
         Token::True => parse_true_expr(parser),
         Token::False => parse_false_expr(parser),
+        Token::None => parse_none_expr(parser),
         Token::Ident => parse_path_expr(parser),
         Token::LParen => parse_paren_expr(parser),
-        Token::LBrace => parse_block_expr(parser),
+        Token::LBrace => parse_block_or_record_expr(parser),
 
         token => {
             let diagnostic = Diagnostic::error(format!(
@@ -122,10 +150,23 @@ fn parse_false_expr(parser: &mut Parser<'_>) {
     parser.close();
 }
 
-fn parse_path_expr(parser: &mut Parser<'_>) {
-    parser.open(ast::Kind::PathExpr);
-    parse_path(parser);
+fn parse_none_expr(parser: &mut Parser<'_>) {
+    parser.open(ast::Kind::NoneExpr);
+    parser.expect(Token::None);
     parser.close();
+}
+
+fn parse_path_expr(parser: &mut Parser<'_>) {
+    parse_path(parser);
+
+    if is_expr(parser) {
+        parser.open_before(ast::Kind::PromoteExpr);
+        parse_expr(parser);
+        parser.close();
+    } else {
+        parser.open_before(ast::Kind::PathExpr);
+        parser.close();
+    }
 }
 
 fn parse_paren_expr(parser: &mut Parser<'_>) {
@@ -136,26 +177,77 @@ fn parse_paren_expr(parser: &mut Parser<'_>) {
     parser.close();
 }
 
+fn parse_block_or_record_expr(parser: &mut Parser<'_>) {
+    if is_record_expr(parser) {
+        parse_record_expr(parser);
+    } else {
+        parse_block_expr(parser);
+    }
+}
+
 pub fn parse_block_expr(parser: &mut Parser<'_>) {
     const BREAK: &[Token] = &[Token::RBrace, Token::Type, Token::Eof];
 
     parser.open(ast::Kind::BlockExpr);
     parser.expect(Token::LBrace);
 
-    if parser.is(Token::Newline) {
-        parse_newlines(parser);
+    parse_newlines(parser);
 
-        while !BREAK.contains(&parser.peek(0)) {
-            parse_expr(parser);
-
-            if !parser.is(Token::RBrace) {
-                parser.expect(Token::Newline);
-            }
-
-            parse_newlines(parser);
-        }
-    } else if !parser.is(Token::RBrace) {
+    while !BREAK.contains(&parser.peek(0)) {
         parse_expr(parser);
+
+        if !parser.is(Token::RBrace) {
+            parser.expect(Token::Newline);
+        }
+
+        parse_newlines(parser);
+    }
+
+    parser.expect(Token::RBrace);
+    parser.close();
+}
+
+fn is_record_expr(parser: &mut Parser<'_>) -> bool {
+    if !parser.is(Token::LBrace) {
+        return false;
+    }
+
+    let mut i = 1;
+
+    while matches!(parser.peek(i), Token::Newline) {
+        i += 1;
+    }
+
+    matches!(
+        (parser.peek(i), parser.peek(i + 1)),
+        (Token::Ident, Token::Colon),
+    )
+}
+
+fn parse_record_expr(parser: &mut Parser<'_>) {
+    parser.open(ast::Kind::RecordExpr);
+    parser.expect(Token::LBrace);
+
+    parse_newlines(parser);
+
+    while parser.is(Token::Ident) {
+        parser.open(ast::Kind::Field);
+
+        parser.expect(Token::Ident);
+        parser.expect(Token::Colon);
+        parse_expr(parser);
+
+        parser.close();
+
+        if parser.is(Token::Comma) {
+            parser.expect(Token::Comma);
+            parse_newlines(parser);
+        } else if parser.is(Token::Newline) {
+            parser.expect(Token::Newline);
+            parse_newlines(parser);
+        } else {
+            break;
+        }
     }
 
     parser.expect(Token::RBrace);

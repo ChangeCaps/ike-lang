@@ -7,7 +7,8 @@ use crate::{
     ast,
     diagnostic::{Diagnostic, Span},
     ir::{
-        BinOp, Body, BodyId, Expr, ExprKind, Generic, Local, ModuleId, Pattern, PatternKind, Type,
+        BinOp, Body, BodyId, Expr, ExprField, ExprKind, Generic, Local, ModuleId, Pattern,
+        PatternKind, Type, TypeField,
     },
     lower::{Lowerer, r#type::TypeLowerer},
     parse::Token,
@@ -18,6 +19,20 @@ pub struct BodyLowerer<'a, 'b> {
     module_id: ModuleId,
     body_id:   BodyId,
     scope:     Vec<usize>,
+}
+
+impl<'a> Deref for BodyLowerer<'_, 'a> {
+    type Target = Lowerer<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        self.lowerer
+    }
+}
+
+impl DerefMut for BodyLowerer<'_, '_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.lowerer
+    }
 }
 
 impl<'a, 'b> BodyLowerer<'a, 'b> {
@@ -36,6 +51,24 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
 
     pub fn body_mut(&mut self) -> &mut Body {
         &mut self.lowerer.unit[self.body_id]
+    }
+
+    pub fn find_module(&mut self, segments: &[impl AsRef<str>], span: Span) -> Option<ModuleId> {
+        let module_id = self.module_id;
+        match self.unit.find_module(module_id, segments) {
+            Ok(module_id) => Some(module_id),
+            Err(segment) => {
+                let diagnostic = Diagnostic::error(format!(
+                    "module `{segment}` not found",
+                    segment = segment.as_ref(),
+                ))
+                .label(span, "in path found here");
+
+                self.error(diagnostic);
+
+                None
+            }
+        }
     }
 
     pub fn lower_type(&mut self, ast: &ast::Node) -> Type {
@@ -91,10 +124,13 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
             ast::Kind::IntExpr => self.lower_int_expr(ast, ty),
             ast::Kind::TrueExpr => self.lower_true_expr(ast, ty),
             ast::Kind::FalseExpr => self.lower_false_expr(ast, ty),
+            ast::Kind::NoneExpr => self.lower_none_expr(ast, ty),
             ast::Kind::LetExpr => self.lower_let_expr(ast, ty),
             ast::Kind::PathExpr => self.lower_path_expr(ast, ty),
+            ast::Kind::PromoteExpr => self.lower_promote_expr(ast, ty),
             ast::Kind::CallExpr => self.lower_call_expr(ast, ty),
             ast::Kind::BinaryExpr => self.lower_binary_expr(ast, ty),
+            ast::Kind::RecordExpr => self.lower_record_expr(ast, ty),
             ast::Kind::BlockExpr => self.lower_block_expr(ast, ty),
 
             ast::Kind::Error => Expr::error(ast.span),
@@ -115,7 +151,9 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
     pub fn check_type(&mut self, sub_type: &Type, super_type: &Type, span: Span) -> bool {
         if !self.unit.is_subtype_of(sub_type, super_type) {
             let diagnostic = Diagnostic::error(format!(
-                "expected type `{super_type:?}` but found `{sub_type:?}`"
+                "expected type `{super_type}` but found `{sub_type}`",
+                sub_type = self.unit.format_type(sub_type),
+                super_type = self.unit.format_type(super_type),
             ))
             .label(span, "here");
 
@@ -159,6 +197,14 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
         Expr { kind, ty, span }
     }
 
+    fn lower_none_expr(&mut self, ast: &ast::Node, _ty: &Type) -> Expr {
+        let kind = ExprKind::None;
+        let ty = Type::None;
+        let span = ast.span;
+
+        Expr { kind, ty, span }
+    }
+
     fn lower_let_expr(&mut self, ast: &ast::Node, _ty: &Type) -> Expr {
         let value = match ast.semantic_children().count() {
             4 => self.lower_expr(ast.node(3), &Type::Unknown),
@@ -188,21 +234,13 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
     }
 
     fn lower_path_expr(&mut self, ast: &ast::Node, _ty: &Type) -> Expr {
-        let segments = ast
-            .node(0)
-            .children
-            .iter()
-            .filter_map(|c| match c {
-                ast::Child::Token(Token::Ident, s) => Some(s),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
+        let segments = ast.node(0).idents().collect::<Vec<_>>();
 
         if segments.len() == 1 {
             for &local_index in self.scope.iter().rev() {
                 let local = &self.body().locals[local_index];
 
-                if local.name.as_ref() != Some(segments[0]) {
+                if local.name.as_deref() != Some(segments[0]) {
                     continue;
                 }
 
@@ -214,30 +252,19 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
             }
         }
 
-        let mut curr = self.module_id;
+        let Some(module_id) = self.find_module(&segments, ast.span) else {
+            return Expr::error(ast.span);
+        };
 
-        for segment in &segments[..segments.len() - 1] {
-            let Some(module_id) = self.unit[curr].modules.get(*segment) else {
-                let diagnostic = Diagnostic::error(format!("module `{segment}` not found"))
-                    .label(ast.span, "in path found here");
+        let &name = segments.last().unwrap();
 
-                self.error(diagnostic);
-
-                return Expr::error(ast.span);
-            };
-
-            curr = *module_id;
-        }
-
-        let name = segments.last().unwrap();
-
-        if let Some(&body) = self.unit[curr].bodies.get(*name) {
+        if let Some(&body_id) = self.unit[module_id].bodies.get(name) {
             let ty = Type::Body {
-                body_id:  body,
+                body_id,
                 generics: Vec::new(),
             };
 
-            let kind = ExprKind::Body(body);
+            let kind = ExprKind::Body(body_id);
             let span = ast.span;
 
             return Expr { kind, ty, span };
@@ -249,6 +276,72 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
         self.error(diagnostic);
 
         Expr::error(ast.span)
+    }
+
+    fn lower_promote_expr(&mut self, ast: &ast::Node, ty: &Type) -> Expr {
+        let segments = ast.node(0).idents().collect::<Vec<_>>();
+
+        let Some(module_id) = self.find_module(&segments, ast.span) else {
+            return Expr::error(ast.span);
+        };
+
+        let &name = segments.last().unwrap();
+
+        let Some(&newtype_id) = self.unit[module_id].newtypes.get(name) else {
+            let diagnostic = Diagnostic::error(format!("type `{name}` not found"))
+                .label(ast.span, "in path found here");
+
+            self.error(diagnostic);
+
+            return Expr::error(ast.span);
+        };
+
+        let mut map = HashMap::new();
+
+        let generics = self.unit[newtype_id]
+            .generics
+            .iter()
+            .map(|p| Type::Generic(p.generic))
+            .collect();
+
+        let newtype_ty = Type::Newtype {
+            newtype_id,
+            generics,
+        };
+
+        self.unify_types(&newtype_ty, ty, &mut map, false);
+
+        let mut ty = self.unit[newtype_id].ty.clone();
+        ty.instantiate(&map);
+
+        let value = self.lower_expr(ast.node(1), &ty);
+        let newtype_ty = &self.unit[newtype_id].ty;
+        self.unify_types(&value.ty, newtype_ty, &mut map, true);
+
+        let mut generics = Vec::new();
+
+        for param in self.unit[newtype_id].generics.clone() {
+            let ty = map.remove(&param.generic).unwrap_or(Type::Unknown);
+
+            if !ty.is_known() {
+                let diagnostic = Diagnostic::error("generic type not specialized")
+                    .label(ast.span, "in expression found here");
+
+                self.error(diagnostic);
+            }
+
+            generics.push(ty);
+        }
+
+        let ty = Type::Newtype {
+            newtype_id,
+            generics,
+        };
+
+        let kind = ExprKind::Promote(newtype_id, Box::new(value));
+        let span = ast.span;
+
+        Expr { kind, ty, span }
     }
 
     fn lower_call_expr(&mut self, ast: &ast::Node, ty: &Type) -> Expr {
@@ -275,8 +368,8 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
                 let mut map = HashMap::new();
 
                 // unify the output with the expected type
-                let body_ty = self.unit[body_id].ty.clone();
-                self.unify_types(&body_ty, ty, &mut map, ast.span, false);
+                let body_ty = &self.unit[body_id].ty;
+                self.unify_types(body_ty, ty, &mut map, false);
 
                 let mut exprs = Vec::new();
 
@@ -284,18 +377,18 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
                 // and lower the expression, then unify that type with the actual type
                 for (param, arg) in self.unit[body_id].params.clone().into_iter().zip(args) {
                     let mut instance = param.ty.clone();
-                    Self::instantiate_type(&mut instance, &map);
+                    instance.instantiate(&map);
                     self.unit.normalize_type(&mut instance);
                     let expr = self.lower_expr(arg, &instance);
 
-                    self.unify_types(&expr.ty, &param.ty, &mut map, ast.span, true);
+                    self.unify_types(&expr.ty, &param.ty, &mut map, true);
                     exprs.push(expr);
                 }
 
                 let body = &self.unit[body_id];
 
                 let mut ty = body.ty.clone();
-                Self::instantiate_type(&mut ty, &map);
+                ty.instantiate(&map);
                 self.unit.normalize_type(&mut ty);
 
                 let mut generics = Vec::new();
@@ -330,97 +423,105 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
         }
     }
 
+    /// Unify two types extracting the specializations for generics.
     fn unify_types(
-        &mut self,
-        lhs: &Type,
-        rhs: &Type,
+        &self,
+        sub_type: &Type,
+        super_type: &Type,
         map: &mut HashMap<Generic, Type>,
-        span: Span,
         is_input: bool,
     ) {
-        match (lhs, rhs) {
-            (lhs, Type::Generic { generic }) if is_input => {
+        match (sub_type, super_type) {
+            (sub_type, Type::Generic(generic)) if is_input => {
                 if map.get(generic).is_none_or(|t| !t.is_known()) {
-                    map.insert(*generic, lhs.clone());
-                }
-
-                if let Some(rhs) = map.get(generic) {
-                    self.check_type(lhs, rhs, span);
+                    map.insert(*generic, sub_type.clone());
                 }
             }
 
-            (Type::Generic { generic }, rhs) if !map.contains_key(generic) && !is_input => {
-                map.insert(*generic, rhs.clone());
+            (Type::Generic(generic), super_type) if !is_input => {
+                if !map.contains_key(generic) {
+                    map.insert(*generic, super_type.clone());
+                }
             }
 
-            (Type::Union { variants: lhs }, Type::Union { variants: rhs }) => {
-                let mut lhs = lhs.clone();
-                let mut rhs = rhs.clone();
+            (Type::Union(sub_variants), Type::Union(super_variants)) => {
+                let mut sub_variants = sub_variants.clone();
+                let mut super_variants = super_variants.clone();
 
-                lhs.retain(|lhs| {
-                    let len = rhs.len();
-                    rhs.retain(|rhs| !self.unit.is_subtype_of(lhs, rhs));
-                    rhs.len() == len
+                sub_variants.retain(|lhs| {
+                    let len = super_variants.len();
+                    super_variants.retain(|rhs| !self.unit.is_subtype_of(lhs, rhs));
+                    super_variants.len() == len
                 });
 
-                let mut rhs = Type::Union { variants: rhs };
-                self.unit.normalize_type(&mut rhs);
+                let mut super_type = Type::Union(super_variants);
+                self.unit.normalize_type(&mut super_type);
 
-                for lhs in lhs {
-                    self.unify_types(&lhs, &rhs, map, span, is_input);
+                for sub_variant in sub_variants {
+                    self.unify_types(&sub_variant, &super_type, map, is_input);
                 }
             }
 
-            (Type::Union { variants }, rhs) => {
-                for lhs in variants {
-                    self.unify_types(lhs, rhs, map, span, is_input);
+            (Type::Union(sub_variants), super_variants) => {
+                for sub_type in sub_variants {
+                    self.unify_types(sub_type, super_variants, map, is_input);
                 }
             }
 
-            (lhs, Type::Union { variants }) => {
-                for rhs in variants {
-                    self.unify_types(lhs, rhs, map, span, is_input);
+            (sub_variants, Type::Union(super_variants)) => {
+                for super_type in super_variants {
+                    self.unify_types(sub_variants, super_type, map, is_input);
                 }
+            }
+
+            (Type::Record(sub_fields), Type::Record(super_fields)) => {
+                for super_field in super_fields {
+                    if let Some(sub_field) = sub_fields.iter().find(|f| f.name == super_field.name)
+                    {
+                        self.unify_types(&sub_field.ty, &super_field.ty, map, is_input);
+                    }
+                }
+            }
+
+            (Type::Alias { alias_id, generics }, super_type) => {
+                let sub_type = self.unit.instantiate_alias(*alias_id, generics);
+                self.unify_types(&sub_type, super_type, map, is_input);
+            }
+
+            (sub_type, Type::Alias { alias_id, generics }) => {
+                let super_type = self.unit.instantiate_alias(*alias_id, generics);
+                self.unify_types(sub_type, &super_type, map, is_input);
+            }
+
+            (
+                Type::Newtype {
+                    newtype_id: sub_id,
+                    generics: sub_generics,
+                },
+                Type::Newtype {
+                    newtype_id: super_id,
+                    generics: super_generics,
+                },
+            ) if sub_id == super_id => {
+                assert_eq!(sub_generics.len(), super_generics.len());
+
+                for (sub_type, super_type) in sub_generics.iter().zip(super_generics) {
+                    self.unify_types(sub_type, super_type, map, is_input);
+                }
+            }
+
+            (
+                Type::Newtype {
+                    newtype_id,
+                    generics,
+                },
+                super_type,
+            ) => {
+                let sub_type = self.unit.instantiate_newtype(*newtype_id, generics);
+                self.unify_types(&sub_type, super_type, map, is_input);
             }
 
             (_, _) => {}
-        }
-    }
-
-    fn instantiate_type(ty: &mut Type, map: &HashMap<Generic, Type>) {
-        match ty {
-            Type::Nat
-            | Type::Int
-            | Type::Num
-            | Type::Str
-            | Type::Bool
-            | Type::None
-            | Type::Never
-            | Type::Unknown
-            | Type::Error => {}
-
-            Type::Body { generics, .. } => {
-                for generic in generics {
-                    Self::instantiate_type(generic, map);
-                }
-            }
-
-            Type::Record { fields } => {
-                for field in fields {
-                    Self::instantiate_type(&mut field.ty, map);
-                }
-            }
-
-            Type::Union { variants } => {
-                for variant in variants {
-                    Self::instantiate_type(variant, map);
-                }
-            }
-
-            Type::Generic { generic } => match map.get(generic) {
-                Some(s) => *ty = s.clone(),
-                None => *ty = Type::Unknown,
-            },
         }
     }
 
@@ -432,13 +533,21 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
             Token::Slash => BinOp::Div,
             Token::Percent => BinOp::Mod,
 
-            _ => unreachable!(),
+            Token::Lt => BinOp::Lt,
+            Token::Gt => BinOp::Gt,
+            Token::LtEq => BinOp::Le,
+            Token::GtEq => BinOp::Ge,
+
+            Token::EqEq => BinOp::Eq,
+            Token::BangEq => BinOp::Ne,
+
+            token => unreachable!("{token:?}"),
         };
 
         let lhs = self.lower_expr(ast.node(0), &Type::Unknown);
         let rhs = self.lower_expr(ast.node(2), &Type::Unknown);
 
-        use Type::{Error, Int, Nat, Num};
+        use Type::{Bool, Error, Int, Nat, Num};
 
         let ty = match op {
             BinOp::Add => match (&lhs.ty, &rhs.ty) {
@@ -477,6 +586,22 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
 
                 (_, _) => Error,
             },
+
+            BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => match (&lhs.ty, &rhs.ty) {
+                (Nat | Int | Num, Nat | Int | Num) => Bool,
+
+                (_, _) => Error,
+            },
+
+            BinOp::Eq | BinOp::Ne => {
+                if self.unit.is_subtype_of(&lhs.ty, &rhs.ty)
+                    || self.unit.is_subtype_of(&rhs.ty, &lhs.ty)
+                {
+                    Bool
+                } else {
+                    Error
+                }
+            }
         };
 
         if let Error = ty {
@@ -491,6 +616,49 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
         }
 
         let kind = ExprKind::Binary(op, Box::new(lhs), Box::new(rhs));
+        let span = ast.span;
+
+        Expr { kind, ty, span }
+    }
+
+    fn lower_record_expr(&mut self, ast: &ast::Node, ty: &Type) -> Expr {
+        let fields = match ty {
+            Type::Record(fields) => fields.as_slice(),
+            _ => &[],
+        };
+
+        let mut expr_fields = Vec::new();
+        let mut type_fields = Vec::new();
+
+        for node in ast.nodes_of(ast::Kind::Field) {
+            let Some(name) = node.string(0) else {
+                continue;
+            };
+
+            let ty = fields
+                .iter()
+                .find(|f| f.name == name)
+                .map(|f| &f.ty)
+                .unwrap_or(&Type::Unknown);
+
+            let value = self.lower_expr(node.node(2), ty);
+
+            let type_field = TypeField {
+                name: name.into(),
+                ty:   value.ty.clone(),
+            };
+
+            let expr_field = ExprField {
+                name: name.into(),
+                expr: value,
+            };
+
+            type_fields.push(type_field);
+            expr_fields.push(expr_field);
+        }
+
+        let kind = ExprKind::Record(expr_fields);
+        let ty = Type::Record(type_fields);
         let span = ast.span;
 
         Expr { kind, ty, span }
@@ -518,19 +686,5 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
         let kind = ExprKind::Block(exprs);
         let span = ast.span;
         Expr { kind, ty, span }
-    }
-}
-
-impl<'a> Deref for BodyLowerer<'_, 'a> {
-    type Target = Lowerer<'a>;
-
-    fn deref(&self) -> &Self::Target {
-        self.lowerer
-    }
-}
-
-impl DerefMut for BodyLowerer<'_, '_> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.lowerer
     }
 }
