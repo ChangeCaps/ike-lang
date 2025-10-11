@@ -1,4 +1,4 @@
-use crate::ir::{Expr, Generic, Pattern, Type};
+use crate::ir::{Expr, GenericParameter, Pattern, Type};
 
 #[derive(Clone, Debug)]
 pub struct Body {
@@ -8,12 +8,6 @@ pub struct Body {
     pub params:   Vec<Parameter>,
     pub ty:       Type,
     pub expr:     Option<Expr>,
-}
-
-#[derive(Clone, Debug)]
-pub struct GenericParameter {
-    pub name:    Option<String>,
-    pub generic: Generic,
 }
 
 #[derive(Clone, Debug)]

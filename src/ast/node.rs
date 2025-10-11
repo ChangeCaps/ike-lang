@@ -59,6 +59,7 @@ pub enum Kind {
 
     /* items */
     FnItem,
+    ExternItem,
     AliasItem,
     TypeItem,
 }

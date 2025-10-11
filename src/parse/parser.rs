@@ -57,6 +57,11 @@ impl<'a> Parser<'a> {
         self.peek[i].1
     }
 
+    pub fn has_whitespace(&mut self) -> bool {
+        self.peek(0);
+        self.peek[0].0 == Token::Whitespace
+    }
+
     /// Peek the [`Token`] at `i`.
     pub fn peek(&mut self, mut i: usize) -> Token {
         let mut j = 0;

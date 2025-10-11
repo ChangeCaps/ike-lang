@@ -10,6 +10,7 @@ fn is_expr(parser: &mut Parser<'_>) -> bool {
     matches!(
         parser.peek(0),
         Token::Let
+            | Token::If
             | Token::Integer
             | Token::String
             | Token::True
@@ -159,7 +160,7 @@ fn parse_none_expr(parser: &mut Parser<'_>) {
 fn parse_path_expr(parser: &mut Parser<'_>) {
     parse_path(parser);
 
-    if is_expr(parser) {
+    if is_expr(parser) && (!parser.is(Token::LParen) || parser.has_whitespace()) {
         parser.open_before(ast::Kind::PromoteExpr);
         parse_expr(parser);
         parser.close();

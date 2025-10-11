@@ -13,11 +13,23 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let unit = lowerer.finish();
 
-    for diagnostic in emitter {
-        println!("{diagnostic:?}");
+    if !emitter.is_empty() {
+        for diagnostic in emitter {
+            println!("{diagnostic:?}");
+        }
+
+        return Ok(());
     }
 
-    //println!("{unit:#?}");
+    let test = unit
+        .find_module(ike::ir::ModuleId::ROOT, &["test", "main"])
+        .unwrap();
+
+    let main = unit[test].bodies["main"];
+
+    let mir = ike::build::build(&unit, main);
+
+    println!("{mir:#?}");
 
     Ok(())
 }

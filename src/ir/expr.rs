@@ -14,15 +14,16 @@ pub struct Expr {
 
 #[derive(Clone, Debug)]
 pub enum ExprKind {
-    Int(i64),
-    Float(f64),
+    Num(i64),
     Str(String),
     Bool(bool),
     None,
     Body(BodyId),
     Let(Pattern, Box<Expr>),
     Local(usize),
+    Union(Box<Expr>),
     Promote(NewtypeId, Box<Expr>),
+    Demote(NewtypeId, Box<Expr>),
     CallBody(BodyId, Vec<Type>, Vec<Expr>),
     Binary(BinOp, Box<Expr>, Box<Expr>),
     Record(Vec<ExprField>),

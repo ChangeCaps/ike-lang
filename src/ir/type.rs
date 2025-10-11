@@ -1,10 +1,9 @@
 use std::{
     collections::HashMap,
-    mem,
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use crate::ir::{AliasId, BodyId, GenericParameter, NewtypeId, Unit};
+use crate::ir::{AliasId, BodyId, NewtypeId, Unit};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Generic {
@@ -25,6 +24,14 @@ impl Generic {
             index: NEXT_INDEX.fetch_add(1, Ordering::SeqCst),
         }
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct GenericParameter {
+    pub name:             Option<String>,
+    pub generic:          Generic,
+    pub is_covariant:     bool,
+    pub is_contravariant: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -65,6 +72,10 @@ pub enum Type {
         newtype_id: NewtypeId,
         generics:   Vec<Type>,
     },
+
+    List(Box<Type>),
+
+    Fn(Vec<Type>, Box<Type>),
 
     /// An record type.
     Record(Vec<TypeField>),
@@ -118,6 +129,10 @@ impl Type {
 
             Type::Unknown => false,
 
+            Type::List(elem) => elem.is_known(),
+
+            Type::Fn(inputs, output) => inputs.iter().all(|t| t.is_known()) && output.is_known(),
+
             Type::Body { generics, .. }
             | Type::Alias { generics, .. }
             | Type::Newtype { generics, .. } => generics.iter().all(Type::is_known),
@@ -144,6 +159,16 @@ impl Type {
                 for generic in generics {
                     generic.instantiate(map);
                 }
+            }
+
+            Type::List(elem) => elem.instantiate(map),
+
+            Type::Fn(inputs, output) => {
+                for input in inputs {
+                    input.instantiate(map);
+                }
+
+                output.instantiate(map);
             }
 
             Type::Record(fields) => {
@@ -206,6 +231,21 @@ impl Unit {
                 match self[*newtype_id].name {
                     Some(ref name) => format!("{name}{generics}"),
                     None => format!("{{type}}{generics}"),
+                }
+            }
+
+            Type::List(elem) => format!("[{}]", self.format_type(elem)),
+
+            Type::Fn(inputs, output) => {
+                let inputs = inputs
+                    .iter()
+                    .map(|t| self.format_type(t))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                match output.as_ref() {
+                    Type::None => format!("fn({inputs})"),
+                    output => format!("fn({inputs}) -> {}", self.format_type(output)),
                 }
             }
 
@@ -292,11 +332,46 @@ impl Unit {
             (Type::Nat, Type::Num) => true,
             (Type::Int, Type::Num) => true,
 
-            (Type::Union(variants), sup) => variants.iter().all(|sub| self.is_subtype_of(sub, sup)),
+            (Type::Union(sub_variants), Type::Union(super_variants)) => {
+                let sub_variants = self.normalize_union(sub_variants);
+                let super_variants = self.normalize_union(super_variants);
 
-            (sub, Type::Union(variants)) => variants.iter().any(|sup| self.is_subtype_of(sub, sup)),
+                sub_variants.iter().all(|sub_type| {
+                    super_variants.iter().any(|super_type| {
+                        // check pair
+                        self.is_subtype_of(sub_type, super_type)
+                    })
+                }) && super_variants.iter().all(|super_type| {
+                    sub_variants.iter().any(|sub_type| {
+                        // check pair
+                        self.is_subtype_of(sub_type, super_type)
+                    })
+                })
+            }
+
+            (Type::List(sub_type), Type::List(super_type)) => {
+                self.is_subtype_of(sub_type, super_type)
+            }
+
+            (Type::Fn(sub_inputs, sub_output), Type::Fn(super_inputs, super_output)) => {
+                if sub_inputs.len() != super_inputs.len() {
+                    return false;
+                }
+
+                for (sub_input, super_input) in sub_inputs.iter().zip(super_inputs) {
+                    if !self.is_subtype_of(super_input, sub_input) {
+                        return false;
+                    }
+                }
+
+                self.is_subtype_of(sub_output, super_output)
+            }
 
             (Type::Record(sub_fields), Type::Record(super_fields)) => {
+                if sub_fields.len() != super_fields.len() {
+                    return false;
+                }
+
                 super_fields.iter().all(|super_field| {
                     sub_fields.iter().any(|sub_field| {
                         sub_field.name == super_field.name
@@ -331,17 +406,6 @@ impl Unit {
                 self.is_subtype_of(&sub_type, &super_type)
             }
 
-            (
-                Type::Newtype {
-                    newtype_id,
-                    generics,
-                },
-                super_type,
-            ) => {
-                let sub_type = self.instantiate_newtype(*newtype_id, generics);
-                self.is_subtype_of(&sub_type, super_type)
-            }
-
             (_, _) => false,
         }
     }
@@ -367,6 +431,16 @@ impl Unit {
                 }
             }
 
+            Type::List(elem) => self.normalize_type(elem),
+
+            Type::Fn(inputs, output) => {
+                for input in inputs {
+                    self.normalize_type(input);
+                }
+
+                self.normalize_type(output);
+            }
+
             Type::Record(fields) => {
                 for field in fields {
                     self.normalize_type(&mut field.ty);
@@ -378,7 +452,8 @@ impl Unit {
                 //  1. remove all variants that are a subtype of another variant
                 //  2. if only one variant is left, unwrap it
 
-                let mut stack = mem::take(variants);
+                let mut stack = self.normalize_union(variants);
+                variants.clear();
 
                 'outer: while let Some(mut curr) = stack.pop() {
                     self.normalize_type(&mut curr);
@@ -409,6 +484,27 @@ impl Unit {
                 }
             }
         }
+    }
+
+    fn normalize_union(&self, variants: &[Type]) -> Vec<Type> {
+        let mut stack = Vec::new();
+
+        for mut variant in variants.iter().cloned() {
+            while let Type::Alias { alias_id, generics } = variant {
+                variant = self.instantiate_alias(alias_id, &generics);
+            }
+
+            match variant {
+                Type::Union(variants) => {
+                    let variants = self.normalize_union(&variants);
+                    stack.extend(variants);
+                }
+
+                _ => stack.push(variant),
+            }
+        }
+
+        stack
     }
 }
 

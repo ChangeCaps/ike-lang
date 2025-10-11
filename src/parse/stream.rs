@@ -42,7 +42,7 @@ impl<'a> TokenStream<'a> {
     }
 
     fn whitespace(&mut self) -> bool {
-        self.advance_while(char::is_whitespace)
+        self.advance_while(|c| c.is_whitespace() && c != '\n')
     }
 
     fn two_character_symbol(&mut self) -> Option<Token> {
@@ -112,13 +112,16 @@ impl<'a> TokenStream<'a> {
         match &self.input[start..end] {
             "alias" => Token::Alias,
             "bool" => Token::Bool,
+            "extern" => Token::Extern,
             "false" => Token::False,
             "fn" => Token::Fn,
+            "if" => Token::If,
             "int" => Token::Int,
             "let" => Token::Let,
             "nat" => Token::Nat,
             "none" => Token::None,
             "num" => Token::Num,
+            "return" => Token::Return,
             "str" => Token::Str,
             "true" => Token::True,
             "type" => Token::Type,

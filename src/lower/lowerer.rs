@@ -119,8 +119,10 @@ impl<'a> Lowerer<'a> {
             };
 
             let param = GenericParameter {
-                name:    Some(name.into()),
-                generic: Generic::new(),
+                name:             Some(name.into()),
+                generic:          Generic::new(),
+                is_covariant:     true,
+                is_contravariant: false,
             };
 
             generics.push(param);
@@ -169,8 +171,10 @@ impl<'a> Lowerer<'a> {
             };
 
             let param = GenericParameter {
-                name:    Some(name.into()),
-                generic: Generic::new(),
+                name:             Some(name.into()),
+                generic:          Generic::new(),
+                is_covariant:     true,
+                is_contravariant: false,
             };
 
             generics.push(param);
@@ -278,8 +282,10 @@ impl<'a> Lowerer<'a> {
             };
 
             let param = GenericParameter {
-                name:    Some(name.into()),
-                generic: Generic::new(),
+                name:             Some(name.into()),
+                generic:          Generic::new(),
+                is_covariant:     true,
+                is_contravariant: false,
             };
 
             lowerer.body_mut().generics.push(param);

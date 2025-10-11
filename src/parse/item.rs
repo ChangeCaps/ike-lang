@@ -11,6 +11,7 @@ pub fn parse_item(parser: &mut Parser<'_>) {
         Token::Alias => parse_alias_item(parser),
         Token::Type => parse_type_item(parser),
         Token::Fn => parse_fn_item(parser),
+        Token::Extern => parse_extern_item(parser),
 
         token => {
             let diagnostic = Diagnostic::error(format!("expected item found `{token}`"))
@@ -54,6 +55,27 @@ fn parse_type_item(parser: &mut Parser<'_>) {
 fn parse_fn_item(parser: &mut Parser<'_>) {
     parser.open(ast::Kind::FnItem);
 
+    parser.expect(Token::Fn);
+    parser.expect(Token::Ident);
+
+    parse_generic_parameters(parser);
+
+    parse_parameters(parser);
+
+    if parser.is(Token::Arrow) {
+        parser.expect(Token::Arrow);
+        parse_type(parser);
+    }
+
+    parse_block_expr(parser);
+
+    parser.close();
+}
+
+fn parse_extern_item(parser: &mut Parser<'_>) {
+    parser.open(ast::Kind::ExternItem);
+
+    parser.expect(Token::Extern);
     parser.expect(Token::Fn);
     parser.expect(Token::Ident);
 

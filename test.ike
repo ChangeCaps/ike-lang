@@ -3,11 +3,9 @@ type foo<'a> = {
   bar: bool
 }
 
-alias bar = foo<num> | foo<bool>
-
-fn main() -> foo<num | bool> { 
-  let x: bar = foo {
-    foo: true
+fn main() -> foo<num> { 
+  let x = foo {
+    foo: 0
     bar: true
   }
 

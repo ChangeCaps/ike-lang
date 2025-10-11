@@ -119,8 +119,86 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
         output
     }
 
+    pub fn coerce_expr(&mut self, expr: Expr, from: &Type, to: &Type) -> Expr {
+        if self.unit.is_subtype_of(from, to) {
+            return expr;
+        }
+
+        let mut from = from.clone();
+        let mut to = to.clone();
+
+        self.unit.normalize_type(&mut from);
+        self.unit.normalize_type(&mut to);
+
+        match (&from, &to) {
+            (Type::Union(from_variants), Type::Union(to_variants))
+                if from_variants.iter().all(|from| {
+                    to_variants
+                        .iter()
+                        .any(|to| self.unit.is_subtype_of(from, to))
+                }) =>
+            {
+                let span = expr.span;
+                let kind = ExprKind::Union(Box::new(expr));
+                let ty = to.clone();
+
+                Expr { kind, ty, span }
+            }
+
+            (from, Type::Union(variants))
+                if variants.iter().any(|to| self.unit.is_subtype_of(from, to)) =>
+            {
+                let span = expr.span;
+                let kind = ExprKind::Union(Box::new(expr));
+                let ty = to.clone();
+
+                Expr { kind, ty, span }
+            }
+
+            (Type::Alias { alias_id, generics }, to) => {
+                let from = self.unit.instantiate_alias(*alias_id, generics);
+                self.coerce_expr(expr, &from, to)
+            }
+
+            (from, Type::Alias { alias_id, generics }) => {
+                let to = self.unit.instantiate_alias(*alias_id, generics);
+                self.coerce_expr(expr, from, &to)
+            }
+
+            (
+                Type::Newtype {
+                    newtype_id,
+                    generics,
+                },
+                to,
+            ) => {
+                let from = self.unit.instantiate_newtype(*newtype_id, generics);
+
+                let span = expr.span;
+                let kind = ExprKind::Demote(*newtype_id, Box::new(expr));
+                let ty = from.clone();
+
+                let expr = Expr { kind, ty, span };
+                self.coerce_expr(expr, &from, to)
+            }
+
+            (from, to) => {
+                let diagnostic = Diagnostic::error(format!(
+                    "type `{from}` not assignable to `{to}`",
+                    from = self.unit.format_type(from),
+                    to = self.unit.format_type(to),
+                ))
+                .label(expr.span, "here");
+
+                self.error(diagnostic);
+
+                Expr::error(expr.span)
+            }
+        }
+    }
+
     pub fn lower_expr(&mut self, ast: &ast::Node, ty: &Type) -> Expr {
-        let mut expr = match ast.kind {
+        let expr = match ast.kind {
             ast::Kind::IntExpr => self.lower_int_expr(ast, ty),
             ast::Kind::TrueExpr => self.lower_true_expr(ast, ty),
             ast::Kind::FalseExpr => self.lower_false_expr(ast, ty),
@@ -138,38 +216,15 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
             _ => unreachable!("{:?}", ast.kind),
         };
 
-        // we ensure that the actual type is a subtype of the expected type
-        // if this is not the case, we set the type to `Type::Error` to prevent
-        // duplicate diagnostics
-        if !self.check_type(&expr.ty, ty, expr.span) {
-            expr.ty = Type::Error;
-        }
-
-        expr
-    }
-
-    pub fn check_type(&mut self, sub_type: &Type, super_type: &Type, span: Span) -> bool {
-        if !self.unit.is_subtype_of(sub_type, super_type) {
-            let diagnostic = Diagnostic::error(format!(
-                "expected type `{super_type}` but found `{sub_type}`",
-                sub_type = self.unit.format_type(sub_type),
-                super_type = self.unit.format_type(super_type),
-            ))
-            .label(span, "here");
-
-            self.error(diagnostic);
-
-            return false;
-        }
-
-        true
+        let from = expr.ty.clone();
+        self.coerce_expr(expr, &from, ty)
     }
 
     fn lower_int_expr(&mut self, ast: &ast::Node, _ty: &Type) -> Expr {
         let value = ast.string(0).unwrap();
         let value = value.parse::<i64>().unwrap();
 
-        let kind = ExprKind::Int(value);
+        let kind = ExprKind::Num(value);
 
         let ty = match value >= 0 {
             true => Type::Nat,
@@ -413,8 +468,11 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
             }
 
             ty => {
-                let diagnostic = Diagnostic::error(format!("type `{ty:?}` is not callable"))
-                    .label(ast.span, "in expression found here");
+                let diagnostic = Diagnostic::error(format!(
+                    "type `{ty}` is not callable",
+                    ty = self.unit.format_type(&ty),
+                ))
+                .label(ast.span, "in expression found here");
 
                 self.error(diagnostic);
 
@@ -431,7 +489,12 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
         map: &mut HashMap<Generic, Type>,
         is_input: bool,
     ) {
-        match (sub_type, super_type) {
+        let mut sub_type = sub_type.clone();
+        let mut super_type = super_type.clone();
+        self.unit.normalize_type(&mut sub_type);
+        self.unit.normalize_type(&mut super_type);
+
+        match (&sub_type, &super_type) {
             (sub_type, Type::Generic(generic)) if is_input => {
                 if map.get(generic).is_none_or(|t| !t.is_known()) {
                     map.insert(*generic, sub_type.clone());
@@ -439,7 +502,9 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
             }
 
             (Type::Generic(generic), super_type) if !is_input => {
-                if !map.contains_key(generic) {
+                if let Some(sub_type) = map.get_mut(generic) {
+                    *sub_type = Type::Unknown;
+                } else {
                     map.insert(*generic, super_type.clone());
                 }
             }
@@ -472,6 +537,22 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
                 for super_type in super_variants {
                     self.unify_types(sub_variants, super_type, map, is_input);
                 }
+            }
+
+            (Type::List(sub_type), Type::List(super_type)) => {
+                self.unify_types(sub_type, super_type, map, is_input)
+            }
+
+            (Type::Fn(sub_inputs, sub_output), Type::Fn(super_inputs, super_output)) => {
+                if sub_inputs.len() != super_inputs.len() {
+                    return;
+                }
+
+                for (sub_input, super_input) in sub_inputs.iter().zip(super_inputs) {
+                    self.unify_types(super_input, sub_input, map, !is_input);
+                }
+
+                self.unify_types(sub_output, super_output, map, is_input);
             }
 
             (Type::Record(sub_fields), Type::Record(super_fields)) => {
@@ -606,9 +687,9 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
 
         if let Error = ty {
             let diagnostic = Diagnostic::error(format!(
-                "operator `{op}` is not implemented for `{lhs:?}` and `{rhs:?}`",
-                lhs = lhs.ty,
-                rhs = rhs.ty,
+                "operator `{op}` is not implemented for `{lhs}` and `{rhs}`",
+                lhs = self.unit.format_type(&lhs.ty),
+                rhs = self.unit.format_type(&rhs.ty),
             ))
             .label(ast.span, "in expression here");
 
