@@ -90,6 +90,7 @@ impl Builder<'_> {
         }
 
         let mir_body = mir::Body {
+            name: ir_body.name.clone(),
             arguments: body_builder.arguments,
             locals: body_builder.locals,
             blocks,

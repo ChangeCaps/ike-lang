@@ -20,7 +20,7 @@ pub fn parse_pattern(parser: &mut Parser<'_>) {
 }
 
 fn parse_binding_pattern(parser: &mut Parser<'_>) {
-    parser.open(ast::Kind::BindingPattern);
+    parser.open(ast::Kind::PathPattern);
     parser.expect(Token::Ident);
     parser.close();
 }

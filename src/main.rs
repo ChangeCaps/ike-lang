@@ -27,9 +27,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let main = unit[test].bodies["main"];
 
-    let mir = ike::build::build(&unit, main);
+    let (mir, _) = ike::build::build(&unit, main);
 
-    println!("{mir:#?}");
+    mir.dump_stdout()?;
 
     Ok(())
 }

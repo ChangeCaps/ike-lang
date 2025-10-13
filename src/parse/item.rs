@@ -163,7 +163,7 @@ mod tests {
                 ast::Kind::Params {
                     Token::LParen,
                     ast::Kind::Param {
-                        ast::Kind::BindingPattern {
+                        ast::Kind::PathPattern {
                             Token::Ident,
                         },
                         Token::Colon,
@@ -173,7 +173,7 @@ mod tests {
                     },
                     Token::Comma,
                     ast::Kind::Param {
-                        ast::Kind::BindingPattern {
+                        ast::Kind::PathPattern {
                             Token::Ident,
                         },
                         Token::Colon,

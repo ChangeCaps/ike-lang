@@ -1,6 +1,9 @@
-use std::ops::Index;
+use std::{
+    io::{self, Write},
+    ops::Index,
+};
 
-use crate::mir::{Body, Type};
+use crate::mir::{Body, Formatter, Type};
 
 #[derive(Clone, Debug, Default)]
 pub struct Unit {
@@ -31,6 +34,16 @@ impl Unit {
 
     pub fn insert_type(&mut self, type_id: TypeId, ty: Type) {
         self.types[type_id.index] = Some(ty);
+    }
+
+    pub fn bodies(&self) -> impl Iterator<Item = &Body> {
+        self.bodies.iter().flatten()
+    }
+
+    pub fn dump_stdout(&self) -> io::Result<()> {
+        let mut stdout = io::stdout();
+        Formatter::new(&mut stdout).format_unit(self)?;
+        stdout.flush()
     }
 }
 

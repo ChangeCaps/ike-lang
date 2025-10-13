@@ -4,6 +4,7 @@ use crate::mir::{Statement, Terminator, Type};
 
 #[derive(Clone, Debug)]
 pub struct Body {
+    pub name:      Option<String>,
     pub arguments: Vec<Type>,
     pub locals:    Vec<Type>,
     pub blocks:    Vec<Block>,

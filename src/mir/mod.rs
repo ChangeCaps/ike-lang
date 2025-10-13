@@ -1,4 +1,5 @@
 mod body;
+mod format;
 mod operand;
 mod place;
 mod statement;
@@ -8,6 +9,7 @@ mod unit;
 mod value;
 
 pub use body::*;
+pub use format::*;
 pub use operand::*;
 pub use place::*;
 pub use statement::*;

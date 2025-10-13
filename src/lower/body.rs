@@ -79,7 +79,7 @@ impl<'a, 'b> BodyLowerer<'a, 'b> {
 
     pub fn lower_pattern(&mut self, ast: &ast::Node, ty: &Type) -> Pattern {
         match ast.kind {
-            ast::Kind::BindingPattern => {
+            ast::Kind::PathPattern => {
                 let name = ast.string(0).unwrap();
 
                 let local = Local {

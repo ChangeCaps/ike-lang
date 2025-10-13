@@ -24,7 +24,7 @@ pub enum Kind {
 
     /* patterns */
     WildcardPattern,
-    BindingPattern,
+    PathPattern,
 
     /* expressions */
     IntExpr,
